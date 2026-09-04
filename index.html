@@ -274,7 +274,7 @@
 
   /* ---------- Heatmap ---------- */
   .heatmap-scroll { overflow-x: auto; }
-  table.heatmap { border-collapse: separate; border-spacing: 0; }
+  table.heatmap { min-width: 720px; border-collapse: separate; border-spacing: 0; }
   table.heatmap th, table.heatmap td { text-align: center; padding: 8px 6px; font-size: 12.5px; }
   table.heatmap th.rowh, table.heatmap td.rowh { text-align: left; font-weight: 600; font-size: 13px; padding-left: 4px; }
   .heat-cell { font-weight: 600; border-radius: 3px; }
@@ -401,7 +401,9 @@
     .card-list-meta { font-size: 12px; }
     .tx-scroll { max-height: 420px; }
     .fv-bar-col { display: none; }
+    table.heatmap { min-width: 460px; }
     table.heatmap th, table.heatmap td { padding: 4px 3px; font-size: 11px; }
+    .heat-cell { min-width: 22px !important; padding: 3px 4px !important; }
     .top-date-full { display: none; }
     .top-date-short { display: inline; }
     .top-cat-col { display: none; }
@@ -6885,19 +6887,6 @@ function showTxMonth(m) {
 (function() {
   const h = DATA.heatmap;
   const table = document.getElementById('heatmapTable');
-  const n = h.months.length;
-
-  let rowhW, dataW;
-  if (window.innerWidth <= 480) { rowhW = 82; dataW = 42; }
-  else if (window.innerWidth <= 720) { rowhW = 92; dataW = 66; }
-  else { rowhW = 100; dataW = 70; }
-
-  table.style.tableLayout = 'fixed';
-  table.style.width = (rowhW + dataW * n) + 'px';
-
-  let colgroup = `<colgroup><col style="width:${rowhW}px;">` +
-    h.months.map(() => `<col style="width:${dataW}px;">`).join('') + '</colgroup>';
-
   let thead = '<thead><tr><th class="rowh">대분류</th>' + h.months.map(m => `<th>${m}</th>`).join('') + '</tr></thead>';
   let bodyRows = '';
   h.categories.forEach((cat, i) => {
@@ -6909,11 +6898,11 @@ function showTxMonth(m) {
       const bg = t === 0 ? 'transparent' : `rgba(168,23,42,${(0.12 + t*0.75).toFixed(2)})`;
       const color = t > 0.55 ? '#fff' : '#241A17';
       const label = v >= 10000 ? Math.round(v/10000) + '만' : (v>0 ? Math.round(v/1000)+'천' : '–');
-      bodyRows += `<td><span class="heat-cell" style="background:${bg};color:${color};display:inline-block;padding:5px 4px;width:100%;box-sizing:border-box;text-align:center;">${label}</span></td>`;
+      bodyRows += `<td><span class="heat-cell" style="background:${bg};color:${color};display:inline-block;padding:5px 6px;min-width:38px;">${label}</span></td>`;
     });
     bodyRows += '</tr>';
   });
-  table.innerHTML = colgroup + thead + '<tbody>' + bodyRows + '</tbody>';
+  table.innerHTML = thead + '<tbody>' + bodyRows + '</tbody>';
 })();
 </script>
 </body>
