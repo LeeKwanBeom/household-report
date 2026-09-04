@@ -147,6 +147,29 @@
     padding: 24px;
     box-shadow: var(--shadow);
   }
+  .total-balance-card {
+    text-align: center;
+    padding: 28px 24px;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, var(--red-deep), var(--red));
+  }
+  .total-balance-label { color: rgba(255,255,255,0.75); font-size: 13px; margin-bottom: 8px; }
+  .total-balance-value {
+    color: #fff;
+    font-family: 'Noto Serif KR', serif;
+    font-weight: 700;
+    font-size: clamp(22px, 7vw, 34px);
+    word-break: keep-all;
+  }
+  .card-perf-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .card-perf-title { font-family: 'Noto Serif KR', serif; font-weight: 700; font-size: 16px; }
+  .card-perf-amount { font-size: 22px; font-weight: 700; font-family: 'Noto Serif KR', serif; margin-bottom: 4px; word-break: break-word; }
+  .card-perf-target { font-size: 14px; font-weight: 400; }
+  .card-perf-blurb { font-size: 12.5px; line-height: 1.5; }
+  .card-mini-pct { font-size: 12.5px; }
+  .card-list-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .card-list-title { font-family: 'Noto Serif KR', serif; font-weight: 700; font-size: 15px; margin-bottom: 10px; }
+  .card-list-meta { font-size: 13px; }
   .chart-box { position: relative; height: 280px; }
   .chart-box.tall { height: 420px; }
   .svg-chart { width: 100%; height: 100%; }
@@ -331,6 +354,7 @@
     .chart-box.tall { height: 260px; }
     .sub-table td { font-size: 12.5px; }
     .tx-panel table { font-size: 12.5px; }
+    .tx-scroll { max-height: 480px; }
   }
 
   @media (max-width: 480px) {
@@ -347,6 +371,13 @@
     .cat-rank-col, .cat-count-col { display: none; }
     .card-cat-main { display: none; }
     .card-tx-amt { white-space: nowrap; font-size: 13px; }
+    .total-balance-card { padding: 20px 16px; }
+    .card-perf-title { font-size: 14px; }
+    .card-perf-amount { font-size: 17px; }
+    .card-perf-target { font-size: 12px; }
+    .card-list-title { font-size: 13.5px; }
+    .card-list-meta { font-size: 12px; }
+    .tx-scroll { max-height: 420px; }
   }
 </style>
 </head>
@@ -391,9 +422,9 @@
       <h2>계좌 잔고</h2>
       <span class="note">9월 3일 기준 · 생활비 / 신한은행 / 청년미래적금 / 대여금 4개 항목</span>
     </div>
-    <div class="card" style="text-align:center; padding:28px 24px; margin-bottom:16px; background:linear-gradient(135deg, var(--red-deep), var(--red));">
-      <div style="color:rgba(255,255,255,0.75); font-size:13px; margin-bottom:8px;">총 잔고 (4개 항목 합계)</div>
-      <div style="color:#fff; font-family:'Noto Serif KR',serif; font-weight:700; font-size:34px;">10,516,208원</div>
+    <div class="total-balance-card">
+      <div class="total-balance-label">총 잔고 (4개 항목 합계)</div>
+      <div class="total-balance-value">10,516,208원</div>
     </div>
     <div class="kpi-grid" style="grid-template-columns: repeat(4,1fr);">
       
@@ -425,22 +456,22 @@
     <div class="kpi-grid" style="grid-template-columns: repeat(2,1fr);">
       
         <div class="card">
-          <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
-            <div style="font-family:'Noto Serif KR',serif; font-weight:700; font-size:16px;">현대카드</div>
-            <span class="muted" style="font-size:12.5px;">39.1%</span>
+          <div class="card-perf-head">
+            <div class="card-perf-title">현대카드</div>
+            <span class="muted card-mini-pct">39.1%</span>
           </div>
-          <div style="font-size:22px; font-weight:700; font-family:'Noto Serif KR',serif; margin-bottom:4px;">156,340원 <span class="muted" style="font-size:14px; font-weight:400;">/ 400,000원</span></div>
+          <div class="card-perf-amount">156,340원 <span class="muted card-perf-target">/ 400,000원</span></div>
           <div class="bar-track" style="height:10px; margin:10px 0 12px;"><div class="bar-fill" style="width:39.1%; background:var(--red);"></div></div>
-          <div class="muted" style="font-size:12.5px; line-height:1.5;">네이버 현대카드 Edition3 · 전월실적 40만원 이상이면 네이버플러스 적립 5%(더블적립 이벤트 중엔 최대 15%)가 열려요.</div>
+          <div class="muted card-perf-blurb">네이버 현대카드 Edition3 · 전월실적 40만원 이상이면 네이버플러스 적립 5%(더블적립 이벤트 중엔 최대 15%)가 열려요.</div>
         </div>
         <div class="card">
-          <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
-            <div style="font-family:'Noto Serif KR',serif; font-weight:700; font-size:16px;">신한카드</div>
-            <span class="muted" style="font-size:12.5px;">5.0%</span>
+          <div class="card-perf-head">
+            <div class="card-perf-title">신한카드</div>
+            <span class="muted card-mini-pct">5.0%</span>
           </div>
-          <div style="font-size:22px; font-weight:700; font-family:'Noto Serif KR',serif; margin-bottom:4px;">50,000원 <span class="muted" style="font-size:14px; font-weight:400;">/ 1,000,000원</span></div>
+          <div class="card-perf-amount">50,000원 <span class="muted card-perf-target">/ 1,000,000원</span></div>
           <div class="bar-track" style="height:10px; margin:10px 0 12px;"><div class="bar-fill" style="width:5.0%; background:var(--red);"></div></div>
-          <div class="muted" style="font-size:12.5px; line-height:1.5;">신한카드 Mr.Life · 전월실적 100만원 이상 구간이면 월납/주말/Time 할인 한도가 각각 최대치(1만원·1만원·3만원)로 올라가요.</div>
+          <div class="muted card-perf-blurb">신한카드 Mr.Life · 전월실적 100만원 이상 구간이면 월납/주말/Time 할인 한도가 각각 최대치(1만원·1만원·3만원)로 올라가요.</div>
         </div>
     </div>
   </section>
@@ -454,9 +485,9 @@
     <div class="kpi-grid card-list-grid" style="grid-template-columns: repeat(2,1fr);">
       
         <div class="card">
-          <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
-            <div style="font-family:'Noto Serif KR',serif; font-weight:700; font-size:15px;">현대카드</div>
-            <div class="muted" style="font-size:13px;">3건 · 156,340원</div>
+          <div class="card-list-head">
+            <div class="card-list-title">현대카드</div>
+            <div class="muted card-list-meta">3건 · 156,340원</div>
           </div>
           <table><tbody>
           <tr>
@@ -479,9 +510,9 @@
           </tr></tbody></table>
         </div>
         <div class="card">
-          <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
-            <div style="font-family:'Noto Serif KR',serif; font-weight:700; font-size:15px;">신한카드</div>
-            <div class="muted" style="font-size:13px;">1건 · 50,000원</div>
+          <div class="card-list-head">
+            <div class="card-list-title">신한카드</div>
+            <div class="muted card-list-meta">1건 · 50,000원</div>
           </div>
           <table><tbody>
           <tr>
