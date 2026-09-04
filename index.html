@@ -5,6 +5,11 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#A8172A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="가계부">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>이관범 가계부 분석 · 2026 1–9월</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11164,6 +11169,12 @@ function showTxMonth(m) {
   });
   table.innerHTML = thead + '<tbody>' + bodyRows + '</tbody>';
 })();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
