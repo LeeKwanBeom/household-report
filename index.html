@@ -350,10 +350,28 @@
   .tx-tab.active { background: var(--red); border-color: var(--red); color: #fff; }
   .tx-panel { display: none; }
   .tx-panel.active { display: block; }
-  .tx-panel-head { font-size: 13px; color: var(--ink-muted); margin-bottom: 10px; }
-  .tx-head-short { display: none; }
-  .tx-head-net { display: none; }
-  .tx-head-row2 { display: none; }
+  .tx-panel-head {
+    font-size: 13px;
+    color: var(--ink-muted);
+    margin-bottom: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--card);
+    padding: 8px 4px;
+  }
+  .tx-head-full { display: none; }
+  .tx-head-short { display: inline; }
+  .tx-head-net { display: inline; font-weight: 700; }
+  .tx-head-net.tx-income { color: var(--green); }
+  .tx-head-net.tx-expense { color: var(--red); }
+  .tx-head-row1 {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .tx-head-row2 { display: block; font-size: 11.5px; margin-top: 2px; }
   .tx-panel table { font-size: 13px; }
   .tx-panel td, .tx-panel th { padding: 7px 8px; }
   td.tx-income { color: var(--green); font-weight: 600; }
@@ -433,26 +451,6 @@
     }
     .tx-table-view { display: none; }
     .tx-card-view { display: block; }
-    .tx-head-full { display: none; }
-    .tx-head-short { display: inline; }
-    .tx-head-net { display: inline; font-weight: 700; }
-    .tx-head-net.tx-income { color: var(--green); }
-    .tx-head-net.tx-expense { color: var(--red); }
-    .tx-head-row2 { display: block; font-size: 11.5px; margin-top: 2px; }
-    .tx-panel-head {
-      position: sticky;
-      top: 0;
-      z-index: 3;
-      background: var(--card);
-      padding: 8px 4px;
-      margin-bottom: 0;
-    }
-    .tx-head-row1 {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 8px;
-    }
   }
 </style>
 </head>
