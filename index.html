@@ -407,6 +407,13 @@
     .top-date-full { display: none; }
     .top-date-short { display: inline; }
     .top-cat-col { display: none; }
+    table.heatmap th.rowh, table.heatmap td.rowh {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      background: var(--card);
+      box-shadow: 2px 0 4px rgba(36,26,23,0.08);
+    }
   }
 </style>
 </head>
