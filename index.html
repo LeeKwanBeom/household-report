@@ -407,6 +407,7 @@
     .top-date-full { display: none; }
     .top-date-short { display: inline; }
     .top-cat-col { display: none; }
+    .top-status-col { display: none; }
     table.heatmap th.rowh, table.heatmap td.rowh {
       position: sticky;
       left: 0;
@@ -1327,14 +1328,14 @@
     <p class="lede">개인회생 상환·가족 용돈(1~4월 종료)과 커플통장(매달 꾸준히 나가는 정기 이체)은 성격상 순위를 독점하는 반복성 큰 금액이라 제외했어요. 대신 실제 낱개 소비 지출 위주로 다시 뽑았어요.</p>
     <div class="card" style="overflow-x:auto;">
       <table>
-        <thead><tr><th></th><th>날짜</th><th class="top-cat-col">카테고리</th><th>세부내용</th><th>구분</th><th style="text-align:right;">금액</th></tr></thead>
+        <thead><tr><th></th><th>날짜</th><th class="top-cat-col">카테고리</th><th>세부내용</th><th class="top-status-col">구분</th><th style="text-align:right;">금액</th></tr></thead>
         <tbody>
         <tr>
           <td class="rank">01</td>
           <td class="num muted"><span class="top-date-full">2026-08-12</span><span class="top-date-short">08-12</span></td>
           <td class="name top-cat-col">쇼핑비 <span class="muted">/ 전자제품</span></td>
           <td>스타일러 3벌</td>
-          <td><span class="tag var">변동</span></td>
+          <td class="top-status-col"><span class="tag var">변동</span></td>
           <td class="num strong">1,130,500원</td>
         </tr>
         <tr>
@@ -1342,7 +1343,7 @@
           <td class="num muted"><span class="top-date-full">2026-08-06</span><span class="top-date-short">08-06</span></td>
           <td class="name top-cat-col">뷰티 <span class="muted">/ 피부관리비</span></td>
           <td>노원 닥터에버스 110만원</td>
-          <td><span class="tag var">변동</span></td>
+          <td class="top-status-col"><span class="tag var">변동</span></td>
           <td class="num strong">995,500원</td>
         </tr>
         <tr>
@@ -1350,7 +1351,7 @@
           <td class="num muted"><span class="top-date-full">2026-07-23</span><span class="top-date-short">07-23</span></td>
           <td class="name top-cat-col">의료비 <span class="muted">/ 병원비</span></td>
           <td>가다실</td>
-          <td><span class="tag var">변동</span></td>
+          <td class="top-status-col"><span class="tag var">변동</span></td>
           <td class="num strong">480,000원</td>
         </tr>
         <tr>
@@ -1358,7 +1359,7 @@
           <td class="num muted"><span class="top-date-full">2026-08-28</span><span class="top-date-short">08-28</span></td>
           <td class="name top-cat-col">쇼핑비 <span class="muted">/ 전자제품</span></td>
           <td>갤럭시 워치9</td>
-          <td><span class="tag var">변동</span></td>
+          <td class="top-status-col"><span class="tag var">변동</span></td>
           <td class="num strong">469,000원</td>
         </tr>
         <tr>
@@ -1366,7 +1367,7 @@
           <td class="num muted"><span class="top-date-full">2026-03-19</span><span class="top-date-short">03-19</span></td>
           <td class="name top-cat-col">쇼핑비 <span class="muted">/ 의류</span></td>
           <td>오프로드 옷 5벌</td>
-          <td><span class="tag var">변동</span></td>
+          <td class="top-status-col"><span class="tag var">변동</span></td>
           <td class="num strong">462,000원</td>
         </tr>
         <tr>
@@ -1374,7 +1375,7 @@
           <td class="num muted"><span class="top-date-full">2026-04-10</span><span class="top-date-short">04-10</span></td>
           <td class="name top-cat-col">쇼핑비 <span class="muted">/ 전자제품</span></td>
           <td>갤럭시 버즈4 프로</td>
-          <td><span class="tag var">변동</span></td>
+          <td class="top-status-col"><span class="tag var">변동</span></td>
           <td class="num strong">339,000원</td>
         </tr>
         <tr>
@@ -1382,7 +1383,7 @@
           <td class="num muted"><span class="top-date-full">2026-03-14</span><span class="top-date-short">03-14</span></td>
           <td class="name top-cat-col">내여자 <span class="muted">/ 선물</span></td>
           <td>부산 차오란</td>
-          <td><span class="tag var">변동</span></td>
+          <td class="top-status-col"><span class="tag var">변동</span></td>
           <td class="num strong">326,000원</td>
         </tr>
         <tr>
@@ -1390,7 +1391,7 @@
           <td class="num muted"><span class="top-date-full">2026-01-05</span><span class="top-date-short">01-05</span></td>
           <td class="name top-cat-col">몸 만들기 <span class="muted">/ 센터이용권</span></td>
           <td>헬스장 6개월</td>
-          <td><span class="tag var">변동</span></td>
+          <td class="top-status-col"><span class="tag var">변동</span></td>
           <td class="num strong">230,000원</td>
         </tr>
         <tr>
@@ -1398,7 +1399,7 @@
           <td class="num muted"><span class="top-date-full">2026-06-09</span><span class="top-date-short">06-09</span></td>
           <td class="name top-cat-col">뷰티 <span class="muted">/ 복용약</span></td>
           <td>이소티논</td>
-          <td><span class="tag fixed">고정</span></td>
+          <td class="top-status-col"><span class="tag fixed">고정</span></td>
           <td class="num strong">225,000원</td>
         </tr>
         <tr>
@@ -1406,7 +1407,7 @@
           <td class="num muted"><span class="top-date-full">2026-07-03</span><span class="top-date-short">07-03</span></td>
           <td class="name top-cat-col">뷰티 <span class="muted">/ 피부관리비</span></td>
           <td>눈썹문신</td>
-          <td><span class="tag var">변동</span></td>
+          <td class="top-status-col"><span class="tag var">변동</span></td>
           <td class="num strong">220,000원</td>
         </tr>
         <tr>
@@ -1414,7 +1415,7 @@
           <td class="num muted"><span class="top-date-full">2026-01-16</span><span class="top-date-short">01-16</span></td>
           <td class="name top-cat-col">쇼핑비 <span class="muted">/ 의류</span></td>
           <td>오프로드 아우터</td>
-          <td><span class="tag var">변동</span></td>
+          <td class="top-status-col"><span class="tag var">변동</span></td>
           <td class="num strong">180,000원</td>
         </tr>
         <tr>
@@ -1422,7 +1423,7 @@
           <td class="num muted"><span class="top-date-full">2026-02-25</span><span class="top-date-short">02-25</span></td>
           <td class="name top-cat-col">쇼핑비 <span class="muted">/ 가방</span></td>
           <td>캉골 가방</td>
-          <td><span class="tag var">변동</span></td>
+          <td class="top-status-col"><span class="tag var">변동</span></td>
           <td class="num strong">136,040원</td>
         </tr>
         <tr>
@@ -1430,7 +1431,7 @@
           <td class="num muted"><span class="top-date-full">2026-08-04</span><span class="top-date-short">08-04</span></td>
           <td class="name top-cat-col">쇼핑비 <span class="muted">/ 의류</span></td>
           <td>브레스 반바지, 반팔</td>
-          <td><span class="tag var">변동</span></td>
+          <td class="top-status-col"><span class="tag var">변동</span></td>
           <td class="num strong">134,200원</td>
         </tr>
         <tr>
@@ -1438,7 +1439,7 @@
           <td class="num muted"><span class="top-date-full">2026-08-01</span><span class="top-date-short">08-01</span></td>
           <td class="name top-cat-col">문화생활비 <span class="muted">/ 어플/멤버쉽</span></td>
           <td>Express VPN 2년 + 4개월</td>
-          <td><span class="tag var">변동</span></td>
+          <td class="top-status-col"><span class="tag var">변동</span></td>
           <td class="num strong">133,742원</td>
         </tr>
         <tr>
@@ -1446,7 +1447,7 @@
           <td class="num muted"><span class="top-date-full">2026-06-11</span><span class="top-date-short">06-11</span></td>
           <td class="name top-cat-col">주거생활비 <span class="muted">/ 통신비</span></td>
           <td>휴대폰 요금</td>
-          <td><span class="tag fixed">고정</span></td>
+          <td class="top-status-col"><span class="tag fixed">고정</span></td>
           <td class="num strong">129,280원</td>
         </tr></tbody>
       </table>
