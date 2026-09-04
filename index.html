@@ -410,6 +410,24 @@
     .tx-panel table { font-size: 12.5px; }
     .tx-scroll { max-height: 480px; }
     .cd-row { grid-template-columns: 14px 24px 1fr 95px 95px 50px; gap: 6px; }
+    table.heatmap { min-width: 560px; }
+    table.heatmap th, table.heatmap td { padding: 6px 4px; font-size: 12px; }
+    table.heatmap th.rowh, table.heatmap td.rowh {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      background: var(--card);
+    }
+    .kpi-card .value { font-size: 20px; }
+    .kpi-card .label { font-size: 12px; }
+    .card-perf-title { font-size: 15px; }
+    .card-perf-amount { font-size: 19px; }
+    .card-perf-target { font-size: 13px; }
+    .card-list-title { font-size: 14px; }
+    .card-list-meta { font-size: 12.5px; }
+    .top-cat-col { display: none; }
+    .top-status-col { display: none; }
+    .top-rank-col { display: none; }
   }
 
   @media (max-width: 480px) {
