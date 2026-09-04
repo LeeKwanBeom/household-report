@@ -51,6 +51,7 @@
     padding-bottom: 28px;
     border-bottom: 2px solid var(--ink);
     margin-bottom: 8px;
+    position: relative;
   }
   .masthead .titles .kicker {
     font-size: 13px;
@@ -328,7 +329,14 @@
   @media (max-width: 720px) {
     .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
     .masthead { flex-direction: column; }
-    .seal { align-self: flex-end; }
+    .seal {
+      position: absolute;
+      top: 0; right: 0;
+      align-self: unset;
+      width: 60px; height: 60px;
+      font-size: 12px;
+    }
+    .masthead .titles { padding-right: 76px; }
     table { font-size: 12.5px; }
     .income-row { grid-template-columns: 78px 1fr; }
     .income-val { grid-column: 1 / -1; text-align: left; }
