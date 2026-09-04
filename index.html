@@ -353,6 +353,7 @@
   .tx-panel-head { font-size: 13px; color: var(--ink-muted); margin-bottom: 10px; }
   .tx-head-short { display: none; }
   .tx-head-net { display: none; }
+  .tx-head-row2 { display: none; }
   .tx-panel table { font-size: 13px; }
   .tx-panel td, .tx-panel th { padding: 7px 8px; }
   td.tx-income { color: var(--green); font-weight: 600; }
@@ -437,6 +438,7 @@
     .tx-head-net { display: inline; font-weight: 700; }
     .tx-head-net.tx-income { color: var(--green); }
     .tx-head-net.tx-expense { color: var(--red); }
+    .tx-head-row2 { display: block; font-size: 11.5px; margin-top: 2px; }
     .tx-panel-head {
       position: sticky;
       top: 0;
@@ -444,6 +446,8 @@
       background: var(--card);
       padding: 8px 4px;
       margin-bottom: 0;
+    }
+    .tx-head-row1 {
       display: flex;
       justify-content: space-between;
       align-items: baseline;
@@ -1795,9 +1799,12 @@
       <div class="tx-scroll">
         <div class="tx-panel active" id="tx-2026-01">
           <div class="tx-panel-head">
-            <span class="tx-head-full">1월 · 총 78건</span>
-            <span class="tx-head-short">총 78건</span>
-            <span class="tx-head-net tx-income">순잉여 +138,645원</span>
+            <div class="tx-head-row1">
+              <span class="tx-head-full">1월 · 총 78건</span>
+              <span class="tx-head-short">총 78건</span>
+              <span class="tx-head-net tx-income">순잉여 +138,645원</span>
+            </div>
+            <div class="tx-head-row2 muted">수입 4,672,774원 · 지출 4,534,129원</div>
           </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
@@ -3055,9 +3062,12 @@
         </div>
         <div class="tx-panel" id="tx-2026-02">
           <div class="tx-panel-head">
-            <span class="tx-head-full">2월 · 총 62건</span>
-            <span class="tx-head-short">총 62건</span>
-            <span class="tx-head-net tx-expense">순잉여 -365,265원</span>
+            <div class="tx-head-row1">
+              <span class="tx-head-full">2월 · 총 62건</span>
+              <span class="tx-head-short">총 62건</span>
+              <span class="tx-head-net tx-expense">순잉여 -365,265원</span>
+            </div>
+            <div class="tx-head-row2 muted">수입 3,973,177원 · 지출 4,338,442원</div>
           </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
@@ -4059,9 +4069,12 @@
         </div>
         <div class="tx-panel" id="tx-2026-03">
           <div class="tx-panel-head">
-            <span class="tx-head-full">3월 · 총 76건</span>
-            <span class="tx-head-short">총 76건</span>
-            <span class="tx-head-net tx-expense">순잉여 -131,204원</span>
+            <div class="tx-head-row1">
+              <span class="tx-head-full">3월 · 총 76건</span>
+              <span class="tx-head-short">총 76건</span>
+              <span class="tx-head-net tx-expense">순잉여 -131,204원</span>
+            </div>
+            <div class="tx-head-row2 muted">수입 5,413,452원 · 지출 5,544,656원</div>
           </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
@@ -5287,9 +5300,12 @@
         </div>
         <div class="tx-panel" id="tx-2026-04">
           <div class="tx-panel-head">
-            <span class="tx-head-full">4월 · 총 67건</span>
-            <span class="tx-head-short">총 67건</span>
-            <span class="tx-head-net tx-expense">순잉여 -83,293원</span>
+            <div class="tx-head-row1">
+              <span class="tx-head-full">4월 · 총 67건</span>
+              <span class="tx-head-short">총 67건</span>
+              <span class="tx-head-net tx-expense">순잉여 -83,293원</span>
+            </div>
+            <div class="tx-head-row2 muted">수입 3,858,363원 · 지출 3,941,656원</div>
           </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
@@ -6371,9 +6387,12 @@
         </div>
         <div class="tx-panel" id="tx-2026-05">
           <div class="tx-panel-head">
-            <span class="tx-head-full">5월 · 총 40건</span>
-            <span class="tx-head-short">총 40건</span>
-            <span class="tx-head-net tx-income">순잉여 +2,506,387원</span>
+            <div class="tx-head-row1">
+              <span class="tx-head-full">5월 · 총 40건</span>
+              <span class="tx-head-short">총 40건</span>
+              <span class="tx-head-net tx-income">순잉여 +2,506,387원</span>
+            </div>
+            <div class="tx-head-row2 muted">수입 3,792,328원 · 지출 1,285,941원</div>
           </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
@@ -7023,9 +7042,12 @@
         </div>
         <div class="tx-panel" id="tx-2026-06">
           <div class="tx-panel-head">
-            <span class="tx-head-full">6월 · 총 53건</span>
-            <span class="tx-head-short">총 53건</span>
-            <span class="tx-head-net tx-income">순잉여 +2,104,730원</span>
+            <div class="tx-head-row1">
+              <span class="tx-head-full">6월 · 총 53건</span>
+              <span class="tx-head-short">총 53건</span>
+              <span class="tx-head-net tx-income">순잉여 +2,104,730원</span>
+            </div>
+            <div class="tx-head-row2 muted">수입 3,956,524원 · 지출 1,851,794원</div>
           </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
@@ -7883,9 +7905,12 @@
         </div>
         <div class="tx-panel" id="tx-2026-07">
           <div class="tx-panel-head">
-            <span class="tx-head-full">7월 · 총 79건</span>
-            <span class="tx-head-short">총 79건</span>
-            <span class="tx-head-net tx-income">순잉여 +2,492,009원</span>
+            <div class="tx-head-row1">
+              <span class="tx-head-full">7월 · 총 79건</span>
+              <span class="tx-head-short">총 79건</span>
+              <span class="tx-head-net tx-income">순잉여 +2,492,009원</span>
+            </div>
+            <div class="tx-head-row2 muted">수입 5,353,590원 · 지출 2,861,581원</div>
           </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
@@ -9159,9 +9184,12 @@
         </div>
         <div class="tx-panel" id="tx-2026-08">
           <div class="tx-panel-head">
-            <span class="tx-head-full">8월 · 총 90건</span>
-            <span class="tx-head-short">총 90건</span>
-            <span class="tx-head-net tx-income">순잉여 +161,957원</span>
+            <div class="tx-head-row1">
+              <span class="tx-head-full">8월 · 총 90건</span>
+              <span class="tx-head-short">총 90건</span>
+              <span class="tx-head-net tx-income">순잉여 +161,957원</span>
+            </div>
+            <div class="tx-head-row2 muted">수입 5,441,241원 · 지출 5,279,284원</div>
           </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
@@ -10611,9 +10639,12 @@
         </div>
         <div class="tx-panel" id="tx-2026-09">
           <div class="tx-panel-head">
-            <span class="tx-head-full">9월 · 총 9건</span>
-            <span class="tx-head-short">총 9건</span>
-            <span class="tx-head-net tx-income">순잉여 +2,373,660원</span>
+            <div class="tx-head-row1">
+              <span class="tx-head-full">9월 · 총 9건</span>
+              <span class="tx-head-short">총 9건</span>
+              <span class="tx-head-net tx-income">순잉여 +2,373,660원</span>
+            </div>
+            <div class="tx-head-row2 muted">수입 3,000,000원 · 지출 626,340원</div>
           </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
