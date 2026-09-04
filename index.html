@@ -353,6 +353,16 @@
   td.tx-income { color: var(--green); font-weight: 600; }
   td.tx-expense { color: var(--red); font-weight: 600; }
   td.tx-transfer { color: #8A5A0B; font-weight: 600; }
+  .tx-card-view { display: none; }
+  .tx-card { padding: 12px 4px; border-bottom: 1px solid var(--border); }
+  .tx-card:last-child { border-bottom: none; }
+  .tx-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  .tx-card-desc { font-size: 14px; font-weight: 600; }
+  .tx-card-amt { font-size: 14px; font-weight: 700; white-space: nowrap; }
+  .tx-card-amt.tx-income { color: var(--green); }
+  .tx-card-amt.tx-expense { color: var(--red); }
+  .tx-card-amt.tx-transfer { color: #8A5A0B; }
+  .tx-card-meta { font-size: 12px; }
   .tx-scroll { max-height: 640px; overflow-y: auto; overflow-x: auto; }
 
   @media (max-width: 720px) {
@@ -415,6 +425,8 @@
       z-index: 2;
       background: var(--card);
     }
+    .tx-table-view { display: none; }
+    .tx-card-view { display: block; }
   }
 </style>
 </head>
@@ -1761,7 +1773,7 @@
       <div class="tx-scroll">
         <div class="tx-panel active" id="tx-2026-01">
           <div class="tx-panel-head">1월 · 총 78건</div>
-          <table>
+          <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
             <tr>
@@ -2467,10 +2479,557 @@
               <td class="num tx-expense">50,000원</td>
             </tr></tbody>
           </table>
+          <div class="tx-card-view">
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">리모트뷰</span>
+                <span class="tx-card-amt tx-expense">-5,500원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 01/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">마파두부 소스</span>
+                <span class="tx-card-amt tx-expense">-3,960원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 01/02</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">양욱 상환</span>
+                <span class="tx-card-amt tx-income">+1,000,000원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 01/02</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-100,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 01/02</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">사장님</span>
+                <span class="tx-card-amt tx-expense">-10,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 곗돈 · 01/02</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">네이버</span>
+                <span class="tx-card-amt tx-expense">-12,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 웹툰 · 01/02</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">롱이 오락실</span>
+                <span class="tx-card-amt tx-expense">-2,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 01/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">박종훈 경제로드맵</span>
+                <span class="tx-card-amt tx-expense">-49,777원</span>
+              </div>
+              <div class="tx-card-meta muted">교육비 · 학원/강의 · 01/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 10캔</span>
+                <span class="tx-card-amt tx-income">+11,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 01/04</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">소나타 기름</span>
+                <span class="tx-card-amt tx-expense">-100,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 유류비 · 01/04</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">폼클렌징 200ml,60ml 2개</span>
+                <span class="tx-card-amt tx-expense">-24,180원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 01/04</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">알레르기 약</span>
+                <span class="tx-card-amt tx-expense">-8,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 복용약 · 01/04</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">붕어빵</span>
+                <span class="tx-card-amt tx-expense">-2,000원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 개인 · 01/04</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">육수링</span>
+                <span class="tx-card-amt tx-expense">-6,330원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 01/04</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">세라마이딘 50ml 2개</span>
+                <span class="tx-card-amt tx-expense">-65,040원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 01/04</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">헬스장 6개월</span>
+                <span class="tx-card-amt tx-expense">-230,000원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 센터이용권 · 01/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">하이패스 충전</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 통행 · 01/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">알레르기 약</span>
+                <span class="tx-card-amt tx-expense">-4,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 복용약 · 01/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">벽걸이 거울</span>
+                <span class="tx-card-amt tx-expense">-4,990원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용기기 · 01/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">용돈</span>
+                <span class="tx-card-amt tx-expense">-500,000원</span>
+              </div>
+              <div class="tx-card-meta muted">가족 · 용돈 · 01/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">K패스</span>
+                <span class="tx-card-amt tx-expense">-3,450원</span>
+              </div>
+              <div class="tx-card-meta muted">교통비 · 대중교통 · 01/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 01/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">MMF 예탁금 이자</span>
+                <span class="tx-card-amt tx-income">+34원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 01/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">어도비 클라우드</span>
+                <span class="tx-card-amt tx-expense">-2,145원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 01/08</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">이모티콘</span>
+                <span class="tx-card-amt tx-expense">-5,700원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 01/08</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">방학동</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 곗돈 · 01/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-150,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 01/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">회생</span>
+                <span class="tx-card-amt tx-expense">-1,880,000원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 · 회생 · 01/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 20캔</span>
+                <span class="tx-card-amt tx-income">+22,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 01/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한컴퍼니</span>
+                <span class="tx-card-amt tx-income">+3,571,810원</span>
+              </div>
+              <div class="tx-card-meta muted">급여 · - · 01/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">고스톱 소시지</span>
+                <span class="tx-card-amt tx-expense">-7,900원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · 개인식사 · 01/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">어도비 클라우드</span>
+                <span class="tx-card-amt tx-expense">-26,400원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 01/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">휴대폰 요금</span>
+                <span class="tx-card-amt tx-expense">-29,350원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 통신비 · 01/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">카톡 톡서랍</span>
+                <span class="tx-card-amt tx-expense">-990원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 01/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">카카오 이자</span>
+                <span class="tx-card-amt tx-income">+1,133원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 01/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">신한 이자</span>
+                <span class="tx-card-amt tx-expense">-11,618원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 · 이자 · 01/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">메가도스 당근거래</span>
+                <span class="tx-card-amt tx-income">+18,000원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 01/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">로또</span>
+                <span class="tx-card-amt tx-expense">-20,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 로또 · 01/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">인형뽑기</span>
+                <span class="tx-card-amt tx-expense">-1,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 01/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">편의점 커피</span>
+                <span class="tx-card-amt tx-expense">-3,000원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 개인 · 01/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_메리츠</span>
+                <span class="tx-card-amt tx-expense">-72,000원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 01/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 10캔</span>
+                <span class="tx-card-amt tx-income">+11,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 01/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">약, 코엔</span>
+                <span class="tx-card-amt tx-expense">-13,000원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 건강 관리 제품 · 01/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">안과</span>
+                <span class="tx-card-amt tx-expense">-31,500원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 01/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">공기압, 키 배터리</span>
+                <span class="tx-card-amt tx-expense">-10,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 정비 · 01/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">오프로드 아우터</span>
+                <span class="tx-card-amt tx-expense">-180,000원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 의류 · 01/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">오프로드 바지</span>
+                <span class="tx-card-amt tx-expense">-124,000원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 의류 · 01/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">장안동 => 집 택시비</span>
+                <span class="tx-card-amt tx-expense">-19,700원</span>
+              </div>
+              <div class="tx-card-meta muted">교통비 · 택시비 · 01/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">의료용 핀셋</span>
+                <span class="tx-card-amt tx-expense">-13,900원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용기기 · 01/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">장안동 한강치킨</span>
+                <span class="tx-card-amt tx-expense">-15,500원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · N빵 · 01/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">히말라야 소금</span>
+                <span class="tx-card-amt tx-expense">-700원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 식단 · 01/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">김세미 집 놀러간거</span>
+                <span class="tx-card-amt tx-expense">-33,300원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · 전체계산 · 01/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">버터</span>
+                <span class="tx-card-amt tx-expense">-15,900원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 식단 · 01/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_흥국</span>
+                <span class="tx-card-amt tx-expense">-54,150원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 01/20</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">신한카드 캐쉬백</span>
+                <span class="tx-card-amt tx-income">+1,800원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 01/20</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">삼성 케어</span>
+                <span class="tx-card-amt tx-expense">-4,300원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 01/20</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">MIB</span>
+                <span class="tx-card-amt tx-expense">-18,370원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 01/20</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_DB</span>
+                <span class="tx-card-amt tx-expense">-33,560원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 01/21</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">우주패스</span>
+                <span class="tx-card-amt tx-expense">-18,900원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · OTT · 01/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">쿠팡 월 회비</span>
+                <span class="tx-card-amt tx-expense">-7,890원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 01/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">바디로션 5개</span>
+                <span class="tx-card-amt tx-expense">-40,750원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 01/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">팩트 3개 선물</span>
+                <span class="tx-card-amt tx-expense">-18,900원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 선물 · 01/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">헬스 생수</span>
+                <span class="tx-card-amt tx-expense">-700원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 식단 · 01/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">이자</span>
+                <span class="tx-card-amt tx-income">+87원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 이자 · 이자 · 01/24</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">와루네 닭강정</span>
+                <span class="tx-card-amt tx-expense">-13,900원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · 전체계산 · 01/24</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">닭가슴살 선물</span>
+                <span class="tx-card-amt tx-expense">-44,900원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 선물 · 01/24</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">와루 고스톱</span>
+                <span class="tx-card-amt tx-expense">-7,500원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · 고스톱 · 01/24</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">닭가슴살 선물</span>
+                <span class="tx-card-amt tx-expense">-37,179원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 선물 · 01/26</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">소나타 기름</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 유류비 · 01/27</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">컷트</span>
+                <span class="tx-card-amt tx-expense">-15,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용실 · 01/27</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-100,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 01/27</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">네이버</span>
+                <span class="tx-card-amt tx-expense">-12,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 웹툰 · 01/27</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">형들 메가커피</span>
+                <span class="tx-card-amt tx-expense">-13,600원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 강한컴퍼니 · 01/29</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">아버지 옷 환불</span>
+                <span class="tx-card-amt tx-income">+35,910원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 01/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">리모트뷰</span>
+                <span class="tx-card-amt tx-expense">-5,500원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 01/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보문 메가커피</span>
+                <span class="tx-card-amt tx-expense">-13,800원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 강한컴퍼니 · 01/31</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">용인팸 준코</span>
+                <span class="tx-card-amt tx-expense">-24,400원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · N빵 · 01/31</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 01/31</div>
+            </div></div>
         </div>
         <div class="tx-panel" id="tx-2026-02">
           <div class="tx-panel-head">2월 · 총 62건</div>
-          <table>
+          <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
             <tr>
@@ -3032,10 +3591,445 @@
               <td class="num tx-expense">2,000원</td>
             </tr></tbody>
           </table>
+          <div class="tx-card-view">
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">사장님</span>
+                <span class="tx-card-amt tx-expense">-10,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 곗돈 · 02/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 12캔</span>
+                <span class="tx-card-amt tx-income">+13,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 02/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 10캔</span>
+                <span class="tx-card-amt tx-income">+11,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 02/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">용인 컴인워시</span>
+                <span class="tx-card-amt tx-expense">-11,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 세차 · 02/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">1월 교통비</span>
+                <span class="tx-card-amt tx-expense">-1,500원</span>
+              </div>
+              <div class="tx-card-meta muted">교통비 · 대중교통 · 02/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 20캔</span>
+                <span class="tx-card-amt tx-income">+22,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 02/06</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">붕어빵</span>
+                <span class="tx-card-amt tx-expense">-2,000원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 개인 · 02/06</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 12캔</span>
+                <span class="tx-card-amt tx-income">+13,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 02/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">용돈</span>
+                <span class="tx-card-amt tx-expense">-500,000원</span>
+              </div>
+              <div class="tx-card-meta muted">가족 · 용돈 · 02/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-300,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 02/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">방학동</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 곗돈 · 02/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">회생</span>
+                <span class="tx-card-amt tx-expense">-1,880,000원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 · 회생 · 02/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">하이패스 충전</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 통행 · 02/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한컴퍼니</span>
+                <span class="tx-card-amt tx-income">+3,709,440원</span>
+              </div>
+              <div class="tx-card-meta muted">급여 · - · 02/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">쪽가위</span>
+                <span class="tx-card-amt tx-expense">-1,980원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용기기 · 02/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">LED 거울</span>
+                <span class="tx-card-amt tx-expense">-9,980원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 02/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한컴퍼니 상여금</span>
+                <span class="tx-card-amt tx-income">+168,830원</span>
+              </div>
+              <div class="tx-card-meta muted">급여 · - · 02/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">이모티콘</span>
+                <span class="tx-card-amt tx-expense">-5,700원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 02/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">체크카드 캐쉬백</span>
+                <span class="tx-card-amt tx-income">+1,408원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 이자 · - · 02/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">체크카드 캐쉬백</span>
+                <span class="tx-card-amt tx-income">+1,999원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 이자 · - · 02/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">와우 호텔 일회용품</span>
+                <span class="tx-card-amt tx-expense">-1,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 02/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">카톡 톡서랍</span>
+                <span class="tx-card-amt tx-expense">-990원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 02/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">자로우 360정</span>
+                <span class="tx-card-amt tx-expense">-62,110원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 영양제 · 02/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">어도비 클라우드</span>
+                <span class="tx-card-amt tx-expense">-26,400원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 02/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">휴대폰 요금</span>
+                <span class="tx-card-amt tx-expense">-65,840원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 통신비 · 02/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">부산여행</span>
+                <span class="tx-card-amt tx-expense">-200,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 02/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">와루 고스톱</span>
+                <span class="tx-card-amt tx-expense">-25,000원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · 고스톱 · 02/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">로또</span>
+                <span class="tx-card-amt tx-expense">-20,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 로또 · 02/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 20캔 예약금</span>
+                <span class="tx-card-amt tx-income">+5,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 02/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">Chat GPT</span>
+                <span class="tx-card-amt tx-expense">-32,516원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 02/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">팩트 10개</span>
+                <span class="tx-card-amt tx-expense">-30,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 02/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">팩트 10개</span>
+                <span class="tx-card-amt tx-expense">-8,050원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 02/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">소나타 기름</span>
+                <span class="tx-card-amt tx-expense">-100,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 유류비 · 02/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">BBQ 치킨</span>
+                <span class="tx-card-amt tx-expense">-11,900원</span>
+              </div>
+              <div class="tx-card-meta muted">가족 · 식사 · 02/17</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">엄브로 댄커 가방</span>
+                <span class="tx-card-amt tx-expense">-96,170원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 가방 · 02/17</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">알레르기 약</span>
+                <span class="tx-card-amt tx-expense">-10,000원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 영양제 · 02/18</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">신한 이자</span>
+                <span class="tx-card-amt tx-expense">-12,046원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 · 이자 · 02/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">삼성 케어</span>
+                <span class="tx-card-amt tx-expense">-4,300원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 02/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_메리츠</span>
+                <span class="tx-card-amt tx-expense">-72,000원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 02/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-200,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 02/20</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">펌, 컷트</span>
+                <span class="tx-card-amt tx-expense">-30,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용실 · 02/20</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커피</span>
+                <span class="tx-card-amt tx-expense">-7,800원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 02/20</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">론스타 비품</span>
+                <span class="tx-card-amt tx-expense">-1,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 02/20</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">수유 => 창동 택시비</span>
+                <span class="tx-card-amt tx-expense">-9,400원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 02/20</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 20캔 차액</span>
+                <span class="tx-card-amt tx-income">+17,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 02/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">쿠팡 월 회비</span>
+                <span class="tx-card-amt tx-expense">-7,890원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 02/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">팔토시 2세트</span>
+                <span class="tx-card-amt tx-expense">-3,900원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 강한컴퍼니 · 02/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">클렌징 오일</span>
+                <span class="tx-card-amt tx-expense">-20,880원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 02/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 공기밥 7개</span>
+                <span class="tx-card-amt tx-income">+10,500원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 02/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">쿠팡 감태</span>
+                <span class="tx-card-amt tx-expense">-13,200원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 선물 · 02/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">왁스</span>
+                <span class="tx-card-amt tx-expense">-6,540원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 02/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">우주패스</span>
+                <span class="tx-card-amt tx-expense">-18,900원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · OTT · 02/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">라이프워크 셔츠</span>
+                <span class="tx-card-amt tx-expense">-89,000원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 의류 · 02/24</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">캉골 가방</span>
+                <span class="tx-card-amt tx-expense">-136,040원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 가방 · 02/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_DB</span>
+                <span class="tx-card-amt tx-expense">-33,560원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 02/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플 고양이 키링</span>
+                <span class="tx-card-amt tx-expense">-36,000원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 액세서리 · 02/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">네이버</span>
+                <span class="tx-card-amt tx-expense">-12,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 웹툰 · 02/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_흥국</span>
+                <span class="tx-card-amt tx-expense">-54,150원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 02/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">리모트뷰</span>
+                <span class="tx-card-amt tx-expense">-5,500원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 02/26</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">쉐이크 통</span>
+                <span class="tx-card-amt tx-expense">-14,700원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 헬스용품 · 02/26</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">단백질 쉐이크</span>
+                <span class="tx-card-amt tx-expense">-35,500원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 보충제 · 02/26</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">붕어빵</span>
+                <span class="tx-card-amt tx-expense">-2,000원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 개인 · 02/26</div>
+            </div></div>
         </div>
         <div class="tx-panel" id="tx-2026-03">
           <div class="tx-panel-head">3월 · 총 76건</div>
-          <table>
+          <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
             <tr>
@@ -3723,10 +4717,543 @@
               <td class="num tx-expense">38,710원</td>
             </tr></tbody>
           </table>
+          <div class="tx-card-view">
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">알레르기 약</span>
+                <span class="tx-card-amt tx-expense">-20,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 복용약 · 03/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">대일밴드</span>
+                <span class="tx-card-amt tx-expense">-2,500원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 건강 관리 제품 · 03/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">롯백 주차비</span>
+                <span class="tx-card-amt tx-expense">-7,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 주차 · 03/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">영롱 택시비</span>
+                <span class="tx-card-amt tx-expense">-35,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 03/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">예금이자</span>
+                <span class="tx-card-amt tx-income">+88원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 03/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 20캔</span>
+                <span class="tx-card-amt tx-income">+22,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 03/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">사장님</span>
+                <span class="tx-card-amt tx-expense">-10,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 곗돈 · 03/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">2월 교통비</span>
+                <span class="tx-card-amt tx-expense">-1,500원</span>
+              </div>
+              <div class="tx-card-meta muted">교통비 · 대중교통 · 03/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">세라마이딘 50ml 3개</span>
+                <span class="tx-card-amt tx-expense">-64,290원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 03/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">폼클렌징 200ml 2개</span>
+                <span class="tx-card-amt tx-expense">-22,750원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 03/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">무신사 양말</span>
+                <span class="tx-card-amt tx-expense">-12,660원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 의류 · 03/08</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">수평계</span>
+                <span class="tx-card-amt tx-expense">-4,050원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 강한컴퍼니 · 03/08</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">푸쉬업바</span>
+                <span class="tx-card-amt tx-expense">-7,780원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 헬스용품 · 03/08</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">회생</span>
+                <span class="tx-card-amt tx-expense">-1,880,000원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 · 회생 · 03/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-300,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 03/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한컴퍼니</span>
+                <span class="tx-card-amt tx-income">+3,709,440원</span>
+              </div>
+              <div class="tx-card-meta muted">급여 · - · 03/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">연말정산</span>
+                <span class="tx-card-amt tx-income">+1,590,720원</span>
+              </div>
+              <div class="tx-card-meta muted">급여 · - · 03/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">이모티콘</span>
+                <span class="tx-card-amt tx-expense">-5,700원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 03/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">주방 보호 장갑</span>
+                <span class="tx-card-amt tx-expense">-2,750원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 강한컴퍼니 · 03/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">용돈</span>
+                <span class="tx-card-amt tx-expense">-700,000원</span>
+              </div>
+              <div class="tx-card-meta muted">가족 · 용돈 · 03/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">예금이자</span>
+                <span class="tx-card-amt tx-income">+3,594원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 03/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">방학동</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 곗돈 · 03/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">가방 퀵비</span>
+                <span class="tx-card-amt tx-expense">-9,700원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 강한컴퍼니 · 03/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">반팔 접기</span>
+                <span class="tx-card-amt tx-expense">-7,800원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 생활용품 · 03/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 20캔</span>
+                <span class="tx-card-amt tx-income">+22,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 03/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">휴대폰 요금</span>
+                <span class="tx-card-amt tx-expense">-68,370원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 통신비 · 03/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">어도비 클라우드</span>
+                <span class="tx-card-amt tx-expense">-26,400원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 03/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">매장 냉면+돈까스</span>
+                <span class="tx-card-amt tx-expense">-15,675원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 개인 · 03/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">폼클렌징 200ml 1개</span>
+                <span class="tx-card-amt tx-expense">-11,600원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 03/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플 고양이 키링</span>
+                <span class="tx-card-amt tx-expense">-21,500원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 액세서리 · 03/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">카톡 톡서랍</span>
+                <span class="tx-card-amt tx-expense">-990원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 03/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">휴대용 배터리</span>
+                <span class="tx-card-amt tx-expense">-17,900원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 전자제품 · 03/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">부산 차오란</span>
+                <span class="tx-card-amt tx-expense">-326,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 선물 · 03/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 03/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-150,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 03/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">치간 칫솔 0.7mm / 200개</span>
+                <span class="tx-card-amt tx-expense">-20,280원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 건강 관리 제품 · 03/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">신한 이자</span>
+                <span class="tx-card-amt tx-expense">-10,880원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 · 이자 · 03/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">Chat GPT</span>
+                <span class="tx-card-amt tx-expense">-33,576원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 03/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">바세린 핸드크림</span>
+                <span class="tx-card-amt tx-expense">-6,490원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 03/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">크레아틴</span>
+                <span class="tx-card-amt tx-expense">-20,000원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 보충제 · 03/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">로또</span>
+                <span class="tx-card-amt tx-expense">-20,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 로또 · 03/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">카라비너</span>
+                <span class="tx-card-amt tx-expense">-8,400원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 액세서리 · 03/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">고속 충전기</span>
+                <span class="tx-card-amt tx-expense">-10,000원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 전자제품 · 03/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">고속 충전기</span>
+                <span class="tx-card-amt tx-expense">-33,800원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 전자제품 · 03/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_메리츠</span>
+                <span class="tx-card-amt tx-expense">-77,090원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 03/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">깔창</span>
+                <span class="tx-card-amt tx-expense">-9,800원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 강한컴퍼니 · 03/17</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">소나타 기름</span>
+                <span class="tx-card-amt tx-expense">-100,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 유류비 · 03/17</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">오프로드 옷 5벌</span>
+                <span class="tx-card-amt tx-expense">-462,000원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 의류 · 03/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">밥 누락</span>
+                <span class="tx-card-amt tx-expense">-1,500원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 강한컴퍼니 · 03/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">삼성 케어</span>
+                <span class="tx-card-amt tx-expense">-4,300원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 03/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">바디로션 4개</span>
+                <span class="tx-card-amt tx-expense">-35,600원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 03/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">네이버</span>
+                <span class="tx-card-amt tx-expense">-12,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 웹툰 · 03/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">크록스</span>
+                <span class="tx-card-amt tx-expense">-59,415원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 신발 · 03/20</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 20캔</span>
+                <span class="tx-card-amt tx-income">+22,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 03/20</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">와루네 에어프라이기</span>
+                <span class="tx-card-amt tx-expense">-37,800원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 선물/용돈 · 03/21</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">스트레칭 밴드</span>
+                <span class="tx-card-amt tx-expense">-10,400원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 헬스용품 · 03/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 포장비용</span>
+                <span class="tx-card-amt tx-income">+21,500원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 03/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_흥국</span>
+                <span class="tx-card-amt tx-expense">-54,150원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 03/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">-</span>
+                <span class="tx-card-amt tx-income">+40원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 이자 · - · 03/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">쿠팡 월 회비</span>
+                <span class="tx-card-amt tx-expense">-7,890원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 03/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">우주패스</span>
+                <span class="tx-card-amt tx-expense">-18,900원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · OTT · 03/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_DB</span>
+                <span class="tx-card-amt tx-expense">-33,560원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 03/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-100,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 03/24</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">한강 주차</span>
+                <span class="tx-card-amt tx-expense">-2,400원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 03/24</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">펌, 컷트</span>
+                <span class="tx-card-amt tx-expense">-15,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용실 · 03/24</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">기름값</span>
+                <span class="tx-card-amt tx-expense">-100,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 유류비 · 03/26</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">하이패스</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 통행 · 03/26</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">예진 퇴사 카톡 선물</span>
+                <span class="tx-card-amt tx-expense">-13,900원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 선물/용돈 · 03/26</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 20캔</span>
+                <span class="tx-card-amt tx-income">+22,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 03/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">-</span>
+                <span class="tx-card-amt tx-income">+70원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 이자 · - · 03/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">스트랩</span>
+                <span class="tx-card-amt tx-expense">-11,900원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 헬스용품 · 03/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-100,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 03/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커버낫 청바지</span>
+                <span class="tx-card-amt tx-expense">-98,100원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 의류 · 03/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">라코스테 스니커즈</span>
+                <span class="tx-card-amt tx-expense">-89,400원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 신발 · 03/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">리모트뷰</span>
+                <span class="tx-card-amt tx-expense">-5,500원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 03/31</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">무신사 청바지</span>
+                <span class="tx-card-amt tx-expense">-38,710원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 의류 · 03/31</div>
+            </div></div>
         </div>
         <div class="tx-panel" id="tx-2026-04">
           <div class="tx-panel-head">4월 · 총 67건</div>
-          <table>
+          <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
             <tr>
@@ -4333,10 +5860,480 @@
               <td class="num tx-expense">17,440원</td>
             </tr></tbody>
           </table>
+          <div class="tx-card-view">
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">잠실 => 집 택시비</span>
+                <span class="tx-card-amt tx-expense">-35,100원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 04/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">사장님</span>
+                <span class="tx-card-amt tx-expense">-10,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 곗돈 · 04/02</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">조각 퍼프</span>
+                <span class="tx-card-amt tx-expense">-12,900원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 04/02</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">변기 발 받침대</span>
+                <span class="tx-card-amt tx-expense">-5,500원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 생활용품 · 04/02</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강동 햄버거 2개</span>
+                <span class="tx-card-amt tx-expense">-10,500원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 식비 · 04/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">K패스</span>
+                <span class="tx-card-amt tx-expense">-9,950원</span>
+              </div>
+              <div class="tx-card-meta muted">교통비 · 대중교통 · 04/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">와루 고스톱</span>
+                <span class="tx-card-amt tx-expense">-35,000원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · N빵 · 04/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강동 햄버거 2개</span>
+                <span class="tx-card-amt tx-expense">-11,000원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 식비 · 04/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">갤럭시 s22 중고 판매</span>
+                <span class="tx-card-amt tx-income">+75,000원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 04/08</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">유심 감사 커피</span>
+                <span class="tx-card-amt tx-expense">-2,000원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 식비 · 04/08</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">방학동</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 곗돈 · 04/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">이모티콘</span>
+                <span class="tx-card-amt tx-expense">-5,700원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 04/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">카드 캐쉬백</span>
+                <span class="tx-card-amt tx-income">+4,083원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 04/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">기름값</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 유류비 · 04/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한컴퍼니</span>
+                <span class="tx-card-amt tx-income">+3,709,440원</span>
+              </div>
+              <div class="tx-card-meta muted">급여 · - · 04/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">회생</span>
+                <span class="tx-card-amt tx-expense">-940,000원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 · 회생 · 04/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">용돈</span>
+                <span class="tx-card-amt tx-expense">-500,000원</span>
+              </div>
+              <div class="tx-card-meta muted">가족 · 용돈 · 04/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-300,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 04/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">갤럭시 버즈4 프로</span>
+                <span class="tx-card-amt tx-expense">-339,000원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 전자제품 · 04/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">케이스티파이</span>
+                <span class="tx-card-amt tx-expense">-89,000원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 전자제품 · 04/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">글루타치온 120정 2개</span>
+                <span class="tx-card-amt tx-expense">-26,400원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 영양제 · 04/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강동 햄버거 2개</span>
+                <span class="tx-card-amt tx-expense">-14,000원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 식비 · 04/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">카톡 톡서랍</span>
+                <span class="tx-card-amt tx-expense">-990원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 04/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">어도비 클라우드</span>
+                <span class="tx-card-amt tx-expense">-26,400원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 04/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">올크레딧</span>
+                <span class="tx-card-amt tx-expense">-36,200원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 04/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">갤럭시 버즈4 프로 케이스</span>
+                <span class="tx-card-amt tx-expense">-12,900원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 전자제품 · 04/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">블랙페퍼 닭가슴살 10개</span>
+                <span class="tx-card-amt tx-expense">-38,600원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 식단 · 04/13</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">NICE</span>
+                <span class="tx-card-amt tx-expense">-39,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 04/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">휴대폰 요금</span>
+                <span class="tx-card-amt tx-expense">-68,370원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 통신비 · 04/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">로또</span>
+                <span class="tx-card-amt tx-expense">-20,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 로또 · 04/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">신한 이자</span>
+                <span class="tx-card-amt tx-expense">-12,046원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 · 이자 · 04/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_메리츠</span>
+                <span class="tx-card-amt tx-expense">-77,090원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 04/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">Chat GPT</span>
+                <span class="tx-card-amt tx-expense">-32,720원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 04/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">친척 여행 돈</span>
+                <span class="tx-card-amt tx-expense">-100,000원</span>
+              </div>
+              <div class="tx-card-meta muted">가족 · 용돈 · 04/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 24캔</span>
+                <span class="tx-card-amt tx-income">+28,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 04/18</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">네이버</span>
+                <span class="tx-card-amt tx-expense">-11,470원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 웹툰 · 04/18</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">팩트</span>
+                <span class="tx-card-amt tx-expense">-12,600원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 04/18</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">컷트</span>
+                <span class="tx-card-amt tx-expense">-15,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용실 · 04/18</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">회생 잔액</span>
+                <span class="tx-card-amt tx-income">+13,740원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 04/18</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">삼성 케어</span>
+                <span class="tx-card-amt tx-expense">-4,300원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 04/20</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_흥국</span>
+                <span class="tx-card-amt tx-expense">-54,150원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 04/20</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">핸드크림</span>
+                <span class="tx-card-amt tx-expense">-13,570원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 04/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_DB</span>
+                <span class="tx-card-amt tx-expense">-33,560원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 04/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">쿠팡 월 회비</span>
+                <span class="tx-card-amt tx-expense">-7,890원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 04/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-100,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 04/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">현은 축의금</span>
+                <span class="tx-card-amt tx-expense">-100,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 경조사비 · 04/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">자동 세차</span>
+                <span class="tx-card-amt tx-expense">-11,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 세차 · 04/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">피지 제거기</span>
+                <span class="tx-card-amt tx-expense">-3,880원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 04/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">세차타월</span>
+                <span class="tx-card-amt tx-expense">-6,990원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 세차 · 04/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강동 햄버거 2개</span>
+                <span class="tx-card-amt tx-expense">-10,500원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 식비 · 04/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-200,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 04/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">MIB</span>
+                <span class="tx-card-amt tx-expense">-18,370원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 04/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">오케이 재활의학</span>
+                <span class="tx-card-amt tx-expense">-12,500원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 04/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">택시</span>
+                <span class="tx-card-amt tx-expense">-7,500원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · 개인식사 · 04/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">피지 핀셋</span>
+                <span class="tx-card-amt tx-expense">-12,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용기기 · 04/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">우주패스</span>
+                <span class="tx-card-amt tx-expense">-18,900원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · OTT · 04/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">-</span>
+                <span class="tx-card-amt tx-income">+100원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 이자 · - · 04/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 24캔</span>
+                <span class="tx-card-amt tx-income">+28,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 04/26</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">연회비</span>
+                <span class="tx-card-amt tx-expense">-18,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 04/29</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">리모트뷰</span>
+                <span class="tx-card-amt tx-expense">-5,500원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 04/29</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">교통비</span>
+                <span class="tx-card-amt tx-expense">-6,350원</span>
+              </div>
+              <div class="tx-card-meta muted">교통비 · 대중교통 · 04/29</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">BHA</span>
+                <span class="tx-card-amt tx-expense">-35,280원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 04/29</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">소나타 신호위반</span>
+                <span class="tx-card-amt tx-expense">-70,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 통행 · 04/29</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">매장 미스트</span>
+                <span class="tx-card-amt tx-expense">-11,540원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 강한컴퍼니 · 04/29</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-200,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 04/29</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">속초 마그네틱</span>
+                <span class="tx-card-amt tx-expense">-13,000원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 액세서리 · 04/29</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">톤업 세럼</span>
+                <span class="tx-card-amt tx-expense">-17,440원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 04/29</div>
+            </div></div>
         </div>
         <div class="tx-panel" id="tx-2026-05">
           <div class="tx-panel-head">5월 · 총 40건</div>
-          <table>
+          <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
             <tr>
@@ -4700,10 +6697,291 @@
               <td class="num tx-expense">37,800원</td>
             </tr></tbody>
           </table>
+          <div class="tx-card-view">
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">리모트뷰</span>
+                <span class="tx-card-amt tx-expense">-5,290원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 05/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">로또 당첨금</span>
+                <span class="tx-card-amt tx-income">+50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 05/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">사장님</span>
+                <span class="tx-card-amt tx-expense">-10,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 곗돈 · 05/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">종원이형 커피</span>
+                <span class="tx-card-amt tx-expense">-5,280원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 강한컴퍼니 · 05/06</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">비비크림 2개</span>
+                <span class="tx-card-amt tx-expense">-20,080원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 05/06</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">폼클렌징 200ml 2개</span>
+                <span class="tx-card-amt tx-expense">-24,480원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 05/06</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">매장 모밀+돈까스</span>
+                <span class="tx-card-amt tx-expense">-11,900원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 개인 · 05/06</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">클렌징 오일</span>
+                <span class="tx-card-amt tx-expense">-19,800원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 05/06</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">바디로션 3개</span>
+                <span class="tx-card-amt tx-expense">-52,800원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 05/06</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">왁스</span>
+                <span class="tx-card-amt tx-expense">-10,900원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 05/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">AIDE</span>
+                <span class="tx-card-amt tx-expense">-27,720원</span>
+              </div>
+              <div class="tx-card-meta muted">교육비 · 학원/강의 · 05/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">이모티콘</span>
+                <span class="tx-card-amt tx-expense">-5,700원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 05/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-300,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 05/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한컴퍼니</span>
+                <span class="tx-card-amt tx-income">+3,709,440원</span>
+              </div>
+              <div class="tx-card-meta muted">급여 · - · 05/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">로또</span>
+                <span class="tx-card-amt tx-expense">-20,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 로또 · 05/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">어도비 클라우드</span>
+                <span class="tx-card-amt tx-expense">-26,400원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 05/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">휴대폰 요금</span>
+                <span class="tx-card-amt tx-expense">-115,050원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 통신비 · 05/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">체크카드 캐쉬백</span>
+                <span class="tx-card-amt tx-income">+4,888원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 05/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">방학동</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 곗돈 · 05/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">어머니 알리바바 옷</span>
+                <span class="tx-card-amt tx-expense">-3,666원</span>
+              </div>
+              <div class="tx-card-meta muted">가족 · 결제 · 05/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">컷트</span>
+                <span class="tx-card-amt tx-expense">-15,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용실 · 05/13</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">카톡 톡서랍</span>
+                <span class="tx-card-amt tx-expense">-990원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 05/13</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">기후동행</span>
+                <span class="tx-card-amt tx-expense">-55,000원</span>
+              </div>
+              <div class="tx-card-meta muted">교통비 · 대중교통 · 05/13</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">주용 커피</span>
+                <span class="tx-card-amt tx-expense">-10,000원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · 전체계산 · 05/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">신한 이자</span>
+                <span class="tx-card-amt tx-expense">-12,042원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 · 이자 · 05/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_메리츠</span>
+                <span class="tx-card-amt tx-expense">-77,090원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 05/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">Chat GPT</span>
+                <span class="tx-card-amt tx-expense">-33,270원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 05/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 24캔</span>
+                <span class="tx-card-amt tx-income">+28,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 05/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">어머니 알리바바 옷 배송비</span>
+                <span class="tx-card-amt tx-expense">-6,000원</span>
+              </div>
+              <div class="tx-card-meta muted">가족 · 결제 · 05/18</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">알레르기 약</span>
+                <span class="tx-card-amt tx-expense">-12,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 복용약 · 05/18</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">삼성 케어</span>
+                <span class="tx-card-amt tx-expense">-4,300원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 05/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_흥국</span>
+                <span class="tx-card-amt tx-expense">-54,150원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 05/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_DB</span>
+                <span class="tx-card-amt tx-expense">-33,560원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 05/21</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">쿠팡 월 회비</span>
+                <span class="tx-card-amt tx-expense">-7,890원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 05/21</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">우주패스</span>
+                <span class="tx-card-amt tx-expense">-18,900원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · OTT · 05/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">세라마이딘 50ml 3개</span>
+                <span class="tx-card-amt tx-expense">-62,880원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 05/28</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">동대문 주차비</span>
+                <span class="tx-card-amt tx-expense">-2,500원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 주차 · 05/28</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">클로드</span>
+                <span class="tx-card-amt tx-expense">-33,503원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 05/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">상형 조의금</span>
+                <span class="tx-card-amt tx-expense">-100,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 경조사비 · 05/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">와루 고스톱</span>
+                <span class="tx-card-amt tx-expense">-37,800원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · 고스톱 · 05/31</div>
+            </div></div>
         </div>
         <div class="tx-panel" id="tx-2026-06">
           <div class="tx-panel-head">6월 · 총 53건</div>
-          <table>
+          <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
             <tr>
@@ -5184,10 +7462,382 @@
               <td class="num tx-expense">20,000원</td>
             </tr></tbody>
           </table>
+          <div class="tx-card-view">
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">사장님</span>
+                <span class="tx-card-amt tx-expense">-10,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 곗돈 · 06/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">리모트뷰</span>
+                <span class="tx-card-amt tx-expense">-11,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 06/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">방학동</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 곗돈 · 06/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">로또</span>
+                <span class="tx-card-amt tx-expense">-20,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 로또 · 06/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">인공눈물</span>
+                <span class="tx-card-amt tx-expense">-6,000원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 건강 관리 제품 · 06/02</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">기후동행</span>
+                <span class="tx-card-amt tx-expense">-55,000원</span>
+              </div>
+              <div class="tx-card-meta muted">교통비 · 대중교통 · 06/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">이소티논</span>
+                <span class="tx-card-amt tx-expense">-22,500원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 복용약 · 06/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">치간 칫솔 0.7mm / 50개</span>
+                <span class="tx-card-amt tx-expense">-22,090원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 건강 관리 제품 · 06/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">왕십리 => 집</span>
+                <span class="tx-card-amt tx-expense">-11,800원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · 택시 · 06/06</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">더액션 웹팀</span>
+                <span class="tx-card-amt tx-expense">-62,750원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · N빵 · 06/06</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">목감기약</span>
+                <span class="tx-card-amt tx-expense">-14,000원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 약값 · 06/08</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">이모티콘</span>
+                <span class="tx-card-amt tx-expense">-5,700원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 06/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">스벅+주차</span>
+                <span class="tx-card-amt tx-expense">-1,300원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 06/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">이소티논</span>
+                <span class="tx-card-amt tx-expense">-225,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 복용약 · 06/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한컴퍼니</span>
+                <span class="tx-card-amt tx-income">+3,709,440원</span>
+              </div>
+              <div class="tx-card-meta muted">급여 · - · 06/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-300,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 06/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">휴대폰 요금</span>
+                <span class="tx-card-amt tx-expense">-129,280원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 통신비 · 06/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 12캔</span>
+                <span class="tx-card-amt tx-income">+14,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 06/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">직구 헬씨300억</span>
+                <span class="tx-card-amt tx-expense">-44,090원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 영양제 · 06/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험 환급금</span>
+                <span class="tx-card-amt tx-income">+191,046원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 06/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">카톡 톡서랍</span>
+                <span class="tx-card-amt tx-expense">-990원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 06/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">눈썹</span>
+                <span class="tx-card-amt tx-expense">-11,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 06/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">브이쎄라</span>
+                <span class="tx-card-amt tx-expense">-99,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용기기 · 06/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">메디힐 마스크팩</span>
+                <span class="tx-card-amt tx-expense">-25,300원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 06/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">레몬즙</span>
+                <span class="tx-card-amt tx-expense">-5,500원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 건강식품 · 06/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">올리브 오일</span>
+                <span class="tx-card-amt tx-expense">-8,900원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 건강식품 · 06/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">어도비 클라우드</span>
+                <span class="tx-card-amt tx-expense">-26,400원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 06/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">레몬즙</span>
+                <span class="tx-card-amt tx-expense">-2,200원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 건강식품 · 06/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">멀티 비타민 포맨</span>
+                <span class="tx-card-amt tx-expense">-59,900원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 영양제 · 06/13</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">마그네슘</span>
+                <span class="tx-card-amt tx-expense">-49,530원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 영양제 · 06/13</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 24캔</span>
+                <span class="tx-card-amt tx-income">+28,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 06/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_메리츠</span>
+                <span class="tx-card-amt tx-expense">-77,090원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 06/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">K2 영양제</span>
+                <span class="tx-card-amt tx-expense">-24,660원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 영양제 · 06/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">컷트</span>
+                <span class="tx-card-amt tx-expense">-15,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용실 · 06/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">신한 이자</span>
+                <span class="tx-card-amt tx-expense">-12,444원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 · 이자 · 06/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-100,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 06/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">닥터케빈</span>
+                <span class="tx-card-amt tx-expense">-1,390원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 06/17</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">조각 퍼프</span>
+                <span class="tx-card-amt tx-expense">-12,900원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 06/18</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">쿠팡 월 회비</span>
+                <span class="tx-card-amt tx-expense">-7,890원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 06/18</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">-</span>
+                <span class="tx-card-amt tx-income">+38원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 이자 · - · 06/21</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">쇠 장갑</span>
+                <span class="tx-card-amt tx-expense">-7,700원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 강한컴퍼니 · 06/21</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_흥국</span>
+                <span class="tx-card-amt tx-expense">-39,022원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 06/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_DB</span>
+                <span class="tx-card-amt tx-expense">-33,560원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 06/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">매장 모밀+돈까스</span>
+                <span class="tx-card-amt tx-expense">-11,900원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 개인 · 06/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">네이버</span>
+                <span class="tx-card-amt tx-expense">-12,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 웹툰 · 06/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">폼클렌징 200ml 3개</span>
+                <span class="tx-card-amt tx-expense">-35,700원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 06/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">카톡 톡서랍 1년</span>
+                <span class="tx-card-amt tx-expense">-42,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 06/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">인형뽑기</span>
+                <span class="tx-card-amt tx-expense">-10,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 06/26</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 12캔</span>
+                <span class="tx-card-amt tx-income">+14,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 06/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">연세위내과 내시경 준비</span>
+                <span class="tx-card-amt tx-expense">-54,870원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 06/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">소나타 기름</span>
+                <span class="tx-card-amt tx-expense">-20,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 유류비 · 06/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">클로드</span>
+                <span class="tx-card-amt tx-expense">-34,438원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 06/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">아이스크림</span>
+                <span class="tx-card-amt tx-expense">-20,000원</span>
+              </div>
+              <div class="tx-card-meta muted">가족 · 식사 · 06/30</div>
+            </div></div>
         </div>
         <div class="tx-panel" id="tx-2026-07">
           <div class="tx-panel-head">7월 · 총 79건</div>
-          <table>
+          <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
             <tr>
@@ -5902,10 +8552,564 @@
               <td class="num tx-expense">23,190원</td>
             </tr></tbody>
           </table>
+          <div class="tx-card-view">
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-300,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 07/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">기후동행</span>
+                <span class="tx-card-amt tx-expense">-55,000원</span>
+              </div>
+              <div class="tx-card-meta muted">교통비 · 대중교통 · 07/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">영순관</span>
+                <span class="tx-card-amt tx-expense">-8,500원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 개인 · 07/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">헤어 드라이기</span>
+                <span class="tx-card-amt tx-expense">-37,520원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용기기 · 07/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">사장님</span>
+                <span class="tx-card-amt tx-expense">-10,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 곗돈 · 07/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보톡스 + 초음파</span>
+                <span class="tx-card-amt tx-expense">-66,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 피부관리비 · 07/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">눈썹문신</span>
+                <span class="tx-card-amt tx-expense">-220,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 피부관리비 · 07/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">교통비</span>
+                <span class="tx-card-amt tx-expense">-9,450원</span>
+              </div>
+              <div class="tx-card-meta muted">교통비 · 대중교통 · 07/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">B형 간염 주사</span>
+                <span class="tx-card-amt tx-expense">-30,000원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 07/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">오아로 피부과 진료비</span>
+                <span class="tx-card-amt tx-expense">-10,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 피부관리비 · 07/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">로또</span>
+                <span class="tx-card-amt tx-expense">-20,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 로또 · 07/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 12캔</span>
+                <span class="tx-card-amt tx-income">+14,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 07/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">텀블러</span>
+                <span class="tx-card-amt tx-expense">-26,000원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 생활용품 · 07/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">소나타 기름</span>
+                <span class="tx-card-amt tx-expense">-6,500원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 유류비 · 07/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">소나타 기름</span>
+                <span class="tx-card-amt tx-expense">-23,500원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 유류비 · 07/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한컴퍼니</span>
+                <span class="tx-card-amt tx-income">+4,752,790원</span>
+              </div>
+              <div class="tx-card-meta muted">급여 · - · 07/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 12캔</span>
+                <span class="tx-card-amt tx-income">+14,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 07/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">방학동</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 곗돈 · 07/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">브라운 반팔 2장</span>
+                <span class="tx-card-amt tx-expense">-93,500원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 의류 · 07/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">전자책</span>
+                <span class="tx-card-amt tx-expense">-3,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 강한컴퍼니 · 07/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">어도비 클라우드</span>
+                <span class="tx-card-amt tx-expense">-26,400원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 07/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">카톡 톡서랍</span>
+                <span class="tx-card-amt tx-expense">-990원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 07/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">휴대폰 요금</span>
+                <span class="tx-card-amt tx-expense">-129,280원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 통신비 · 07/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">바디필로우</span>
+                <span class="tx-card-amt tx-expense">-9,230원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 건강 관리 제품 · 07/13</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">마사지 볼</span>
+                <span class="tx-card-amt tx-expense">-5,060원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 건강 관리 제품 · 07/13</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">삼성척 물리 1회(64,040원)</span>
+                <span class="tx-card-amt tx-expense">-11,560원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 07/13</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">펌, 컷트</span>
+                <span class="tx-card-amt tx-expense">-30,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용실 · 07/13</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">신한 이자</span>
+                <span class="tx-card-amt tx-expense">-12,042원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 · 이자 · 07/13</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">삼성척 물리 2회(49,100원)</span>
+                <span class="tx-card-amt tx-expense">-10,000원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 07/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">O다리 깔창</span>
+                <span class="tx-card-amt tx-expense">-7,600원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 건강 관리 제품 · 07/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 12캔</span>
+                <span class="tx-card-amt tx-income">+14,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 07/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">마사지건</span>
+                <span class="tx-card-amt tx-expense">-29,130원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 건강 관리 제품 · 07/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">태양 손목 둘레 물품</span>
+                <span class="tx-card-amt tx-expense">-9,060원</span>
+              </div>
+              <div class="tx-card-meta muted">가족 · 결제 · 07/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_메리츠</span>
+                <span class="tx-card-amt tx-expense">-77,090원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 07/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">지압봉</span>
+                <span class="tx-card-amt tx-expense">-7,900원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 건강 관리 제품 · 07/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">메디힐 마스크팩</span>
+                <span class="tx-card-amt tx-expense">-26,380원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 07/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">유리아쥬 립밤</span>
+                <span class="tx-card-amt tx-expense">-24,900원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 07/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">모니터 케이블</span>
+                <span class="tx-card-amt tx-expense">-8,900원</span>
+              </div>
+              <div class="tx-card-meta muted">가족 · 결제 · 07/17</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-150,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 07/17</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">미네랄 팩트</span>
+                <span class="tx-card-amt tx-expense">-49,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 07/17</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">올리브 오일</span>
+                <span class="tx-card-amt tx-expense">-8,900원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 건강식품 · 07/18</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">메가커피</span>
+                <span class="tx-card-amt tx-expense">-5,360원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 강한컴퍼니 · 07/18</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">레몬즙</span>
+                <span class="tx-card-amt tx-expense">-9,000원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 건강식품 · 07/18</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">소나타 기름</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 유류비 · 07/18</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">바디로션 6개</span>
+                <span class="tx-card-amt tx-expense">-52,800원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 07/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">쿠팡 월 회비</span>
+                <span class="tx-card-amt tx-expense">-7,890원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 07/21</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">실업급여 주차비</span>
+                <span class="tx-card-amt tx-expense">-6,400원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 주차 · 07/21</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">알레르기 약</span>
+                <span class="tx-card-amt tx-expense">-9,910원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 복용약 · 07/21</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">알레르기 약</span>
+                <span class="tx-card-amt tx-expense">-2,090원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 복용약 · 07/21</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_흥국</span>
+                <span class="tx-card-amt tx-expense">-39,022원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 07/21</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_DB</span>
+                <span class="tx-card-amt tx-expense">-33,560원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 07/21</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">농민마트 생닭 2마리</span>
+                <span class="tx-card-amt tx-expense">-15,800원</span>
+              </div>
+              <div class="tx-card-meta muted">가족 · 식사 · 07/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">온아치과 스케일링</span>
+                <span class="tx-card-amt tx-expense">-27,300원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 07/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">실업급여 1차</span>
+                <span class="tx-card-amt tx-income">+544,800원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 07/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">삼성척 물리 3회(49,100원)</span>
+                <span class="tx-card-amt tx-expense">-10,000원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 07/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">공기압, 전조등</span>
+                <span class="tx-card-amt tx-expense">-15,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 정비 · 07/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">언니네 디져트</span>
+                <span class="tx-card-amt tx-expense">-35,300원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · 전체계산 · 07/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 07/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">가다실</span>
+                <span class="tx-card-amt tx-expense">-480,000원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 07/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">세라마이딘 50ml 4개</span>
+                <span class="tx-card-amt tx-expense">-65,800원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 07/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">주차</span>
+                <span class="tx-card-amt tx-expense">-3,000원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · 전체계산 · 07/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">유투브</span>
+                <span class="tx-card-amt tx-expense">-14,900원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 07/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">언니네 휴지선물</span>
+                <span class="tx-card-amt tx-expense">-16,150원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · 전체계산 · 07/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">오메가 6개월</span>
+                <span class="tx-card-amt tx-expense">-44,400원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 영양제 · 07/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">네이버 멤버쉽</span>
+                <span class="tx-card-amt tx-expense">-990원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 07/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">언니네 타르트</span>
+                <span class="tx-card-amt tx-expense">-39,400원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · 전체계산 · 07/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">고스톱</span>
+                <span class="tx-card-amt tx-expense">-21,000원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · N빵 · 07/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 12캔</span>
+                <span class="tx-card-amt tx-income">+14,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 07/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">삼성척 물리 4회(61,700원)</span>
+                <span class="tx-card-amt tx-expense">-10,170원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 07/27</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">하이패스</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 통행 · 07/27</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">인형뽑기</span>
+                <span class="tx-card-amt tx-expense">-3,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 07/28</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">반팔 셔츠</span>
+                <span class="tx-card-amt tx-expense">-55,300원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 의류 · 07/28</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">금란 산부인과</span>
+                <span class="tx-card-amt tx-expense">-3,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 07/28</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">와플대학</span>
+                <span class="tx-card-amt tx-expense">-8,500원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 07/28</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">와플대학</span>
+                <span class="tx-card-amt tx-expense">-6,700원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 개인 · 07/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">클로드</span>
+                <span class="tx-card-amt tx-expense">-31,957원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 07/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">머리띠</span>
+                <span class="tx-card-amt tx-expense">-6,300원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 생필품 · 07/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">폐기물</span>
+                <span class="tx-card-amt tx-expense">-6,000원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 청소/세탁 · 07/30</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">치간 칫솔 0.7mm / 2000개</span>
+                <span class="tx-card-amt tx-expense">-23,190원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 건강 관리 제품 · 07/31</div>
+            </div></div>
         </div>
         <div class="tx-panel" id="tx-2026-08">
           <div class="tx-panel-head">8월 · 총 90건</div>
-          <table>
+          <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
             <tr>
@@ -6719,10 +9923,641 @@
               <td class="num tx-expense">15,880원</td>
             </tr></tbody>
           </table>
+          <div class="tx-card-view">
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">Express VPN 2년 + 4개월</span>
+                <span class="tx-card-amt tx-expense">-133,742원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 08/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-400,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 08/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">사장님</span>
+                <span class="tx-card-amt tx-expense">-10,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 곗돈 · 08/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">말차 팥빙</span>
+                <span class="tx-card-amt tx-expense">-3,760원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 개인 · 08/02</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">리들샷 300 2개</span>
+                <span class="tx-card-amt tx-expense">-8,500원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 08/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">삼성척 도수 1회(111,400원)</span>
+                <span class="tx-card-amt tx-expense">-16,140원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 08/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">필테 전단지 생수</span>
+                <span class="tx-card-amt tx-expense">-700원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 개인 · 08/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">필테 전단지 얼음컵</span>
+                <span class="tx-card-amt tx-expense">-1,000원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 개인 · 08/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">필테 전단지 얼음컵</span>
+                <span class="tx-card-amt tx-expense">-1,500원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 개인 · 08/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">진동 클렌져</span>
+                <span class="tx-card-amt tx-expense">-97,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용기기 · 08/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">코노</span>
+                <span class="tx-card-amt tx-expense">-5,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 08/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">인형뽑기</span>
+                <span class="tx-card-amt tx-expense">-8,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 08/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">브레스 반바지, 반팔</span>
+                <span class="tx-card-amt tx-expense">-134,200원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 의류 · 08/04</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">라이프워크 반바지</span>
+                <span class="tx-card-amt tx-expense">-89,000원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 의류 · 08/04</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">LEE 반바지</span>
+                <span class="tx-card-amt tx-expense">-71,200원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 의류 · 08/04</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한컴퍼니</span>
+                <span class="tx-card-amt tx-income">+1,600,000원</span>
+              </div>
+              <div class="tx-card-meta muted">급여 · - · 08/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">강한 참치 12캔</span>
+                <span class="tx-card-amt tx-income">+14,000원</span>
+              </div>
+              <div class="tx-card-meta muted">강한 기타수익 · - · 08/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보문 => 집</span>
+                <span class="tx-card-amt tx-expense">-14,400원</span>
+              </div>
+              <div class="tx-card-meta muted">교통비 · 택시비 · 08/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">클렌징 오일 2개</span>
+                <span class="tx-card-amt tx-expense">-39,060원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 08/05</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">노원 닥터에버스 110만원</span>
+                <span class="tx-card-amt tx-expense">-995,500원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 피부관리비 · 08/06</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">헤어 브러쉬</span>
+                <span class="tx-card-amt tx-expense">-8,900원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 08/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">삼성척 도수 2회(108,800원)</span>
+                <span class="tx-card-amt tx-expense">-15,880원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 08/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">창동 초코쿠키</span>
+                <span class="tx-card-amt tx-expense">-1,400원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 개인 · 08/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">네이버</span>
+                <span class="tx-card-amt tx-expense">-12,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 웹툰 · 08/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">펌, 컷트</span>
+                <span class="tx-card-amt tx-expense">-15,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용실 · 08/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">풋샴푸, 바디브러쉬</span>
+                <span class="tx-card-amt tx-expense">-11,160원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 08/07</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">풋 브러쉬, 풋 솔</span>
+                <span class="tx-card-amt tx-expense">-12,400원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용기기 · 08/08</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">영화</span>
+                <span class="tx-card-amt tx-expense">-7,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 08/08</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">티빙 구독</span>
+                <span class="tx-card-amt tx-expense">-5,500원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 08/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">소독 티슈</span>
+                <span class="tx-card-amt tx-expense">-7,800원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용기기 · 08/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">메가커피</span>
+                <span class="tx-card-amt tx-expense">-4,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 강한컴퍼니 · 08/09</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">핸드워시</span>
+                <span class="tx-card-amt tx-expense">-9,850원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 08/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">삼성척 도수 3회(108,800원)</span>
+                <span class="tx-card-amt tx-expense">-15,880원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 08/10</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">휴대폰 요금</span>
+                <span class="tx-card-amt tx-expense">-129,280원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 통신비 · 08/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">원더플레이스 반바지</span>
+                <span class="tx-card-amt tx-expense">-49,000원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 의류 · 08/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">방학동</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 곗돈 · 08/11</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">어도비 클라우드</span>
+                <span class="tx-card-amt tx-expense">-26,400원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 08/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">카톡 톡서랍</span>
+                <span class="tx-card-amt tx-expense">-990원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 08/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">스타일러 3벌</span>
+                <span class="tx-card-amt tx-expense">-1,130,500원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 전자제품 · 08/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">눈썹 가위</span>
+                <span class="tx-card-amt tx-expense">-6,500원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용기기 · 08/12</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">스타일러 부속품</span>
+                <span class="tx-card-amt tx-expense">-38,100원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 전자제품 · 08/13</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">B형 간염 주사</span>
+                <span class="tx-card-amt tx-expense">-30,000원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 08/13</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">와플대학</span>
+                <span class="tx-card-amt tx-expense">-6,100원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 개인 · 08/13</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">극세사 타월</span>
+                <span class="tx-card-amt tx-expense">-6,990원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 생활용품 · 08/13</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">소나타 기름</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 유류비 · 08/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">형수님 꽃</span>
+                <span class="tx-card-amt tx-expense">-30,000원</span>
+              </div>
+              <div class="tx-card-meta muted">가족 · 결제 · 08/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">아버지 생신</span>
+                <span class="tx-card-amt tx-expense">-100,000원</span>
+              </div>
+              <div class="tx-card-meta muted">가족 · 용돈 · 08/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">집</span>
+                <span class="tx-card-amt tx-expense">-15,000원</span>
+              </div>
+              <div class="tx-card-meta muted">약속 · 택시 · 08/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">여권 연장</span>
+                <span class="tx-card-amt tx-expense">-50,960원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 여행 · 08/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">조은 스벅 선물</span>
+                <span class="tx-card-amt tx-expense">-13,900원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 선물/용돈 · 08/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">경목 아기옷</span>
+                <span class="tx-card-amt tx-expense">-53,100원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 선물/용돈 · 08/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">여권사진</span>
+                <span class="tx-card-amt tx-expense">-20,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 여행 · 08/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">효진&경목 선물</span>
+                <span class="tx-card-amt tx-expense">-53,300원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 선물/용돈 · 08/14</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">선미 선물</span>
+                <span class="tx-card-amt tx-expense">-12,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 선물/용돈 · 08/15</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">메디힐 마스크팩</span>
+                <span class="tx-card-amt tx-expense">-27,450원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 08/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">폼클렌징 200ml 1개</span>
+                <span class="tx-card-amt tx-expense">-8,460원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 08/16</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">삼성척 도수 4회(108,800원)</span>
+                <span class="tx-card-amt tx-expense">-15,880원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 08/17</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">양재 KFC</span>
+                <span class="tx-card-amt tx-expense">-12,900원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 개인 · 08/17</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">알라딘 수유점 주차비</span>
+                <span class="tx-card-amt tx-expense">-1,500원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 주차 · 08/17</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">폼클렌징 200ml 1개, 모델링</span>
+                <span class="tx-card-amt tx-expense">-14,580원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 08/17</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">메디힐 모델링팩</span>
+                <span class="tx-card-amt tx-expense">-16,900원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 08/17</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">선미 장례식</span>
+                <span class="tx-card-amt tx-expense">-100,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 경조사비 · 08/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">선미 장례식 간식</span>
+                <span class="tx-card-amt tx-expense">-5,900원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 선물/용돈 · 08/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_메리츠</span>
+                <span class="tx-card-amt tx-expense">-77,090원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 08/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">1688 옷</span>
+                <span class="tx-card-amt tx-expense">-2,552원</span>
+              </div>
+              <div class="tx-card-meta muted">가족 · 용돈 · 08/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">실업급여 2차</span>
+                <span class="tx-card-amt tx-income">+1,906,800원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 08/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">신한 이자</span>
+                <span class="tx-card-amt tx-expense">-12,688원</span>
+              </div>
+              <div class="tx-card-meta muted">금융 · 이자 · 08/19</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_흥국</span>
+                <span class="tx-card-amt tx-expense">-39,022원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 08/20</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">보험_DB</span>
+                <span class="tx-card-amt tx-expense">-33,560원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 보험비 · 08/21</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">쿠팡 월 회비</span>
+                <span class="tx-card-amt tx-expense">-7,890원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 08/21</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">선미 치킨</span>
+                <span class="tx-card-amt tx-expense">-30,000원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 선물/용돈 · 08/21</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">유투브</span>
+                <span class="tx-card-amt tx-expense">-14,900원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 08/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">네이버 멤버쉽</span>
+                <span class="tx-card-amt tx-expense">-990원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 08/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">소나타 기름</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 유류비 · 08/22</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">비타민C 1000</span>
+                <span class="tx-card-amt tx-expense">-27,120원</span>
+              </div>
+              <div class="tx-card-meta muted">몸 만들기 · 영양제 · 08/23</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">1주년 드라이플라워</span>
+                <span class="tx-card-amt tx-expense">-15,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 선물 · 08/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">삼성척 도수 5회(111,400원)</span>
+                <span class="tx-card-amt tx-expense">-16,140원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 08/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">카페 잔액</span>
+                <span class="tx-card-amt tx-expense">-17,400원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 개인 결제 · 08/25</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">랩신 바디워시</span>
+                <span class="tx-card-amt tx-expense">-11,990원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 화장품 · 08/26</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">치실</span>
+                <span class="tx-card-amt tx-expense">-10,340원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 건강 관리 제품 · 08/26</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">머리 컨설팅</span>
+                <span class="tx-card-amt tx-expense">-63,000원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 피부관리비 · 08/28</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">네이버 멤버쉽</span>
+                <span class="tx-card-amt tx-expense">-4,900원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 어플/멤버쉽 · 08/28</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">갤럭시 워치9</span>
+                <span class="tx-card-amt tx-expense">-469,000원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 전자제품 · 08/28</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">면봉, 샤워볼</span>
+                <span class="tx-card-amt tx-expense">-12,460원</span>
+              </div>
+              <div class="tx-card-meta muted">뷰티 · 미용기기 · 08/28</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">퇴직금 일부</span>
+                <span class="tx-card-amt tx-income">+1,920,441원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 08/31</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">세제 통</span>
+                <span class="tx-card-amt tx-expense">-1,000원</span>
+              </div>
+              <div class="tx-card-meta muted">주거생활비 · 생필품 · 08/31</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">아이스크림</span>
+                <span class="tx-card-amt tx-expense">-13,500원</span>
+              </div>
+              <div class="tx-card-meta muted">가족 · 식사 · 08/31</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">편의점 꼬깔콘</span>
+                <span class="tx-card-amt tx-expense">-1,700원</span>
+              </div>
+              <div class="tx-card-meta muted">식비 · 식사 · 08/31</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">소나타 기름</span>
+                <span class="tx-card-amt tx-expense">-100,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 유류비 · 08/31</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">삼성척 도수 6회(108,800원)</span>
+                <span class="tx-card-amt tx-expense">-15,880원</span>
+              </div>
+              <div class="tx-card-meta muted">의료비 · 병원비 · 08/31</div>
+            </div></div>
         </div>
         <div class="tx-panel" id="tx-2026-09">
           <div class="tx-panel-head">9월 · 총 9건</div>
-          <table>
+          <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
             <tr>
@@ -6807,6 +10642,70 @@
               <td class="num tx-income">3,000,000원</td>
             </tr></tbody>
           </table>
+          <div class="tx-card-view">
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">브라운 브레스 니트</span>
+                <span class="tx-card-amt tx-expense">-79,000원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 의류 · 09/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">고정비 이체</span>
+                <span class="tx-card-amt tx-transfer">↔525,000원</span>
+              </div>
+              <div class="tx-card-meta muted">이체 · 신한은행 · 09/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">적금 이체</span>
+                <span class="tx-card-amt tx-transfer">↔500,000원</span>
+              </div>
+              <div class="tx-card-meta muted">이체 · 청년미래적금 · 09/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">마인드 브릿지 가디건</span>
+                <span class="tx-card-amt tx-expense">-71,900원</span>
+              </div>
+              <div class="tx-card-meta muted">쇼핑비 · 의류 · 09/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">커플통장</span>
+                <span class="tx-card-amt tx-expense">-400,000원</span>
+              </div>
+              <div class="tx-card-meta muted">내여자 · 커플통장 · 09/01</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">하이패스 충전</span>
+                <span class="tx-card-amt tx-expense">-50,000원</span>
+              </div>
+              <div class="tx-card-meta muted">차량유지비 · 통행 · 09/02</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">메가커피</span>
+                <span class="tx-card-amt tx-expense">-5,440원</span>
+              </div>
+              <div class="tx-card-meta muted">사회생활비 · 강한컴퍼니 · 09/02</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">로또</span>
+                <span class="tx-card-amt tx-expense">-20,000원</span>
+              </div>
+              <div class="tx-card-meta muted">문화생활비 · 로또 · 09/03</div>
+            </div>
+            <div class="tx-card">
+              <div class="tx-card-top">
+                <span class="tx-card-desc">퇴직금 일부</span>
+                <span class="tx-card-amt tx-income">+3,000,000원</span>
+              </div>
+              <div class="tx-card-meta muted">기타 수익 · - · 09/03</div>
+            </div></div>
         </div></div>
     </div>
   </section>
