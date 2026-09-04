@@ -352,6 +352,7 @@
   .tx-panel.active { display: block; }
   .tx-panel-head { font-size: 13px; color: var(--ink-muted); margin-bottom: 10px; }
   .tx-head-short { display: none; }
+  .tx-head-net { display: none; }
   .tx-panel table { font-size: 13px; }
   .tx-panel td, .tx-panel th { padding: 7px 8px; }
   td.tx-income { color: var(--green); font-weight: 600; }
@@ -433,6 +434,9 @@
     .tx-card-view { display: block; }
     .tx-head-full { display: none; }
     .tx-head-short { display: inline; }
+    .tx-head-net { display: inline; font-weight: 700; }
+    .tx-head-net.tx-income { color: var(--green); }
+    .tx-head-net.tx-expense { color: var(--red); }
     .tx-panel-head {
       position: sticky;
       top: 0;
@@ -440,6 +444,10 @@
       background: var(--card);
       padding: 8px 4px;
       margin-bottom: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
     }
   }
 </style>
@@ -1786,7 +1794,11 @@
       <div class="tx-tabs"><button class="tx-tab active" data-month="2026-01" onclick="showTxMonth('2026-01')">1월</button><button class="tx-tab" data-month="2026-02" onclick="showTxMonth('2026-02')">2월</button><button class="tx-tab" data-month="2026-03" onclick="showTxMonth('2026-03')">3월</button><button class="tx-tab" data-month="2026-04" onclick="showTxMonth('2026-04')">4월</button><button class="tx-tab" data-month="2026-05" onclick="showTxMonth('2026-05')">5월</button><button class="tx-tab" data-month="2026-06" onclick="showTxMonth('2026-06')">6월</button><button class="tx-tab" data-month="2026-07" onclick="showTxMonth('2026-07')">7월</button><button class="tx-tab" data-month="2026-08" onclick="showTxMonth('2026-08')">8월</button><button class="tx-tab" data-month="2026-09" onclick="showTxMonth('2026-09')">9월</button></div>
       <div class="tx-scroll">
         <div class="tx-panel active" id="tx-2026-01">
-          <div class="tx-panel-head"><span class="tx-head-full">1월 · 총 78건</span><span class="tx-head-short">총 78건</span></div>
+          <div class="tx-panel-head">
+            <span class="tx-head-full">1월 · 총 78건</span>
+            <span class="tx-head-short">총 78건</span>
+            <span class="tx-head-net tx-income">순잉여 +138,645원</span>
+          </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
@@ -3042,7 +3054,11 @@
             </div></div>
         </div>
         <div class="tx-panel" id="tx-2026-02">
-          <div class="tx-panel-head"><span class="tx-head-full">2월 · 총 62건</span><span class="tx-head-short">총 62건</span></div>
+          <div class="tx-panel-head">
+            <span class="tx-head-full">2월 · 총 62건</span>
+            <span class="tx-head-short">총 62건</span>
+            <span class="tx-head-net tx-expense">순잉여 -365,265원</span>
+          </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
@@ -4042,7 +4058,11 @@
             </div></div>
         </div>
         <div class="tx-panel" id="tx-2026-03">
-          <div class="tx-panel-head"><span class="tx-head-full">3월 · 총 76건</span><span class="tx-head-short">총 76건</span></div>
+          <div class="tx-panel-head">
+            <span class="tx-head-full">3월 · 총 76건</span>
+            <span class="tx-head-short">총 76건</span>
+            <span class="tx-head-net tx-expense">순잉여 -131,204원</span>
+          </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
@@ -5266,7 +5286,11 @@
             </div></div>
         </div>
         <div class="tx-panel" id="tx-2026-04">
-          <div class="tx-panel-head"><span class="tx-head-full">4월 · 총 67건</span><span class="tx-head-short">총 67건</span></div>
+          <div class="tx-panel-head">
+            <span class="tx-head-full">4월 · 총 67건</span>
+            <span class="tx-head-short">총 67건</span>
+            <span class="tx-head-net tx-expense">순잉여 -83,293원</span>
+          </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
@@ -6346,7 +6370,11 @@
             </div></div>
         </div>
         <div class="tx-panel" id="tx-2026-05">
-          <div class="tx-panel-head"><span class="tx-head-full">5월 · 총 40건</span><span class="tx-head-short">총 40건</span></div>
+          <div class="tx-panel-head">
+            <span class="tx-head-full">5월 · 총 40건</span>
+            <span class="tx-head-short">총 40건</span>
+            <span class="tx-head-net tx-income">순잉여 +2,506,387원</span>
+          </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
@@ -6994,7 +7022,11 @@
             </div></div>
         </div>
         <div class="tx-panel" id="tx-2026-06">
-          <div class="tx-panel-head"><span class="tx-head-full">6월 · 총 53건</span><span class="tx-head-short">총 53건</span></div>
+          <div class="tx-panel-head">
+            <span class="tx-head-full">6월 · 총 53건</span>
+            <span class="tx-head-short">총 53건</span>
+            <span class="tx-head-net tx-income">순잉여 +2,104,730원</span>
+          </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
@@ -7850,7 +7882,11 @@
             </div></div>
         </div>
         <div class="tx-panel" id="tx-2026-07">
-          <div class="tx-panel-head"><span class="tx-head-full">7월 · 총 79건</span><span class="tx-head-short">총 79건</span></div>
+          <div class="tx-panel-head">
+            <span class="tx-head-full">7월 · 총 79건</span>
+            <span class="tx-head-short">총 79건</span>
+            <span class="tx-head-net tx-income">순잉여 +2,492,009원</span>
+          </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
@@ -9122,7 +9158,11 @@
             </div></div>
         </div>
         <div class="tx-panel" id="tx-2026-08">
-          <div class="tx-panel-head"><span class="tx-head-full">8월 · 총 90건</span><span class="tx-head-short">총 90건</span></div>
+          <div class="tx-panel-head">
+            <span class="tx-head-full">8월 · 총 90건</span>
+            <span class="tx-head-short">총 90건</span>
+            <span class="tx-head-net tx-income">순잉여 +161,957원</span>
+          </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
@@ -10570,7 +10610,11 @@
             </div></div>
         </div>
         <div class="tx-panel" id="tx-2026-09">
-          <div class="tx-panel-head"><span class="tx-head-full">9월 · 총 9건</span><span class="tx-head-short">총 9건</span></div>
+          <div class="tx-panel-head">
+            <span class="tx-head-full">9월 · 총 9건</span>
+            <span class="tx-head-short">총 9건</span>
+            <span class="tx-head-net tx-income">순잉여 +2,373,660원</span>
+          </div>
           <table class="tx-table-view">
             <thead><tr><th>날짜</th><th>구분</th><th>대분류</th><th>소분류</th><th>세부내용</th><th></th><th style="text-align:right;">금액</th></tr></thead>
             <tbody>
