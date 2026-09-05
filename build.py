@@ -1113,7 +1113,7 @@ html = f"""<!DOCTYPE html>
       <h2>신한은행 고정지출 예상 vs 실제</h2>
       <span class="note">{int(months_included[-1].split('-')[1])}월 기준 · 매달 갱신</span>
     </div>
-    <p class="lede">신한은행 통장에서 빠져나가는 고정비 {len(bundle['shinhan_fixed'])}개 항목이에요. 관범님이 직접 정리해주신 목록 기준(합계 {won(bundle.get('shinhan_fixed_total',0))}원)이라, 다음 10번의 예상 고정지출({won(bundle['projection']['total'])}원)과는 집계 기준이 다릅니다 — 10번은 CSV의 고정 태그 전체를 통장 구분 없이 모은 값이에요.</p>
+    <p class="lede">신한은행 통장에서 빠져나가는 고정비 {len(bundle['shinhan_fixed'])}개 항목이에요. 관범님이 직접 정리해주신 목록 기준(합계 {won(bundle.get('shinhan_fixed_total',0))}원)이라, 다음 13번의 예상 고정지출({won(bundle['projection']['total'])}원)과는 집계 기준이 다릅니다 — 13번은 CSV의 고정 태그 전체를 통장 구분 없이 모은 값이에요.</p>
     <div class="card" style="overflow-x:auto;">
       <table>
         <thead><tr><th>고정지출</th><th style="text-align:right;">금액(예상)</th><th style="text-align:right;">출금액(실제)</th></tr></thead>
@@ -1128,7 +1128,7 @@ html = f"""<!DOCTYPE html>
       <h2>매달 예상 고정지출</h2>
       <span class="note">{completed_range_label} 총액 ÷ {N_COMPLETED}개월 기준</span>
     </div>
-    <p class="lede">고정 태그가 붙은 항목의 완성된 {N_COMPLETED}개월({completed_range_label}) 누적 금액을 {N_COMPLETED}로 나눈 월평균값이에요. 진행 중인 달({next_month_label} 전 달인 {months_included[-1].split('-')[1]}월)은 아직 다 안 끝나서 계산에서 빠져요. 종료가 확인된 <b>회생·리모트뷰·Chat GPT·MIB·삼성 케어</b>는 계산에서 제외했고, <b>카톡 톡서랍 1년</b>은 연간결제성 항목이라 별도 요청으로 제외했어요. <b>이모티콘/이모티콘 월구독</b>은 같은 구독으로 확인돼 하나로 합쳐서 반영했어요.</p>
+    <p class="lede">고정 태그가 붙은 항목의 완성된 {N_COMPLETED}개월({completed_range_label}) 누적 금액을 {N_COMPLETED}로 나눈 월평균값이에요. 진행 중인 달({months_included[-1].split('-')[1]}월)은 아직 다 안 끝나서 계산에서 빠져요. 종료가 확인된 <b>회생·리모트뷰·Chat GPT·MIB·삼성 케어</b>는 계산에서 제외했고, <b>카톡 톡서랍 1년</b>은 연간결제성 항목이라 별도 요청으로 제외했어요. <b>이모티콘/이모티콘 월구독</b>은 같은 구독으로 확인돼 하나로 합쳐서 반영했어요.</p>
 
     <div class="kpi-grid" style="grid-template-columns: repeat(2,1fr); margin-bottom:24px;">
       <div class="kpi-card">
@@ -1166,7 +1166,7 @@ html = f"""<!DOCTYPE html>
       <h2>매달 목표 대비 실적</h2>
       <span class="note">목표 {won(bundle.get('fixed_vs_target',{}).get('target',0))}원 · 9월부터 비교</span>
     </div>
-    <p class="lede">10번에서 계산한 예상 고정지출({won(bundle.get('fixed_vs_target',{}).get('target',0))}원)을 목표로 두고, 매달 실제 고정지출(고정여부="고정" 전체)이 이 기준을 넘었는지 비교해요. 회생·리모트뷰 같은 종료 항목이 다 정리된 9월부터 비교를 시작해요.</p>
+    <p class="lede">13번에서 계산한 예상 고정지출({won(bundle.get('fixed_vs_target',{}).get('target',0))}원)을 목표로 두고, 매달 실제 고정지출(고정여부="고정" 전체)이 이 기준을 넘었는지 비교해요. 회생·리모트뷰 같은 종료 항목이 다 정리된 9월부터 비교를 시작해요.</p>
     <div class="card" style="overflow-x:auto;">
       <table>
         <thead><tr><th style="white-space:nowrap;">월</th><th style="text-align:right;">지출</th><th style="text-align:right;">목표</th><th style="text-align:right;">차이</th><th style="width:120px;" class="fv-bar-col"></th></tr></thead>
