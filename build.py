@@ -1128,7 +1128,7 @@ html = f"""<!DOCTYPE html>
       <h2>매달 예상 고정지출</h2>
       <span class="note">{completed_range_label} 총액 ÷ {N_COMPLETED}개월 기준</span>
     </div>
-    <p class="lede">고정 태그가 붙은 항목의 완성된 {N_COMPLETED}개월({completed_range_label}) 누적 금액을 {N_COMPLETED}로 나눈 월평균값이에요. 진행 중인 달({months_included[-1].split('-')[1]}월)은 아직 다 안 끝나서 계산에서 빠져요. 종료가 확인된 <b>회생·리모트뷰·Chat GPT·MIB·삼성 케어</b>는 계산에서 제외했고, <b>카톡 톡서랍 1년</b>은 연간결제성 항목이라 별도 요청으로 제외했어요. <b>이모티콘/이모티콘 월구독</b>은 같은 구독으로 확인돼 하나로 합쳐서 반영했어요.</p>
+    <p class="lede">고정 태그가 붙은 항목의 완성된 {N_COMPLETED}개월({completed_range_label}) 누적 금액을 {N_COMPLETED}로 나눈 월평균값이에요. 진행 중인 달({months_included[-1].split('-')[1]}월)은 아직 다 안 끝나서 계산에서 빠져요. 종료가 확인된 <b>회생·리모트뷰·Chat GPT·MIB·삼성 케어</b>는 계산에서 제외했어요. <b>이모티콘</b>은 2026년 6월에 월구독(5,700원)에서 연간권(42,000원)으로 갈아타서, 월구독분은 종료 처리하고 연간권은 연간결제성이라 별도 요청으로 제외했어요.</p>
 
     <div class="kpi-grid" style="grid-template-columns: repeat(2,1fr); margin-bottom:24px;">
       <div class="kpi-card">
