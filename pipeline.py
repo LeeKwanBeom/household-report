@@ -390,17 +390,33 @@ def build_bundle(df):
                        "elapsed_ratio": round(elapsed_ratio * 100, 1)}
 
     # ---- 카테고리별 전월 대비 증감 ----
+    # 진행 중인 달은 전월 '전체'와 비교하면 무조건 감소로 보인다.
+    # 같은 일자까지로 잘라서 비교해야 실제 증감을 볼 수 있다.
     mom = []
+    same_day_cutoff = None
     if len(months) >= 2:
         prev_m, curr_m = months[-2], months[-1]
-        prev_s = exp[exp["월"] == prev_m].groupby("대분류")["금액"].sum()
-        curr_s = exp[exp["월"] == curr_m].groupby("대분류")["금액"].sum()
+        cutoff_day = int(latest_date.day)
+
+        prev_rows = exp[exp["월"] == prev_m]
+        curr_rows = exp[exp["월"] == curr_m]
+
+        # 전월이 이 일자를 넘겨 실제로 진행됐을 때만 잘라낸다
+        prev_month_end = (pd.to_datetime(prev_m + "-01") + pd.offsets.MonthEnd(0)).day
+        if cutoff_day < prev_month_end:
+            same_day_cutoff = cutoff_day
+            prev_rows = prev_rows[prev_rows["날짜"].dt.day <= cutoff_day]
+            curr_rows = curr_rows[curr_rows["날짜"].dt.day <= cutoff_day]
+
+        prev_s = prev_rows.groupby("대분류")["금액"].sum()
+        curr_s = curr_rows.groupby("대분류")["금액"].sum()
         for c in set(prev_s.index) | set(curr_s.index):
             p, cu = round(prev_s.get(c, 0)), round(curr_s.get(c, 0))
             mom.append({"대분류": c, "전월": p, "당월": cu, "증감": cu - p})
         mom.sort(key=lambda x: -abs(x["증감"]))
     month_over_month = {"prev": months[-2] if len(months) >= 2 else None,
-                        "curr": months[-1], "items": mom[:10]}
+                        "curr": months[-1], "items": mom[:10],
+                        "same_day_cutoff": same_day_cutoff}
 
     return {
         "kpi": {
