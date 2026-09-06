@@ -16,21 +16,28 @@ import pandas as pd
 # ============================================================
 
 # 계좌 시작 잔고
+#
+# as_of = 그 잔고를 실제로 확인한 날짜. 잔고 계산은 계좌마다 "as_of 다음날부터"의
+# 거래만 더한다. as_of 당일까지의 거래는 이미 잔고 숫자 안에 녹아 있기 때문이다.
+# 이 한 줄이 이중계산 방지 규칙의 전부이며, 예외 목록을 따로 두지 않는다.
+#
+# 잔고를 새로 재면 balance와 as_of를 **반드시 같이** 갱신할 것.
+# 날짜만 옮기면 그 사이 거래가 통째로 사라지거나 두 번 세어진다.
 ACCOUNTS_START = {
-    "생활비 통장":   {"balance": 3342548, "as_of": "2026-10-01", "desc": "유동 지출 (카드값·경조사·기타)"},
-    "신한은행 통장": {"balance": 0,       "as_of": "2026-10-01", "desc": "매달 고정비 선입금 (통신비·보험비 등)"},
-    "청년미래적금":  {"balance": 1500000, "as_of": "2026-10-03", "desc": "적금 (매달 1일 생활비에서 50만원 이체)"},
-    "대여금":       {"balance": 3300000, "as_of": "2026-10-04", "desc": "타인에게 빌려준 돈 (회수 시 감소)"},
+    "생활비 통장":   {"balance": 3342548, "as_of": "2026-09-01", "desc": "유동 지출 (카드값·경조사·기타)"},
+    "신한은행 통장": {"balance": 0,       "as_of": "2026-09-01", "desc": "매달 고정비 선입금 (통신비·보험비 등)"},
+    "청년미래적금":  {"balance": 1500000, "as_of": "2026-09-03", "desc": "적금 (매달 1일 생활비에서 50만원 이체)"},
+    "대여금":       {"balance": 3300000, "as_of": "2026-09-01", "desc": "타인에게 빌려준 돈 (회수 시 감소)"},
 }
 
-# 계좌 잔고 추적 시작일 (이 날짜 이후 거래만 잔고 계산에 반영)
-BALANCE_TRACKING_START = "2026-10-01"
-
-# 시작 잔고에 이미 반영된 이체 → 잔고 계산에서 영구 제외 (이중계산 방지)
-# (날짜, 입금계좌) 조합으로 식별하며, 출금·입금 양쪽 모두 제외됨
-TRANSFERS_ALREADY_IN_START_BALANCE = [
-    ("2026-09-01", "청년미래적금"),
-]
+# CSV의 '결제수단'·이체 '소분류'에 실제로 적히는 표기 → 계좌명
+# CSV 표기가 바뀌면 여기만 고친다. 매칭 실패는 검증 단계에서 잡힌다.
+ACCOUNT_KEY = {
+    "생활비 통장":   "생활비",
+    "신한은행 통장": "신한은행",
+    "청년미래적금":  "청년미래적금",
+    "대여금":       "대여금",
+}
 
 # 종료 확인된 고정 항목 → 매달 예상 고정지출 계산에서 제외
 ENDED_FIXED_ITEMS = [
@@ -40,10 +47,14 @@ ENDED_FIXED_ITEMS = [
     "문화생활비 / 어플·멤버쉽 / Chat GPT",
     "문화생활비 / 어플·멤버쉽 / MIB",
     "문화생활비 / 어플·멤버쉽 / 삼성 케어",
-    "문화생활비 / 어플·멤버쉽 / 이모티콘",  # 2026-06 연간권 전환
+    # 5,700원 월구독을 쓰다가 1년권으로 갈아탐. 2026-07부터 연간권 사용,
+    # 월구독은 그 직전에 종료. 연간권 쪽은 아래 MANUALLY_EXCLUDED에 있다.
+    "문화생활비 / 어플·멤버쉽 / 이모티콘",
 ]
 
 # 사용자 요청으로 제외한 고정 항목 (연간결제성 등)
+# 카톡 이모티콘 1년권 — 1년에 한 번 결제라 월평균에 넣으면 그 달만 튄다.
+# (카카오 '톡서랍'은 별개이고 지금도 쓰는 항목이라 여기 없다. SHINHAN_FIXED_ITEMS 참고)
 MANUALLY_EXCLUDED_FIXED_ITEMS = [
     "문화생활비 / 어플·멤버쉽 / 이모티콘 1년",
 ]
@@ -84,8 +95,16 @@ SHINHAN_FIXED_ITEMS = [
 # 신용카드 전월실적 목표
 CARD_TARGETS = {"현대카드": 400000, "신한카드": 1000000}
 
-# 목표 대비 실적 비교 시작 월 (회생·리모트뷰 등 종료 항목이 다 정리된 시점)
-TARGET_COMPARISON_START = "2026-10"
+# 목표 대비 실적 비교 시작 월
+#
+# 이 비교의 목표치는 ENDED_FIXED_ITEMS를 빼고 계산된다. 그 항목들을 아직 내고
+# 있던 달까지 비교에 넣으면, 지금은 없는 지출 때문에 매달 초과로 찍혀 표가
+# 쓸모없어진다. 그래서 "종료 항목이 다 정리된 달"부터 비교를 시작한다.
+#
+# "auto" = 종료 항목들의 마지막 결제월 다음 달을 데이터에서 계산한다. 기본값이며,
+#          종료 항목을 추가/삭제하면 시작월도 알아서 따라온다.
+# "2026-07" 처럼 직접 적으면 그 값을 그대로 쓴다 (특별한 이유가 있을 때만).
+TARGET_COMPARISON_START = "auto"
 
 
 # ============================================================
@@ -93,6 +112,12 @@ TARGET_COMPARISON_START = "2026-10"
 # ============================================================
 
 TEXT_COLS = ["구분", "대분류", "소분류", "세부내용", "결제수단", "고정여부", "비고"]
+
+
+def _ym(s):
+    """'2026-09' → (2026, 9)"""
+    y, m = s.split("-")[:2]
+    return int(y), int(m)
 
 
 def parse_amount(value):
@@ -270,7 +295,11 @@ def build_bundle(df):
     # ---- 매달 예상 고정지출 (완성된 달만) ----
     completed_months = months[:-1]  # 최신 월은 항상 진행 중으로 간주
     n_completed = len(completed_months)
-    last_completed = pd.to_datetime(completed_months[-1] + "-01")
+    # 한 달치만 올린 경우(예: 새해 첫 달) 완성된 달이 0개다. 예전에는 여기서
+    # IndexError로 죽었다. 계산을 건너뛰고 나머지 섹션은 정상 생성한다.
+    has_completed = n_completed > 0
+    last_completed = (pd.to_datetime(completed_months[-1] + "-01")
+                      if has_completed else pd.to_datetime(months[-1] + "-01"))
 
     fixed_rows = core[(core["구분"] == "지출") &
                       (core["월"].isin(completed_months)) &
@@ -291,7 +320,7 @@ def build_bundle(df):
     g["마지막월_dt"] = pd.to_datetime(g["마지막월"] + "-01")
     g["공백"] = ((last_completed.year - g["마지막월_dt"].dt.year) * 12 +
                 (last_completed.month - g["마지막월_dt"].dt.month))
-    g["월평균"] = (g["합계"] / n_completed).round(0)
+    g["월평균"] = (g["합계"] / n_completed).round(0) if has_completed else 0
 
     excluded_keys = ENDED_FIXED_ITEMS + MANUALLY_EXCLUDED_FIXED_ITEMS
     proj = g[~g["키"].isin(excluded_keys)].sort_values("월평균", ascending=False)
@@ -300,54 +329,109 @@ def build_bundle(df):
          "공백": int(r["공백"]), "합계": round(r["합계"]), "월평균": round(r["월평균"]),
          "상태": "정상"}
         for _, r in proj.iterrows()
-    ]
+    ] if has_completed else []
     projection_total = round(sum(p["월평균"] for p in projection_items))
 
     excluded_items = []
     for _, r in g[g["키"].isin(ENDED_FIXED_ITEMS)].iterrows():
         excluded_items.append({"항목": r["키"], "마지막월": r["마지막월"],
-                               "최근8개월합계": round(r["합계"]), "사유": "종료 확인"})
+                               "누적합계": round(r["합계"]), "사유": "종료 확인"})
     for _, r in g[g["키"].isin(MANUALLY_EXCLUDED_FIXED_ITEMS)].iterrows():
         excluded_items.append({"항목": r["키"], "마지막월": r["마지막월"],
-                               "최근8개월합계": round(r["합계"]), "사유": "제외 요청(연간결제성)"})
+                               "누적합계": round(r["합계"]), "사유": "제외 요청(연간결제성)"})
+
+    # 규칙에 적어뒀는데 데이터에서 한 번도 안 걸린 키 → 이름이 바뀌었거나 오타
+    seen_keys = set(g["키"])
+    stale_rule_keys = [k for k in excluded_keys if k not in seen_keys]
 
     # ---- 계좌 잔고 ----
-    tracked = df[df["날짜"] >= BALANCE_TRACKING_START].copy()
-
-    # 시작 잔고에 이미 반영된 이체는 양쪽 모두 제외
-    already_counted = pd.Series(False, index=tracked.index)
-    for d, to_account in TRANSFERS_ALREADY_IN_START_BALANCE:
-        already_counted |= ((tracked["구분"] == "이체") &
-                            (tracked["소분류"] == to_account) &
-                            (tracked["날짜"] == pd.Timestamp(d)))
-    bal_src = tracked[~already_counted]
-
+    # 계좌마다 as_of가 다르므로 계좌별로 따로 자른다. as_of 당일까지의 거래는
+    # 이미 시작 잔고에 들어 있으므로 '초과(>)' 비교를 쓴다.
     def account_balance(name):
-        start = ACCOUNTS_START[name]["balance"]
-        short = name.replace(" 통장", "")
-        income = bal_src[(bal_src["구분"] == "수입") & (bal_src["결제수단"] == short)]["금액"].sum()
-        expense = bal_src[(bal_src["구분"] == "지출") & (bal_src["결제수단"] == short)]["금액"].sum()
-        out = bal_src[(bal_src["구분"] == "이체") & (bal_src["결제수단"] == short)]["금액"].sum()
-        into = bal_src[(bal_src["구분"] == "이체") & (bal_src["소분류"] == short)]["금액"].sum()
-        return round(start + income - expense - out + into)
+        meta = ACCOUNTS_START[name]
+        start = meta["balance"]
+        short = ACCOUNT_KEY[name]
+        src = df[df["날짜"] > pd.Timestamp(meta["as_of"])]
+        income = src[(src["구분"] == "수입") & (src["결제수단"] == short)]["금액"].sum()
+        expense = src[(src["구분"] == "지출") & (src["결제수단"] == short)]["금액"].sum()
+        out = src[(src["구분"] == "이체") & (src["결제수단"] == short)]["금액"].sum()
+        into = src[(src["구분"] == "이체") & (src["소분류"] == short)]["금액"].sum()
+        moved = len(src[((src["결제수단"] == short) | (src["소분류"] == short))])
+        return round(start + income - expense - out + into), moved
 
     accounts_list = []
     for name, meta in ACCOUNTS_START.items():
-        bal = meta["balance"] if name == "대여금" else account_balance(name)
+        # 대여금도 예외 없이 계산한다. 회수 기록이 있으면 줄어야 하기 때문이다.
+        bal, moved = account_balance(name)
         accounts_list.append({"name": name, "start_balance": meta["balance"],
-                              "current_balance": bal, "desc": meta["desc"]})
+                              "current_balance": bal, "desc": meta["desc"],
+                              "as_of": meta["as_of"], "tx_count": moved})
+
+    # 어느 계좌에도 붙지 않은 결제수단·이체 상대계좌 (조용히 증발하는 값 추적)
+    known_accounts = set(ACCOUNT_KEY.values())
+    card_tags = set(CARD_TARGETS)
+    unknown_payment = sorted(
+        {v for v in df[df["구분"].isin(["수입", "지출"])]["결제수단"].unique()
+         if v and v not in known_accounts and v not in card_tags}
+    )
+    unknown_transfer = sorted(
+        {v for v in df[df["구분"] == "이체"]["소분류"].unique()
+         if v and v not in known_accounts}
+    ) + sorted(
+        {v for v in df[df["구분"] == "이체"]["결제수단"].unique()
+         if v and v not in known_accounts}
+    )
 
     # ---- 신한은행 고정지출 예상 vs 실제 ----
-    sh = tracked[(tracked["구분"] == "지출") & (tracked["결제수단"] == "신한은행")].copy()
+    # 예상금액이 '한 달치'이므로 실제도 최신 월 한 달치만 본다.
+    # 누적 기간과 비교하면 달이 쌓일수록 무조건 초과로 보인다.
+    sh_month = months[-1]
+    sh = df[(df["구분"] == "지출") & (df["결제수단"] == ACCOUNT_KEY["신한은행 통장"]) &
+            (df["월"] == sh_month)].copy()
     sh["검색"] = sh["대분류"] + " " + sh["소분류"] + " " + sh["세부내용"]
+
+    # 한 거래가 여러 항목의 키워드에 걸리면 합계가 부풀려진다. 위에서부터
+    # 선착순으로 한 번만 배정하고, 어디에도 안 걸린 건은 따로 보고한다.
+    #
+    # 또 키워드가 넓어서(예: "쿠팡") 무관한 변동 지출까지 빨아들이는 일이 있었다.
+    # 1차로 '고정' 태그 거래만 보고, 거기서 못 찾은 항목만 2차로 나머지까지 넓힌다.
+    # (교통&유류비처럼 애초에 변동으로 기록되는 항목이 있어 2차를 남겨둔다.)
+    claimed = pd.Series(False, index=sh.index)
+    is_fixed = sh["고정여부"] == "고정"
+
+    def _hit(keywords):
+        if keywords is None:
+            return (sh["소분류"] == "유류비") | (sh["대분류"] == "교통비")
+        return sh["검색"].str.contains("|".join(keywords), na=False)
+
+    picked = {}
+    for name, expected, keywords in SHINHAN_FIXED_ITEMS:
+        hit = _hit(keywords) & is_fixed
+        m = sh[hit & ~claimed]
+        if len(m):
+            claimed |= hit
+            picked[name] = m
+
+    for name, expected, keywords in SHINHAN_FIXED_ITEMS:
+        if name in picked:
+            continue
+        hit = _hit(keywords)
+        m = sh[hit & ~claimed]
+        if len(m):
+            claimed |= hit
+            picked[name] = m
+
     shinhan_fixed = []
     for name, expected, keywords in SHINHAN_FIXED_ITEMS:
-        if keywords is None:
-            m = sh[(sh["소분류"] == "유류비") | (sh["대분류"] == "교통비")]
-        else:
-            m = sh[sh["검색"].str.contains("|".join(keywords), na=False)]
+        m = picked.get(name)
         shinhan_fixed.append({"항목": name, "예상금액": expected,
-                              "출금액": round(m["금액"].sum()), "matched": len(m) > 0})
+                              "출금액": round(m["금액"].sum()) if m is not None else 0,
+                              "matched": m is not None})
+    shinhan_unmatched = [
+        {"세부내용": r["세부내용"] or r["소분류"], "금액": round(r["금액"]),
+         "고정여부": r["고정여부"] or "변동"}
+        for _, r in sh[~claimed].iterrows()
+    ]
 
     # ---- 신용카드 실적 (진행 페이스 포함) ----
     latest_month = months[-1]
@@ -379,15 +463,30 @@ def build_bundle(df):
         ]
 
     # ---- 목표 대비 실적 ----
+    # 비교 시작월 결정. "auto"면 종료 항목들이 마지막으로 결제된 달의 다음 달.
+    if TARGET_COMPARISON_START == "auto":
+        ended_last = g[g["키"].isin(ENDED_FIXED_ITEMS)]["마지막월"]
+        if len(ended_last):
+            _y, _m = _ym(ended_last.max())
+            compare_start = f"{_y + 1}-01" if _m == 12 else f"{_y}-{_m + 1:02d}"
+            compare_start_source = "자동 (종료 항목 마지막 결제월 다음 달)"
+        else:
+            compare_start = months[0]
+            compare_start_source = "자동 (데이터에 종료 항목 없음 → 전체 기간)"
+    else:
+        compare_start = TARGET_COMPARISON_START
+        compare_start_source = "수동 지정"
+
     fvt_months = []
-    for m in [x for x in months if x >= TARGET_COMPARISON_START]:
+    for m in [x for x in months if x >= compare_start]:
         actual = round(core[(core["월"] == m) & (core["구분"] == "지출") &
                             (core["고정여부"] == "고정")]["금액"].sum())
         is_current = (m == latest_month)
         fvt_months.append({"월": m, "실제": actual, "목표": projection_total,
                            "차이": actual - projection_total, "진행중": is_current})
     fixed_vs_target = {"target": projection_total, "months": fvt_months,
-                       "elapsed_ratio": round(elapsed_ratio * 100, 1)}
+                       "elapsed_ratio": round(elapsed_ratio * 100, 1),
+                       "start": compare_start, "start_source": compare_start_source}
 
     # ---- 카테고리별 전월 대비 증감 ----
     # 진행 중인 달은 전월 '전체'와 비교하면 무조건 감소로 보인다.
@@ -442,9 +541,18 @@ def build_bundle(df):
         "projection": {"months_used": n_completed, "completed_months": completed_months,
                        "total": projection_total, "annual": projection_total * 12,
                        "items": projection_items, "excluded": excluded_items},
-        "accounts": {"as_of": BALANCE_TRACKING_START, "list": accounts_list},
+        "accounts": {"list": accounts_list,
+                     "as_of_range": sorted({a["as_of"] for a in accounts_list})},
         "shinhan_fixed": shinhan_fixed,
         "shinhan_fixed_total": sum(x["예상금액"] for x in shinhan_fixed),
+        "shinhan_month": sh_month,
+        "shinhan_unmatched": shinhan_unmatched,
+        # 화면이 규칙 상수를 손으로 다시 적지 않도록 bundle에 실어 보낸다
+        "card_targets": CARD_TARGETS,
+        "diagnostics": {"unknown_payment": unknown_payment,
+                        "unknown_transfer": unknown_transfer,
+                        "stale_rule_keys": stale_rule_keys,
+                        "has_completed": has_completed},
         "card_performance": card_performance,
         "card_category_detail": card_detail,
         "fixed_vs_target": fixed_vs_target,
@@ -477,6 +585,52 @@ def validate(bundle):
     return errors
 
 
+def warnings_for(bundle):
+    """중단시킬 정도는 아니지만 조용히 틀린 값을 만드는 상황들.
+
+    위 validate()는 같은 데이터를 다시 집계해 비교하는 항등식이라 구조적으로
+    거의 실패하지 않는다. 실제 사고는 대부분 '규칙이 데이터와 안 맞는' 쪽에서
+    난다 — 계좌명 오타로 거래가 잔고에서 증발하거나, 제외 규칙 키가 옛날
+    이름이라 종료된 항목이 계속 예상치에 들어가는 식이다.
+    """
+    d = bundle.get("diagnostics", {})
+    warns = []
+
+    if d.get("unknown_payment"):
+        warns.append("어느 계좌에도 속하지 않는 결제수단 → 잔고에 반영 안 됨: "
+                     + ", ".join(d["unknown_payment"]))
+    if d.get("unknown_transfer"):
+        warns.append("계좌로 인식되지 않는 이체 상대: "
+                     + ", ".join(sorted(set(d["unknown_transfer"]))))
+    if d.get("stale_rule_keys"):
+        warns.append("데이터에서 한 번도 안 걸린 제외 규칙 (이름 변경/오타 의심): "
+                     + ", ".join(d["stale_rule_keys"]))
+    if not d.get("has_completed", True):
+        warns.append("완성된 달이 없어 예상 고정지출·목표 대비 실적을 계산하지 않았습니다.")
+
+    for a in bundle["accounts"]["list"]:
+        if a.get("tx_count", 0) == 0:
+            warns.append(f"{a['name']}: 기준일({a['as_of']}) 이후 거래가 한 건도 없어 "
+                         f"시작 잔고 그대로입니다. 기준일이 미래인지 확인하세요.")
+        if a["current_balance"] < 0:
+            warns.append(f"{a['name']} 잔고가 음수({a['current_balance']:,}원)입니다.")
+
+    fvt = bundle.get("fixed_vs_target", {})
+    if not fvt.get("months"):
+        warns.append(f"목표 대비 실적에 표시할 달이 없습니다 "
+                     f"(비교 시작 {fvt.get('start')} · {fvt.get('start_source')}). "
+                     f"데이터 범위보다 뒤인지 확인하세요.")
+    for c in bundle.get("card_performance", {}).get("cards", []):
+        if c["spent"] == 0:
+            warns.append(f"{c['name']} 실적이 0원입니다. CSV '비고' 태그를 확인하세요.")
+    if bundle.get("shinhan_unmatched"):
+        items = ", ".join(f"{x['세부내용']}({x['금액']:,})"
+                          for x in bundle["shinhan_unmatched"])
+        warns.append(f"신한은행 고정지출 목록에 없는 출금: {items}")
+
+    return warns
+
+
 def main():
     src = sys.argv[1] if len(sys.argv) > 1 else "가계부9.csv"
     print(f"[1/4] CSV 로딩: {src}")
@@ -493,7 +647,15 @@ def main():
         for e in errors:
             print("        -", e)
         sys.exit(1)
-    print("      통과 (모든 섹션 합계 일치)")
+    print("      합계 일치")
+
+    warns = warnings_for(bundle)
+    if warns:
+        print("      [경고] 계산은 됐지만 확인이 필요합니다:")
+        for w in warns:
+            print("        -", w)
+    else:
+        print("      경고 없음")
 
     with open("data_bundle.json", "w", encoding="utf-8") as f:
         json.dump(bundle, f, ensure_ascii=False)
@@ -503,7 +665,11 @@ def main():
     print(f"\n  총수입 {k['total_income']:,}원 / 총지출 {k['total_expense']:,}원 "
           f"/ 순잉여 {k['net']:,}원 (저축률 {k['savings_rate']}%)")
     for a in bundle["accounts"]["list"]:
-        print(f"  {a['name']}: {a['current_balance']:,}원")
+        delta = a["current_balance"] - a["start_balance"]
+        sign = "+" if delta > 0 else ""
+        print(f"  {a['name']}: {a['current_balance']:,}원 "
+              f"({a['as_of']} 기준 {a['start_balance']:,}원 → {sign}{delta:,}, "
+              f"{a['tx_count']}건 반영)")
 
 
 if __name__ == "__main__":
