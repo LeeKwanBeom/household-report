@@ -159,8 +159,13 @@ def main():
         print("  index.html: 건너뜀 (--code-only)")
 
     if with_code:
-        for name in ("pipeline.py", "build.py",
-                     "scripts/detect_ended.py", "scripts/deploy.py"):
+        # SKILL.md는 설치본이 아니라 이 저장소가 원본이다. 설치본
+        # (/mnt/skills/plugins/...)은 세션마다 패키지에서 다시 풀리므로
+        # 거기 쓴 수정은 사라진다. 반드시 여기로 올릴 것.
+        # audit/last-audit.md는 없으면 조용히 건너뛴다.
+        for name in ("SKILL.md", "pipeline.py", "build.py",
+                     "scripts/detect_ended.py", "scripts/deploy.py",
+                     "audit/last-audit.md"):
             push(token, os.path.join(ROOT, name), name, f"{name} 갱신")
 
     if not ok:
