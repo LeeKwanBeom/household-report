@@ -1083,7 +1083,6 @@ html = f"""<!DOCTYPE html>
     <div class="section-head">
       <span class="section-num">04</span>
       <h2>월별 수입·지출 추이</h2>
-      <span class="note">4월 회생 상환 종료 이후 순잉여 반전</span>
     </div>
     <div class="card">
       <div class="chart-legend">
@@ -1245,7 +1244,6 @@ html = f"""<!DOCTYPE html>
     <div class="card">
       <ol class="action-list">
         <li>내여자 / 커플통장 월평균 {won(round(_couple_avg))}원 — 지출 상위권 고정 항목이라 적정 수준인지 점검</li>
-        <li>회생 상환 종료로 생긴 월 188만원 여력 — 저축·투자 재배정 규칙 수립 검토</li>
         <li>실업급여·퇴직금 등 일시 수입 유입 시 소비 쏠림 방지용 배정 규칙(예: N% 저축 우선) 검토</li>
       </ol>
     </div>
