@@ -13,7 +13,11 @@ category = bundle['category']
 fv = bundle['fixed_variable']
 top_expenses = bundle['top_expenses']
 months_included = bundle.get('months_included', [])
-N_MONTHS = bundle['projection']['months_used']
+
+# 상단 KPI의 '월평균'은 총수입·총지출을 나눈 값이다. 그 총액은 진행 중인 달까지
+# 포함하므로 분모도 전체 월수여야 한다. 예전에는 완성월수(= 전체-1)로 나눠서
+# 월평균이 조용히 부풀려졌다. 예상 고정지출 쪽 분모는 N_COMPLETED로 따로 있다.
+N_MONTHS = len(months_included) or 1
 def _ym(s):
     """'2026-09' → (2026, 9)"""
     y, m = s.split('-')[:2]
@@ -39,12 +43,6 @@ def _month_label(months):
     return f"{y0}.{m0}월~{y1}.{m1}월"
 
 period_label = _range_label(months_included) if months_included else ""
-if months_included:
-    _ly, _lm = _ym(months_included[-1])
-    next_month_num = 1 if _lm == 12 else _lm + 1   # 12월 다음은 13월이 아니라 1월
-else:
-    next_month_num = None
-next_month_label = f"{next_month_num}월" if next_month_num else "다음달"
 completed_months = bundle['projection'].get('completed_months', months_included[:-1])
 N_COMPLETED = bundle['projection']['months_used']
 completed_range_label = _month_label(completed_months) if completed_months else ""
@@ -80,14 +78,26 @@ def fv_rows():
         </tr>""")
     return "".join(rows)
 
+_n_accounts = len(bundle['accounts']['list'])
+
+def _account_names():
+    """계좌 이름 목록. ACCOUNTS_START가 유일한 원본이며 여기에 적지 않는다."""
+    return " / ".join(a['name'].replace(' 통장', '')
+                      for a in bundle['accounts']['list'])
+
 def account_cards():
     accts = bundle['accounts']['list']
     cards = []
     for a in accts:
+        delta = a['current_balance'] - a['start_balance']
+        sign = '+' if delta > 0 else ''
+        moved = (f"{a['as_of']} 기준 {sign}{won(delta)}원"
+                 if delta else f"{a['as_of']} 이후 변동 없음")
         cards.append(f"""
         <div class="kpi-card">
           <div class="label">{a['name']}</div>
           <div class="value">{won(a['current_balance'])}원</div>
+          <div class="sub">{moved}</div>
         </div>""")
     return "".join(cards)
 
@@ -119,11 +129,18 @@ def shinhan_rows():
     </tr>""")
     return "".join(rows)
 
+def _man(n):
+    """금액을 '40만원' 꼴로. 혜택 문구가 CARD_TARGETS를 따라가게 하려는 것."""
+    return f"{n // 10000:,}만원"
+
 def card_performance_cards():
     cp = bundle.get('card_performance', {})
+    # 목표 금액은 pipeline.py의 CARD_TARGETS가 유일한 원본이다.
+    # 문구에 "40만원"이라고 적어두면 목표를 바꿔도 화면만 옛날 숫자로 남는다.
+    tgt = bundle.get('card_targets', {})
     blurbs = {
-        "현대카드": "네이버 현대카드 Edition3 · 전월실적 40만원 이상이면 네이버플러스 적립 5%(더블적립 이벤트 중엔 최대 15%)가 열려요.",
-        "신한카드": "신한카드 Mr.Life · 전월실적 100만원 이상 구간이면 월납/주말/Time 할인 한도가 각각 최대치(1만원·1만원·3만원)로 올라가요."
+        "현대카드": f"네이버 현대카드 Edition3 · 전월실적 {_man(tgt.get('현대카드', 0))} 이상이면 네이버플러스 적립 5%(더블적립 이벤트 중엔 최대 15%)가 열려요.",
+        "신한카드": f"신한카드 Mr.Life · 전월실적 {_man(tgt.get('신한카드', 0))} 이상 구간이면 월납/주말/Time 할인 한도가 각각 최대치(1만원·1만원·3만원)로 올라가요."
     }
     day = cp.get('day', 0)
     days_in_month = cp.get('days_in_month', 30)
@@ -165,7 +182,9 @@ def card_performance_cards():
 
 def card_category_rows():
     blocks = []
-    for card in ['현대카드','신한카드']:
+    # 카드 목록도 CARD_TARGETS에서 온다. 여기에 이름을 적어두면 카드를 추가했을 때
+    # 02번에는 뜨는데 03번에서만 조용히 빠진다.
+    for card in bundle.get('card_category_detail', {}) or bundle.get('card_targets', {}):
         items = bundle.get('card_category_detail', {}).get(card, [])
         if not items:
             blocks.append(f"""
@@ -250,10 +269,15 @@ def fixed_vs_target_rows():
     target = data.get('target', 0)
     months = data.get('months', [])
     if not months:
-        return '<tr><td colspan="4" class="muted" style="text-align:center;padding:24px;">9월 데이터 집계 중이에요</td></tr>'
+        return ('<tr><td colspan="5" class="muted" style="text-align:center;padding:24px;">'
+                '아직 비교할 달이 없어요 — 비교 시작 시점 이후의 완성된 달이 쌓이면 표시돼요'
+                '</td></tr>')
     rows = []
+    _cur_y = _ym(months_included[-1])[0] if months_included else None
     for r in months:
-        mm = int(r['월'].split('-')[1])
+        yy, mm = _ym(r['월'])
+        # 해를 넘기면 10·11·12·1 순서가 모호해지므로 다른 해는 연도를 붙인다
+        month_label = f"{mm}월" if yy == _cur_y else f"{yy}.{mm}월"
         diff = r['차이']
         over = diff > 0
         sign = '+' if diff > 0 else ''
@@ -263,7 +287,7 @@ def fixed_vs_target_rows():
         bar_color = 'var(--red)' if over else 'var(--green)'
         rows.append(f"""
         <tr>
-          <td class="name" style="white-space:nowrap;">{mm}</td>
+          <td class="name" style="white-space:nowrap;">{month_label}</td>
           <td class="num" style="white-space:nowrap;">{won(r['실제'])}원</td>
           <td class="num muted" style="white-space:nowrap;">{won(target)}원</td>
           <td class="num {diff_class}" style="white-space:nowrap;">{sign}{won(diff)}원</td>
@@ -292,6 +316,21 @@ def excluded_prose():
         parts.append(f"<b>{'·'.join(manual)}</b>는 연간결제성이라 별도 요청으로 제외했어요.")
     return " ".join(parts)
 
+def _excluded_breakdown():
+    """제외 건수 내역. 바로 위 KPI 값은 len(excluded)로 동적인데 이 문구만
+    손으로 적혀 있어서, 한 카드 안에서 '8건 / 종료 확인 5건 + 제외 요청 1건'처럼
+    자기모순이 나던 자리다."""
+    ended = sum(1 for r in bundle['projection'].get('excluded', [])
+                if '제외 요청' not in r.get('사유', ''))
+    manual = sum(1 for r in bundle['projection'].get('excluded', [])
+                 if '제외 요청' in r.get('사유', ''))
+    parts = []
+    if ended:
+        parts.append(f"종료 확인 {ended}건")
+    if manual:
+        parts.append(f"제외 요청 {manual}건")
+    return " + ".join(parts) if parts else "제외 항목 없음"
+
 def income_summary():
     """수입 구성 요약. 수입원이 1개뿐이면 두 번째를 참조하지 않는다.
     (예전에는 [1]을 무조건 읽어서, 수입 대분류가 하나뿐인 달에 빌드가 죽었다.)"""
@@ -313,6 +352,38 @@ def _compare_start_label():
     cur_y = _ym(months_included[-1])[0] if months_included else y
     return f"{m}월" if y == cur_y else f"{y}.{m}월"
 
+def _card_month_label():
+    m = bundle.get('card_performance', {}).get('month')
+    return f"{_ym(m)[1]}월" if m else "이번 달"
+
+def _shinhan_month_label():
+    """pipeline이 실제로 집계한 달을 그대로 쓴다. 예전에는 표는 추적 시작 이후
+    전체를 누적하면서 라벨만 최신 월이라 적혀 있었다."""
+    m = bundle.get('shinhan_month')
+    return f"{_ym(m)[1]}월" if m else "이번 달"
+
+def _top_first_label():
+    """1위 항목. 제외 규칙이 전부 걸러내면 목록이 빌 수 있어 길이를 먼저 본다."""
+    if not top_expenses:
+        return ""
+    t = top_expenses[0]
+    return f" · 1위 {t['세부내용']} ({won(t['금액'])}원)"
+
+def _fv_top_label():
+    """고정비중이 가장 높은 대분류. 지출이 하나도 없으면 max()가 죽는다."""
+    if not fv:
+        return ""
+    t = max(fv, key=lambda x: x['고정비중'])
+    return f" · 최고 {t['대분류']} {t['고정비중']}%"
+
+def _mom_range_label():
+    """전월→당월 라벨. 달이 하나뿐이면 prev가 None이라 .split이 죽던 자리."""
+    mom = bundle.get('month_over_month', {})
+    prev, curr = mom.get('prev'), mom.get('curr')
+    if not prev or not curr:
+        return "비교할 이전 달 없음"
+    return f"{_ym(prev)[1]}월 → {_ym(curr)[1]}월{_mom_cut_label}"
+
 def _top_excl_label():
     """11번 TOP15에서 제외한 항목. pipeline.py의 TOP_EXPENSE_EXCLUSIONS가
     유일한 원본이며, 여기에 이름을 적지 않는다."""
@@ -326,7 +397,7 @@ def projection_excluded_rows():
         <tr>
           <td class="name">{r['항목']}</td>
           <td class="num muted">{r['마지막월']}</td>
-          <td class="num muted">{won(r['최근8개월합계'])}원</td>
+          <td class="num muted">{won(r['누적합계'])}원</td>
           <td class="muted">{r['사유']}</td>
         </tr>""")
     return "".join(rows)
@@ -1046,10 +1117,10 @@ html = f"""<!DOCTYPE html>
     <div class="section-head">
       <span class="section-num">01</span>
       <h2>계좌 잔고</h2>
-      <span class="note">{bundle.get('latest_update','')} 기준 · 생활비 / 신한은행 / 청년미래적금 / 대여금 4개 항목</span>
+      <span class="note">{bundle.get('latest_update','')} 기준 · {_account_names()} {_n_accounts}개 항목</span>
     </div>
     <div class="total-balance-card">
-      <div class="total-balance-label">총 잔고 (4개 항목 합계)</div>
+      <div class="total-balance-label">총 잔고 ({_n_accounts}개 항목 합계)</div>
       <div class="total-balance-value">{won(sum(a['current_balance'] for a in bundle['accounts']['list']))}원</div>
     </div>
     <div class="kpi-grid" style="grid-template-columns: repeat(4,1fr);">
@@ -1061,7 +1132,7 @@ html = f"""<!DOCTYPE html>
     <div class="section-head">
       <span class="section-num">02</span>
       <h2>신용카드별 실적 체크</h2>
-      <span class="note">{int(bundle.get('card_performance',{}).get('month','2026-01').split('-')[1])}월 · 매달 초기화</span>
+      <span class="note">{_card_month_label()} · 매달 초기화</span>
     </div>
     <div class="kpi-grid" style="grid-template-columns: repeat(2,1fr);">
       {card_performance_cards()}
@@ -1072,7 +1143,7 @@ html = f"""<!DOCTYPE html>
     <div class="section-head">
       <span class="section-num">03</span>
       <h2>카드사별 결제 내역</h2>
-      <span class="note">{int(bundle.get('card_performance',{}).get('month','2026-01').split('-')[1])}월 · 비고 태그 기준</span>
+      <span class="note">{_card_month_label()} · 비고 태그 기준</span>
     </div>
     <div class="kpi-grid card-list-grid" style="grid-template-columns: repeat(2,1fr);">
       {card_category_rows()}
@@ -1107,7 +1178,7 @@ html = f"""<!DOCTYPE html>
     <div class="section-head">
       <span class="section-num">08</span>
       <h2>전월 대비 증감</h2>
-      <span class="note">{int(bundle.get('month_over_month',{}).get('prev','2026-01').split('-')[1])}월 → {int(bundle.get('month_over_month',{}).get('curr','2026-01').split('-')[1])}월{_mom_cut_label} · 변동폭 큰 순</span>
+      <span class="note">{_mom_range_label()} · 변동폭 큰 순</span>
     </div>
     <p class="lede">지난달 대비 이번 달 지출이 어떻게 달라졌는지 대분류별로 보여줘요. 빨간색은 늘어난 것, 초록색은 줄어든 것이에요. {_mom_cut_lede}</p>
     <div class="card" style="overflow-x:auto;">
@@ -1122,7 +1193,7 @@ html = f"""<!DOCTYPE html>
     <div class="section-head">
       <span class="section-num">09</span>
       <h2>고정 지출 vs 변동 지출</h2>
-      <span class="note">전체 고정비중 {bundle['fixed_variable_total']['고정비중']}% · 최고 {max(fv, key=lambda x: x['고정비중'])['대분류']} {max(fv, key=lambda x: x['고정비중'])['고정비중']}%</span>
+      <span class="note">전체 고정비중 {bundle['fixed_variable_total']['고정비중']}%{_fv_top_label()}</span>
     </div>
     <div class="card" style="overflow-x:auto;">
       <table>
@@ -1149,7 +1220,7 @@ html = f"""<!DOCTYPE html>
     <div class="section-head">
       <span class="section-num">11</span>
       <h2>최대 지출 TOP 15</h2>
-      <span class="note">{_top_excl_label()} 제외 · 1위 {top_expenses[0]['세부내용']} ({won(top_expenses[0]['금액'])}원)</span>
+      <span class="note">{_top_excl_label()} 제외{_top_first_label()}</span>
     </div>
     <p class="lede">{_top_excl_label()}은(는) 성격상 순위를 독점하는 반복성 큰 금액이라 제외했어요. 대신 실제 낱개 소비 지출 위주로 다시 뽑았어요.</p>
     <div class="card" style="overflow-x:auto;">
@@ -1164,7 +1235,7 @@ html = f"""<!DOCTYPE html>
     <div class="section-head">
       <span class="section-num">12</span>
       <h2>신한은행 고정지출 예상 vs 실제</h2>
-      <span class="note">{int(months_included[-1].split('-')[1])}월 기준 · 매달 갱신</span>
+      <span class="note">{_shinhan_month_label()} 기준 · 매달 갱신</span>
     </div>
     <p class="lede">신한은행 통장에서 빠져나가는 고정비 {len(bundle['shinhan_fixed'])}개 항목이에요. 관범님이 직접 정리해주신 목록 기준(합계 {won(bundle.get('shinhan_fixed_total',0))}원)이라, 다음 {{REF:s11}}번의 예상 고정지출({won(bundle['projection']['total'])}원)과는 집계 기준이 다릅니다 — {{REF:s11}}번은 CSV의 고정 태그 전체를 통장 구분 없이 모은 값이에요.</p>
     <div class="card" style="overflow-x:auto;">
@@ -1192,7 +1263,7 @@ html = f"""<!DOCTYPE html>
       <div class="kpi-card">
         <div class="label">계산 제외 항목</div>
         <div class="value green">{len(bundle['projection']['excluded'])}건</div>
-        <div class="sub">종료 확인 5건 + 제외 요청 1건</div>
+        <div class="sub">{_excluded_breakdown()}</div>
       </div>
     </div>
 
