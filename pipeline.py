@@ -17,14 +17,14 @@ import pandas as pd
 
 # 계좌 시작 잔고
 ACCOUNTS_START = {
-    "생활비 통장":   {"balance": 3342548, "as_of": "2026-09-01", "desc": "유동 지출 (카드값·경조사·기타)"},
-    "신한은행 통장": {"balance": 0,       "as_of": "2026-09-01", "desc": "매달 고정비 선입금 (통신비·보험비 등)"},
-    "청년미래적금":  {"balance": 1500000, "as_of": "2026-09-03", "desc": "적금 (매달 1일 생활비에서 50만원 이체)"},
-    "대여금":       {"balance": 3300000, "as_of": "2026-09-04", "desc": "타인에게 빌려준 돈 (회수 시 감소)"},
+    "생활비 통장":   {"balance": 3342548, "as_of": "2026-10-01", "desc": "유동 지출 (카드값·경조사·기타)"},
+    "신한은행 통장": {"balance": 0,       "as_of": "2026-10-01", "desc": "매달 고정비 선입금 (통신비·보험비 등)"},
+    "청년미래적금":  {"balance": 1500000, "as_of": "2026-10-03", "desc": "적금 (매달 1일 생활비에서 50만원 이체)"},
+    "대여금":       {"balance": 3300000, "as_of": "2026-10-04", "desc": "타인에게 빌려준 돈 (회수 시 감소)"},
 }
 
 # 계좌 잔고 추적 시작일 (이 날짜 이후 거래만 잔고 계산에 반영)
-BALANCE_TRACKING_START = "2026-09-01"
+BALANCE_TRACKING_START = "2026-10-01"
 
 # 시작 잔고에 이미 반영된 이체 → 잔고 계산에서 영구 제외 (이중계산 방지)
 # (날짜, 입금계좌) 조합으로 식별하며, 출금·입금 양쪽 모두 제외됨
@@ -85,7 +85,7 @@ SHINHAN_FIXED_ITEMS = [
 CARD_TARGETS = {"현대카드": 400000, "신한카드": 1000000}
 
 # 목표 대비 실적 비교 시작 월 (회생·리모트뷰 등 종료 항목이 다 정리된 시점)
-TARGET_COMPARISON_START = "2026-09"
+TARGET_COMPARISON_START = "2026-10"
 
 
 # ============================================================
@@ -436,6 +436,8 @@ def build_bundle(df):
                                  "고정비중": round(fixed_total / (fixed_total + variable_total) * 100, 1)},
         "income_breakdown": income_breakdown,
         "top_expenses": top_expenses,
+        # 화면 문구가 이 목록을 손으로 적지 않도록 bundle에 함께 넘긴다
+        "top_expense_exclusions": [sub for _, sub in TOP_EXPENSE_EXCLUSIONS],
         "monthly_tx": monthly_tx,
         "projection": {"months_used": n_completed, "completed_months": completed_months,
                        "total": projection_total, "annual": projection_total * 12,
