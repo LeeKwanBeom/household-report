@@ -14,12 +14,40 @@ fv = bundle['fixed_variable']
 top_expenses = bundle['top_expenses']
 months_included = bundle.get('months_included', [])
 N_MONTHS = bundle['projection']['months_used']
-period_label = f"2026.{months_included[0].split('-')[1]} — {months_included[-1].split('-')[1]} ({N_MONTHS}개월)" if months_included else ""
-next_month_num = int(months_included[-1].split('-')[1]) + 1 if months_included else None
+def _ym(s):
+    """'2026-09' → (2026, 9)"""
+    y, m = s.split('-')[:2]
+    return int(y), int(m)
+
+def _range_label(months, unit="개월"):
+    """기간 라벨. 연도를 넘어가면 양쪽에 연도를 붙인다.
+    연도를 문자열로 박아두면 해가 바뀌는 순간 조용히 틀린 값이 나온다."""
+    if not months:
+        return ""
+    (y0, m0), (y1, m1) = _ym(months[0]), _ym(months[-1])
+    if y0 == y1:
+        return f"{y0}.{m0:02d} — {m1:02d} ({len(months)}{unit})"
+    return f"{y0}.{m0:02d} — {y1}.{m1:02d} ({len(months)}{unit})"
+
+def _month_label(months):
+    """'1~9월' 형태. 연도를 넘어가면 연도를 함께 표기한다."""
+    if not months:
+        return ""
+    (y0, m0), (y1, m1) = _ym(months[0]), _ym(months[-1])
+    if y0 == y1:
+        return f"{m0}~{m1}월"
+    return f"{y0}.{m0}월~{y1}.{m1}월"
+
+period_label = _range_label(months_included) if months_included else ""
+if months_included:
+    _ly, _lm = _ym(months_included[-1])
+    next_month_num = 1 if _lm == 12 else _lm + 1   # 12월 다음은 13월이 아니라 1월
+else:
+    next_month_num = None
 next_month_label = f"{next_month_num}월" if next_month_num else "다음달"
 completed_months = bundle['projection'].get('completed_months', months_included[:-1])
 N_COMPLETED = bundle['projection']['months_used']
-completed_range_label = f"1~{int(completed_months[-1].split('-')[1])}월" if completed_months else ""
+completed_range_label = _month_label(completed_months) if completed_months else ""
 
 # 전월 대비 증감: 진행 중인 달은 같은 일자까지만 잘라서 비교한다
 _mom_cut = bundle.get('month_over_month', {}).get('same_day_cutoff')
@@ -245,6 +273,36 @@ def fixed_vs_target_rows():
         </tr>""")
     return "".join(rows)
 
+def excluded_prose():
+    """13번 섹션의 '제외했어요' 문장을 bundle의 실제 제외 목록에서 생성한다.
+
+    이 문장을 손으로 적어두면 pipeline.py의 ENDED_FIXED_ITEMS가 바뀔 때
+    화면만 옛날 목록으로 남는다. 실제로 OTT가 계산에서는 빠지는데 화면에는
+    언급이 없어 "포함된 줄" 오해하게 만든 이력이 있다.
+    """
+    ended, manual = [], []
+    for r in bundle['projection'].get('excluded', []):
+        name = r['항목'].split('/')[-1].strip()
+        (manual if '제외 요청' in r.get('사유', '') else ended).append(name)
+
+    parts = []
+    if ended:
+        parts.append(f"종료가 확인된 <b>{'·'.join(ended)}</b>는 계산에서 제외했어요.")
+    if manual:
+        parts.append(f"<b>{'·'.join(manual)}</b>는 연간결제성이라 별도 요청으로 제외했어요.")
+    return " ".join(parts)
+
+def income_summary():
+    """수입 구성 요약. 수입원이 1개뿐이면 두 번째를 참조하지 않는다.
+    (예전에는 [1]을 무조건 읽어서, 수입 대분류가 하나뿐인 달에 빌드가 죽었다.)"""
+    inc = bundle.get('income_breakdown', [])
+    if not inc:
+        return "수입 내역이 없어요."
+    first = f"수입은 <b>{inc[0]['항목']}가 {inc[0]['비중']}%</b>"
+    if len(inc) == 1:
+        return first + "로 전부예요."
+    return first + f"로 절대적이고, {inc[1]['항목']}가 {inc[1]['비중']}%로 뒤를 이어요."
+
 def projection_excluded_rows():
     rows = []
     for r in bundle['projection']['excluded']:
@@ -441,7 +499,7 @@ html = f"""<!DOCTYPE html>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="가계부">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>이관범 가계부 분석 · 2026 {int(months_included[0].split('-')[1])}–{int(months_included[-1].split('-')[1])}월</title>
+<title>이관범 가계부 분석 · {_month_label(months_included)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1108,7 +1166,7 @@ html = f"""<!DOCTYPE html>
       <h2>매달 예상 고정지출</h2>
       <span class="note">{completed_range_label} 총액 ÷ {N_COMPLETED}개월 기준</span>
     </div>
-    <p class="lede">고정 태그가 붙은 항목의 완성된 {N_COMPLETED}개월({completed_range_label}) 누적 금액을 {N_COMPLETED}로 나눈 월평균값이에요. 진행 중인 달({months_included[-1].split('-')[1]}월)은 아직 다 안 끝나서 계산에서 빠져요. 종료가 확인된 <b>회생·리모트뷰·Chat GPT·MIB·삼성 케어</b>는 계산에서 제외했어요. <b>이모티콘</b>은 2026년 6월에 월구독(5,700원)에서 연간권(42,000원)으로 갈아타서, 월구독분은 종료 처리하고 연간권은 연간결제성이라 별도 요청으로 제외했어요.</p>
+    <p class="lede">고정 태그가 붙은 항목의 완성된 {N_COMPLETED}개월({completed_range_label}) 누적 금액을 {N_COMPLETED}로 나눈 월평균값이에요. 진행 중인 달({_ym(months_included[-1])[1]}월)은 아직 다 안 끝나서 계산에서 빠져요. {excluded_prose()}</p>
 
     <div class="kpi-grid" style="grid-template-columns: repeat(2,1fr); margin-bottom:24px;">
       <div class="kpi-card">
@@ -1160,7 +1218,7 @@ html = f"""<!DOCTYPE html>
         <li><b>8월은 실업급여 2차·퇴직금이 들어온 달</b>인 동시에 대형 지출이 몰려 순잉여가 크게 줄었어요. 최대 지출 1위는 {top_expenses[0]['세부내용']}({won(top_expenses[0]['금액'])}원)이에요.</li>
         <li>전체 지출의 <b>고정비 비중은 {bundle['fixed_variable_total']['고정비중']}%</b>({won(bundle['fixed_variable_total']['고정'])}원), 변동비는 {round(100 - bundle['fixed_variable_total']['고정비중'], 1)}%({won(bundle['fixed_variable_total']['변동'])}원)예요.</li>
         <li>{' · '.join(f"<b>{x['대분류']}({x['고정비중']}%)</b>" for x in sorted(fv, key=lambda x: -x['고정비중'])[:3])}는 거의 순수 고정비 성격이에요.</li>
-        <li>수입은 <b>{bundle['income_breakdown'][0]['항목']}가 {bundle['income_breakdown'][0]['비중']}%</b>로 절대적이고, {bundle['income_breakdown'][1]['항목']}가 {bundle['income_breakdown'][1]['비중']}%로 뒤를 이어요.</li>
+        <li>{income_summary()}</li>
         <li><b>매달 예상 고정지출은 약 {won(bundle['projection']['total'])}원</b>(완성된 {N_COMPLETED}개월 기준, 연 환산 {won(bundle['projection']['annual'])}원) — 종료·제외 확인된 {len(bundle['projection']['excluded'])}건은 계산에서 뺐어요.</li>
       </ul>
     </div>
