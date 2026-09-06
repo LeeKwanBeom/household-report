@@ -303,6 +303,22 @@ def income_summary():
         return first + "로 전부예요."
     return first + f"로 절대적이고, {inc[1]['항목']}가 {inc[1]['비중']}%로 뒤를 이어요."
 
+def _compare_start_label():
+    """14번 비교 시작 시점. pipeline.py의 TARGET_COMPARISON_START가 바뀌면
+    따라와야 하므로 bundle에서 읽는다. 월을 손으로 적어두면 어긋난다."""
+    ms = bundle.get('fixed_vs_target', {}).get('months', [])
+    if not ms:
+        return "비교 시작 시점"
+    y, m = _ym(ms[0]['월'])
+    cur_y = _ym(months_included[-1])[0] if months_included else y
+    return f"{m}월" if y == cur_y else f"{y}.{m}월"
+
+def _top_excl_label():
+    """11번 TOP15에서 제외한 항목. pipeline.py의 TOP_EXPENSE_EXCLUSIONS가
+    유일한 원본이며, 여기에 이름을 적지 않는다."""
+    items = bundle.get('top_expense_exclusions', [])
+    return "·".join(items) if items else "일부 반복성 대형 지출"
+
 def projection_excluded_rows():
     rows = []
     for r in bundle['projection']['excluded']:
@@ -1134,9 +1150,9 @@ html = f"""<!DOCTYPE html>
     <div class="section-head">
       <span class="section-num">11</span>
       <h2>최대 지출 TOP 15</h2>
-      <span class="note">회생·가족 용돈·커플통장 제외 · 1위 {top_expenses[0]['세부내용']} ({won(top_expenses[0]['금액'])}원)</span>
+      <span class="note">{_top_excl_label()} 제외 · 1위 {top_expenses[0]['세부내용']} ({won(top_expenses[0]['금액'])}원)</span>
     </div>
-    <p class="lede">개인회생 상환·가족 용돈(1~4월 종료)과 커플통장(매달 꾸준히 나가는 정기 이체)은 성격상 순위를 독점하는 반복성 큰 금액이라 제외했어요. 대신 실제 낱개 소비 지출 위주로 다시 뽑았어요.</p>
+    <p class="lede">{_top_excl_label()}은(는) 성격상 순위를 독점하는 반복성 큰 금액이라 제외했어요. 대신 실제 낱개 소비 지출 위주로 다시 뽑았어요.</p>
     <div class="card" style="overflow-x:auto;">
       <table>
         <thead><tr><th class="top-rank-col"></th><th>날짜</th><th class="top-cat-col">카테고리</th><th>세부내용</th><th class="top-status-col">구분</th><th style="text-align:right;">금액</th></tr></thead>
@@ -1197,7 +1213,7 @@ html = f"""<!DOCTYPE html>
       </table>
     </details>
     <h3 class="sub-head">매달 목표 대비 실적</h3>
-    <p class="lede">위에서 계산한 예상 고정지출({won(bundle.get('fixed_vs_target',{}).get('target',0))}원)을 목표로 두고, 매달 실제 고정지출(고정여부="고정" 전체)이 이 기준을 넘었는지 비교해요. 회생·리모트뷰 같은 종료 항목이 다 정리된 9월부터 비교를 시작해요.</p>
+    <p class="lede">위에서 계산한 예상 고정지출({won(bundle.get('fixed_vs_target',{}).get('target',0))}원)을 목표로 두고, 매달 실제 고정지출(고정여부="고정" 전체)이 이 기준을 넘었는지 비교해요. 종료 항목이 다 정리된 {_compare_start_label()}부터 비교를 시작해요.</p>
     <div class="card" style="overflow-x:auto;">
       <table>
         <thead><tr><th style="white-space:nowrap;">월</th><th style="text-align:right;">지출</th><th style="text-align:right;">목표</th><th style="text-align:right;">차이</th><th style="width:120px;" class="fv-bar-col"></th></tr></thead>
