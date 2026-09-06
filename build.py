@@ -21,6 +21,11 @@ completed_months = bundle['projection'].get('completed_months', months_included[
 N_COMPLETED = bundle['projection']['months_used']
 completed_range_label = f"1~{int(completed_months[-1].split('-')[1])}월" if completed_months else ""
 
+# 확인이 필요한 항목에서 쓰는 계산값 (하드코딩 금지 — 데이터가 바뀌면 같이 움직여야 함)
+_couple = next((x for x in bundle['subcategory_ranking']
+                if x['소분류'] == '커플통장'), None)
+_couple_avg = (_couple['합계'] / len(months_included)) if _couple and months_included else 0
+
 # ---- pre-render some static table rows (values only; layout/format via CSS) ----
 
 def fv_rows():
@@ -1200,7 +1205,7 @@ html = f"""<!DOCTYPE html>
     </div>
     <div class="card">
       <ol class="action-list">
-        <li>내여자 / 커플통장 실지출(월평균 61만원)과 마스터 지침 고정값(30만원) 간 차이 원인 확인</li>
+        <li>내여자 / 커플통장 월평균 {won(round(_couple_avg))}원 — 지출 상위권 고정 항목이라 적정 수준인지 점검</li>
         <li>회생 상환 종료로 생긴 월 188만원 여력 — 저축·투자 재배정 규칙 수립 검토</li>
         <li>실업급여·퇴직금 등 일시 수입 유입 시 소비 쏠림 방지용 배정 규칙(예: N% 저축 우선) 검토</li>
       </ol>
