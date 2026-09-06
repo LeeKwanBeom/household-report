@@ -21,6 +21,14 @@ completed_months = bundle['projection'].get('completed_months', months_included[
 N_COMPLETED = bundle['projection']['months_used']
 completed_range_label = f"1~{int(completed_months[-1].split('-')[1])}월" if completed_months else ""
 
+# 전월 대비 증감: 진행 중인 달은 같은 일자까지만 잘라서 비교한다
+_mom_cut = bundle.get('month_over_month', {}).get('same_day_cutoff')
+_mom_cut_label = f" 1~{_mom_cut}일" if _mom_cut else ""
+_mom_cut_lede = (
+    f"이번 달이 아직 진행 중이라서, 양쪽 모두 <b>1일부터 {_mom_cut}일까지</b>만 잘라서 비교했어요. "
+    "달이 끝나면 전체 기간으로 자동 전환돼요."
+) if _mom_cut else "두 달 모두 끝나서 전체 기간으로 비교했어요."
+
 # 확인이 필요한 항목에서 쓰는 계산값 (하드코딩 금지 — 데이터가 바뀌면 같이 움직여야 함)
 _couple = next((x for x in bundle['subcategory_ranking']
                 if x['소분류'] == '커플통장'), None)
@@ -418,20 +426,6 @@ def mom_rows():
     return "".join(rows)
 
 
-def subcategory_rows():
-    rows = []
-    for i, r in enumerate(bundle.get('subcategory_ranking', []), start=1):
-        rows.append(f"""
-        <tr>
-          <td class="rank sub-rank-col">{i:02d}</td>
-          <td class="name">{r['소분류']}</td>
-          <td class="muted sub-main-col">{r['대분류']}</td>
-          <td class="num" style="white-space:nowrap;">{won(r['합계'])}원</td>
-          <td class="num muted sub-pct-col">{r['비중']}%</td>
-        </tr>""")
-    return "".join(rows)
-
-
 tx_tabs, tx_panels = monthly_tx_tabs_and_panels()
 
 html = f"""<!DOCTYPE html>
@@ -583,6 +577,13 @@ html = f"""<!DOCTYPE html>
     margin-left: auto;
   }}
   .lede {{ color: var(--ink-muted); font-size: 14.5px; margin: -10px 0 20px; }}
+  .sub-head {{
+    font-size: 16.5px;
+    font-weight: 700;
+    margin: 34px 0 14px;
+    padding-top: 22px;
+    border-top: 1px solid var(--border);
+  }}
 
   /* ---------- Card / Chart container ---------- */
   .card {{
@@ -1029,28 +1030,13 @@ html = f"""<!DOCTYPE html>
     <div class="card">{category_detail_accordions()}</div>
   </section>
 
-  <section id="s-subrank">
-    <div class="section-head">
-      <span class="section-num">07</span>
-      <h2>소분류 TOP 20</h2>
-      <span class="note">대분류 무관 · 금액순</span>
-    </div>
-    <p class="lede">06번이 대분류 안에서만 소분류를 보여준다면, 여기는 대분류를 무시하고 소분류만 금액순으로 줄 세운 목록이에요. 어떤 항목에 돈이 가장 많이 나갔는지 한눈에 볼 수 있어요.</p>
-    <div class="card" style="overflow-x:auto;">
-      <table>
-        <thead><tr><th class="sub-rank-col"></th><th>소분류</th><th class="sub-main-col">대분류</th><th style="text-align:right;">합계</th><th style="text-align:right;" class="sub-pct-col">비중</th></tr></thead>
-        <tbody>{subcategory_rows()}</tbody>
-      </table>
-    </div>
-  </section>
-
   <section id="s-mom">
     <div class="section-head">
       <span class="section-num">08</span>
       <h2>전월 대비 증감</h2>
-      <span class="note">{int(bundle.get('month_over_month',{}).get('prev','2026-01').split('-')[1])}월 → {int(bundle.get('month_over_month',{}).get('curr','2026-01').split('-')[1])}월 · 변동폭 큰 순</span>
+      <span class="note">{int(bundle.get('month_over_month',{}).get('prev','2026-01').split('-')[1])}월 → {int(bundle.get('month_over_month',{}).get('curr','2026-01').split('-')[1])}월{_mom_cut_label} · 변동폭 큰 순</span>
     </div>
-    <p class="lede">지난달 대비 이번 달 지출이 어떻게 달라졌는지 대분류별로 보여줘요. 빨간색은 늘어난 것, 초록색은 줄어든 것이에요. 이번 달이 아직 진행 중이라면 자연스럽게 감소로 보일 수 있어요.</p>
+    <p class="lede">지난달 대비 이번 달 지출이 어떻게 달라졌는지 대분류별로 보여줘요. 빨간색은 늘어난 것, 초록색은 줄어든 것이에요. {_mom_cut_lede}</p>
     <div class="card" style="overflow-x:auto;">
       <table>
         <thead><tr><th>대분류</th><th style="text-align:right;" class="mom-prev-col">전월</th><th style="text-align:right;">당월</th><th style="text-align:right;">증감</th></tr></thead>
@@ -1152,15 +1138,8 @@ html = f"""<!DOCTYPE html>
         <tbody>{projection_excluded_rows()}</tbody>
       </table>
     </details>
-  </section>
-
-  <section id="s11-5">
-    <div class="section-head">
-      <span class="section-num">14</span>
-      <h2>매달 목표 대비 실적</h2>
-      <span class="note">목표 {won(bundle.get('fixed_vs_target',{}).get('target',0))}원 · 9월부터 비교</span>
-    </div>
-    <p class="lede">{{REF:s11}}번에서 계산한 예상 고정지출({won(bundle.get('fixed_vs_target',{}).get('target',0))}원)을 목표로 두고, 매달 실제 고정지출(고정여부="고정" 전체)이 이 기준을 넘었는지 비교해요. 회생·리모트뷰 같은 종료 항목이 다 정리된 9월부터 비교를 시작해요.</p>
+    <h3 class="sub-head">매달 목표 대비 실적</h3>
+    <p class="lede">위에서 계산한 예상 고정지출({won(bundle.get('fixed_vs_target',{}).get('target',0))}원)을 목표로 두고, 매달 실제 고정지출(고정여부="고정" 전체)이 이 기준을 넘었는지 비교해요. 회생·리모트뷰 같은 종료 항목이 다 정리된 9월부터 비교를 시작해요.</p>
     <div class="card" style="overflow-x:auto;">
       <table>
         <thead><tr><th style="white-space:nowrap;">월</th><th style="text-align:right;">지출</th><th style="text-align:right;">목표</th><th style="text-align:right;">차이</th><th style="width:120px;" class="fv-bar-col"></th></tr></thead>
