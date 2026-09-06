@@ -1229,9 +1229,6 @@ html = f"""<!DOCTYPE html>
     </div>
     <div class="card">
       <ul class="summary-list">
-        <li><b>개인회생 상환이 4월에 완납</b>됐고, 4/18에 잔액 13,740원이 환급되며 종결이 확인됐어요. 이후 월 약 188만원의 여력이 생겼어요.</li>
-        <li><b>5~7월 3개월 연속 순잉여 200만원대</b> — 회생 종료 직후 저축 여력이 크게 늘어난 구간이에요.</li>
-        <li><b>8월은 실업급여 2차·퇴직금이 들어온 달</b>인 동시에 대형 지출이 몰려 순잉여가 크게 줄었어요. 최대 지출 1위는 {top_expenses[0]['세부내용']}({won(top_expenses[0]['금액'])}원)이에요.</li>
         <li>전체 지출의 <b>고정비 비중은 {bundle['fixed_variable_total']['고정비중']}%</b>({won(bundle['fixed_variable_total']['고정'])}원), 변동비는 {round(100 - bundle['fixed_variable_total']['고정비중'], 1)}%({won(bundle['fixed_variable_total']['변동'])}원)예요.</li>
         <li>{' · '.join(f"<b>{x['대분류']}({x['고정비중']}%)</b>" for x in sorted(fv, key=lambda x: -x['고정비중'])[:3])}는 거의 순수 고정비 성격이에요.</li>
         <li>{income_summary()}</li>
