@@ -1020,17 +1020,6 @@ html = f"""<!DOCTYPE html>
     </div>
   </section>
 
-  <section id="s-savings">
-    <div class="section-head">
-      <span class="section-num">05</span>
-      <h2>월별 저축률 추이</h2>
-      <span class="note">순잉여 ÷ 그 달 수입 · 전체 평균 {bundle['kpi']['savings_rate']}%</span>
-    </div>
-    <div class="card">
-      <div class="chart-box"><div class="svg-chart">{savings_trend_svg()}</div></div>
-    </div>
-  </section>
-
   <section id="s6">
     <div class="section-head">
       <span class="section-num">06</span>
@@ -1118,7 +1107,7 @@ html = f"""<!DOCTYPE html>
       <h2>신한은행 고정지출 예상 vs 실제</h2>
       <span class="note">{int(months_included[-1].split('-')[1])}월 기준 · 매달 갱신</span>
     </div>
-    <p class="lede">신한은행 통장에서 빠져나가는 고정비 {len(bundle['shinhan_fixed'])}개 항목이에요. 관범님이 직접 정리해주신 목록 기준(합계 {won(bundle.get('shinhan_fixed_total',0))}원)이라, 다음 13번의 예상 고정지출({won(bundle['projection']['total'])}원)과는 집계 기준이 다릅니다 — 13번은 CSV의 고정 태그 전체를 통장 구분 없이 모은 값이에요.</p>
+    <p class="lede">신한은행 통장에서 빠져나가는 고정비 {len(bundle['shinhan_fixed'])}개 항목이에요. 관범님이 직접 정리해주신 목록 기준(합계 {won(bundle.get('shinhan_fixed_total',0))}원)이라, 다음 {{REF:s11}}번의 예상 고정지출({won(bundle['projection']['total'])}원)과는 집계 기준이 다릅니다 — {{REF:s11}}번은 CSV의 고정 태그 전체를 통장 구분 없이 모은 값이에요.</p>
     <div class="card" style="overflow-x:auto;">
       <table>
         <thead><tr><th>고정지출</th><th style="text-align:right;">금액(예상)</th><th style="text-align:right;">출금액(실제)</th></tr></thead>
@@ -1171,7 +1160,7 @@ html = f"""<!DOCTYPE html>
       <h2>매달 목표 대비 실적</h2>
       <span class="note">목표 {won(bundle.get('fixed_vs_target',{}).get('target',0))}원 · 9월부터 비교</span>
     </div>
-    <p class="lede">13번에서 계산한 예상 고정지출({won(bundle.get('fixed_vs_target',{}).get('target',0))}원)을 목표로 두고, 매달 실제 고정지출(고정여부="고정" 전체)이 이 기준을 넘었는지 비교해요. 회생·리모트뷰 같은 종료 항목이 다 정리된 9월부터 비교를 시작해요.</p>
+    <p class="lede">{{REF:s11}}번에서 계산한 예상 고정지출({won(bundle.get('fixed_vs_target',{}).get('target',0))}원)을 목표로 두고, 매달 실제 고정지출(고정여부="고정" 전체)이 이 기준을 넘었는지 비교해요. 회생·리모트뷰 같은 종료 항목이 다 정리된 9월부터 비교를 시작해요.</p>
     <div class="card" style="overflow-x:auto;">
       <table>
         <thead><tr><th style="white-space:nowrap;">월</th><th style="text-align:right;">지출</th><th style="text-align:right;">목표</th><th style="text-align:right;">차이</th><th style="width:120px;" class="fv-bar-col"></th></tr></thead>
@@ -1330,6 +1319,42 @@ if ('serviceWorker' in navigator) {{
 </body>
 </html>
 """
+
+import re as _re
+
+
+def renumber_sections(doc):
+    """섹션 번호를 문서 등장 순서대로 다시 매기고, {{REF:섹션id}} 상호참조를 해석한다.
+
+    섹션을 추가·삭제·이동해도 번호와 본문 속 '○번' 표기가 자동으로 따라오게 하려는 것.
+    번호를 본문에 직접 적으면 개편할 때마다 어긋난다.
+    """
+    # 1) section id → 순번 매핑 (등장 순서 기준)
+    ids = _re.findall(r'<section id="([^"]+)"', doc)
+    id_to_num = {sid: i for i, sid in enumerate(ids, start=1)}
+
+    # 2) section-num 값을 순서대로 덮어쓰기
+    counter = iter(range(1, len(ids) + 1))
+    doc = _re.sub(r'(<span class="section-num">)\d+(</span>)',
+                  lambda m: f"{m.group(1)}{next(counter):02d}{m.group(2)}", doc)
+
+    # 3) 상호참조 해석
+    def resolve(m):
+        sid = m.group(1)
+        if sid not in id_to_num:
+            raise ValueError(f"상호참조 대상 섹션을 찾을 수 없습니다: {sid}")
+        return str(id_to_num[sid])
+
+    doc = _re.sub(r'\{REF:([^}]+)\}', resolve, doc)
+
+    leftover = doc.count("{REF:")
+    if leftover:
+        raise ValueError(f"해석되지 않은 상호참조 {leftover}건")
+    print(f"섹션 {len(ids)}개 번호 재부여 완료")
+    return doc
+
+
+html = renumber_sections(html)
 
 with open('/mnt/user-data/outputs/이관범_가계부_분석_리포트.html', 'w', encoding='utf-8') as f:
     f.write(html)
