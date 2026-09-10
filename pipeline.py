@@ -43,6 +43,11 @@ ACCOUNTS_START = {
     "커플통장":     {"balance": 476525,  "as_of": "2026-09-01", "desc": "커플통장 (매달 1일 생활비에서 40만원 이체 · 데이트비 정산)"},
 }
 
+# 리포트 화면의 '계좌 잔고' 섹션에서 감출 계좌 (사용자 요청, 2026-09-10)
+# 잔고 계산·이체 처리·터미널 출력에는 그대로 들어간다. 화면에만 안 나온다.
+# 총 잔고 합계에서도 빠지므로, 화면 합계는 보이는 계좌들의 합이다.
+HIDDEN_ACCOUNTS = ["커플통장"]
+
 # CSV의 '결제수단'·이체 '소분류'에 실제로 적히는 표기 → 계좌명
 # CSV 표기가 바뀌면 여기만 고친다. 매칭 실패는 검증 단계에서 잡힌다.
 ACCOUNT_KEY = {
@@ -383,7 +388,8 @@ def build_bundle(df):
         bal, moved = account_balance(name)
         accounts_list.append({"name": name, "start_balance": meta["balance"],
                               "current_balance": bal, "desc": meta["desc"],
-                              "as_of": meta["as_of"], "tx_count": moved})
+                              "as_of": meta["as_of"], "tx_count": moved,
+                              "hidden": name in HIDDEN_ACCOUNTS})
 
     # 어느 계좌에도 붙지 않은 결제수단·이체 상대계좌 (조용히 증발하는 값 추적)
     known_accounts = set(ACCOUNT_KEY.values())
