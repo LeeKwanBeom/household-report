@@ -78,15 +78,16 @@ def fv_rows():
         </tr>""")
     return "".join(rows)
 
-_n_accounts = len(bundle['accounts']['list'])
+_visible_accounts = [a for a in bundle['accounts']['list'] if not a.get('hidden')]
+_n_accounts = len(_visible_accounts)
 
 def _account_names():
     """계좌 이름 목록. ACCOUNTS_START가 유일한 원본이며 여기에 적지 않는다."""
     return " / ".join(a['name'].replace(' 통장', '')
-                      for a in bundle['accounts']['list'])
+                      for a in _visible_accounts)
 
 def account_cards():
-    accts = bundle['accounts']['list']
+    accts = _visible_accounts
     cards = []
     for a in accts:
         delta = a['current_balance'] - a['start_balance']
@@ -1121,7 +1122,7 @@ html = f"""<!DOCTYPE html>
     </div>
     <div class="total-balance-card">
       <div class="total-balance-label">총 잔고 ({_n_accounts}개 항목 합계)</div>
-      <div class="total-balance-value">{won(sum(a['current_balance'] for a in bundle['accounts']['list']))}원</div>
+      <div class="total-balance-value">{won(sum(a['current_balance'] for a in _visible_accounts))}원</div>
     </div>
     <div class="kpi-grid" style="grid-template-columns: repeat({min(_n_accounts, 4)},1fr);">
       {account_cards()}
