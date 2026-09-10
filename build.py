@@ -1123,7 +1123,7 @@ html = f"""<!DOCTYPE html>
       <div class="total-balance-label">총 잔고 ({_n_accounts}개 항목 합계)</div>
       <div class="total-balance-value">{won(sum(a['current_balance'] for a in bundle['accounts']['list']))}원</div>
     </div>
-    <div class="kpi-grid" style="grid-template-columns: repeat(4,1fr);">
+    <div class="kpi-grid" style="grid-template-columns: repeat({min(_n_accounts, 4)},1fr);">
       {account_cards()}
     </div>
   </section>
