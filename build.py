@@ -89,16 +89,13 @@ def _account_names():
 def account_cards():
     accts = _visible_accounts
     cards = []
+    # 기준일·증감 부가 설명 줄은 사용자 요청으로 뺐다 (2026-09-18).
+    # 카드에는 계좌명과 현재 잔고만 보여준다.
     for a in accts:
-        delta = a['current_balance'] - a['start_balance']
-        sign = '+' if delta > 0 else ''
-        moved = (f"{a['as_of']} 기준 {sign}{won(delta)}원"
-                 if delta else f"{a['as_of']} 이후 변동 없음")
         cards.append(f"""
         <div class="kpi-card">
           <div class="label">{a['name']}</div>
           <div class="value">{won(a['current_balance'])}원</div>
-          <div class="sub">{moved}</div>
         </div>""")
     return "".join(cards)
 
