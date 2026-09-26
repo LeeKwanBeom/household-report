@@ -2,6 +2,8 @@
 
 점검일 2026-09-26 (정기 점검 1회차, 점검표 v1) / **결함 16건 · 개선안 5건 · 인용불가 0건** / 직전 기준선(2026-09-06) 대비: 해결 0 · 미해결 7 · 근거없음 0 · 신규 9
 
+**2026-09-26 수정 회차(같은 날, 별도 세션):** 사용자 채택 — 결함 1~16 전부 · 개선안 1~5 전부 · 점검표 개정안 1~12 전부(→ audit/checklist.md v2). 전부 반영했고 **검증은 다음 세션**에서 받는다. 상세는 아래 "수정 기록". 이월 항목 없음.
+
 점검 대상
 - 커밋: `5bf65bc` (2026-09-24 "리포트 갱신", main HEAD). codeload tarball에는 .git이 없어 해시는 GitHub API(인증)로 조회.
 - 파일(ls -R, .git 제외): SKILL.md · audit/last-audit.md · build.py · pipeline.py · scripts/deploy.py · scripts/detect_ended.py · index.html · sw.js · manifest.json · favicon.svg · favicon.ico · apple-touch-icon.png · icon-192.png · icon-512.png · icon-maskable-512.png. **install/SKILL.md·audit/checklist.md·README 없음.**
@@ -55,6 +57,8 @@
 | 15 | 하(문서) | SKILL.md | 113-115 / (없음) | `계좌에 안 붙는 결제수단, 데이터에서 한 번도 안 걸린 제외 규칙 키,` / `기준일 이후 거래가 없는 계좌, 실적이 0인 카드, 신한 고정비 목록에 없는 출금.` | 실측 | 경고 5종만 적혀 있고 코드는 9종(pipeline.py 629-659): 이체 상대 미인식·완성월 없음·잔고 음수·목표 비교 달 없음 4종 누락. HIDDEN_ACCOUNTS(pipeline.py 50-53, 커플통장 화면 비표시·총잔고 제외)는 SKILL.md에 언급 0 | 5단계 목록 9종으로, 리포트 구조 01번에 숨김 계좌 규칙 한 줄 | 저장소 SKILL.md |
 | 16 | 최하 | build.py | 509 | `def savings_trend_svg():` | 실측 | 09-06 #7 그대로. 호출 0회 | 삭제 | 저장소 build.py |
 
+결함 1~16 상태(2026-09-26 수정 회차): **전부 수정됨 — 검증 대기.** 결함 3·5·12·13은 원 제안과 다르게 구현했다("수정 기록" 참고).
+
 ## 개선안 (최대 5)
 
 | # | 내용 | 이유 | 우선순위 |
@@ -64,6 +68,8 @@
 | 3 | 입력 위생 검사 묶음: 완전 중복 행 경고(실 CSV 1쌍 존재) · 미등록 `비고` 태그 경고("현대 카드" 실측: 실적 미반영·경고 없음) · 빈 CSV/이체만/cp949 입력에 원인 메시지(지금은 TypeError·IndexError·UnicodeDecodeError 트레이스백) · 세부내용 HTML 이스케이프(실 CSV '>' 5건 '&' 1건이 그대로 출력) | 결함 3·4·10과 같은 함수(load_csv·warnings_for)에서 한 번에 처리 가능 | 3 |
 | 4 | deploy.py: 내용 같으면 PUT 건너뛰기(빈 커밋 방지) · 파일 목록 자동 스캔(hometax push.py `_scan` 방식) · 토큰을 환경변수(`GITHUB_TOKEN`)로도 받기 | 09-18 커밋 4건(2c41f4c·4ff63d1·ced4fc2·a1a0744) API stats total 0 확인 — 같은 파일이 두 번 빈 커밋. 토큰이 argv에 있으면 프로세스 목록·대화 로그에 남음 | 4 |
 | 5 | 배포 게이트·확인: 저장소 index.html의 DATA와 새 bundle의 계좌 잔고 차이가 임계치(예: 계좌별 ±300만원)를 넘으면 중단 후 확인 · push 뒤 `commits?per_page=1` sha가 바뀌었는지 확인 | 조용히 틀린 리포트가 배포되는 마지막 관문. github.io는 이 환경에서 접근 불가라 Pages 반영 확인은 커밋 sha까지만 | 5 |
+
+개선안 1~5 상태(2026-09-26 수정 회차): **전부 구현됨 — 검증 대기.** 개선안 3·5는 사용자 지시대로 "경고/확인"이지 중단이 아니다.
 
 ## validate·validate_html 검사 생존 확인
 
@@ -128,6 +134,60 @@
 - 09-18 같은 빈 커밋(diff 0)이 재발했는지.
 - 2027-01 CSV부터 월 라벨 중복(결함 #13) 실제 발생.
 - install/SKILL.md와 설치본 md5 일치 여부(채택 시).
+
+## 수정 기록 (2026-09-26 수정 회차)
+
+행 번호를 적은 곳은 수정 후 파일 기준(wc -l): SKILL.md 380 · pipeline.py 892 · build.py 1452 · scripts/deploy.py 289 · scripts/detect_ended.py 103 · audit/checklist.md 192 · install/SKILL.md 49 · tests/test_pipeline.py 358 · tests/fixtures/sample.csv 26. 규칙 상수 값(ACCOUNTS_START·ENDED_FIXED_ITEMS·SHINHAN_FIXED_ITEMS·CARD_TARGETS 등)은 하나도 바꾸지 않았다. index.html은 올리지 않았다.
+
+### 결함
+
+| # | 무엇을 고쳤나(절·함수) | 원 제안과 다른 점·이유 |
+|---|---|---|
+| 1 | pipeline.py `build_bundle` 진단 블록에 `card_in_payment`(결제수단이 카드명인 행 수·태그)·`blank_payment_after_start`(가장 이른 as_of 이후 결제수단 빈 수입·지출 행 수) 추가, `warnings_for`에 두 경고 | 원 제안은 "카드 태그 제외를 풀기"였으나 그러면 `unknown_payment`와 이중으로 뜬다. 전용 경고가 원인·조치("카드명은 비고에")를 직접 말하므로 그쪽으로. 빈칸은 계좌 추적 전 행이 정상적으로 비어 있어 `min(as_of)` 이후만 센다 |
+| 2 | pipeline.py `EXPECTED_COLS`(9개, 유일 정의)·`TEXT_COLS`는 파생. `load_csv`가 빠진 컬럼을 `ValueError`로 중단(기대·실제 목록 출력). `main`이 `ValueError`를 `[중단] …` 한 줄로 찍고 exit 1 | — |
+| 3 | pipeline.py `load_csv(path, today=None)`: 실행일보다 뒤인 행을 집계에서 빼고 `load_notices`에 건수·최대 날짜·기준일 기록 → `warnings_for`가 "실행일(…)보다 뒤인 날짜 행 N건(최대 …)" 경고. `today` 인자는 테스트용 | **사용자 지시대로 중단 아님.** 원 제안 "경고 또는 중단"에서 경고+제외로 확정 |
+| 4 | `load_csv`의 날짜 해석 불가·알 수 없는 구분 [주의]를 `df.attrs["load_notices"]`에 담고 `build_bundle`이 `diagnostics["load"]`로 실어 `warnings_for`가 [경고] 블록에 출력. [주의] 출력도 유지(detect_ended 경로용). SKILL.md 5단계 목록에 추가 | — |
+| 5 | build.py: `_couple`·`_couple_avg` 계산과 s13의 커플통장 줄 삭제 | **사용자 지시대로 pipeline으로 옮기지 않고 삭제**(9월부터 이체라 지표 무의미). SKILL.md "기타"에 삭제 사유 한 줄 |
+| 6 | pipeline.py `screen_warnings_for`(감춘 계좌 언급 경고 제외) → `main`이 `bundle["warnings"]`로 저장. build.py `warning_items()`가 s13에 렌더(없으면 "확인할 항목 없음"), 하드코딩 2줄 삭제 | 원 제안에 없던 것: **감춘 계좌(HIDDEN_ACCOUNTS) 경고는 화면에서 뺀다.** 계좌를 화면에서 감춘 지시(2026-09-10)와 충돌하지 않게. 그 경고는 대화로만(SKILL.md 5단계·주의사항에 명시). 실 CSV에서 터미널 6건 중 화면 4건 |
+| 7 | SKILL.md "예상 고정지출에서 영구 제외" 리모트뷰 문단 재작성: 재개 달이 진행 중이면 걸려도 무시, 완성된 뒤에도 걸리면 `고정` 누락 | — |
+| 8 | SKILL.md 3단계: 확인 대상 세 건(원본 `EXPECTED_MONTHLY_TRANSFERS`), 보고 템플릿 금액을 ○○로, "하나라도 없으면" 묻기, "pipeline 경고가 받치지만 묻기가 첫 방어선". 2026-09 예외 서술은 "이력"으로 이동 | 문서의 금액 리터럴(680,000·500,000 등)을 모두 뺐다 — 단일 출처 규칙에 맞춤 |
+| 9 | pipeline.py `validate`: `total_expense == 0`·`total_income == 0`을 [실패]로. 수입·지출 행이 0건이면 그 전에 `build_bundle`이 `ValueError`(이체만) | 원 제안대로. 이체만인 CSV는 validate까지 못 가고 [중단]에서 잡힌다(테스트는 메모리 변조로 0건 가드 확인) |
+| 10 | pipeline.py `negative_rows`·`zero_rows` 진단 + 경고 2종 | — |
+| 11 | scripts/deploy.py `CODE_GLOBS` + `_scan_code_files()`(SKILL.md·pipeline.py·build.py·scripts/*.py·audit/*.md·install/*.md·tests/*.py·tests/fixtures/*.csv). docstring에 `--code-only`·환경변수 사용법 | 하드코딩 목록을 없앴다(개선안 4와 함께). CSV·data_bundle.json·index.html은 패턴에 없고 테스트로 못 박음 |
+| 12 | install/SKILL.md ← 설치본 원문 그대로(md5 b411b109, 49행). **내용 무변경이므로 재업로드 불필요** | — |
+| 13 | pipeline.py `build_bundle` 월 라벨: 최신 연도가 아닌 달만 "2025.11월" | 원 제안 "연도가 바뀌는 첫 달에만 접두"가 아니라 build.py `fixed_vs_target_rows`가 이미 쓰는 규칙(최신 연도 아닌 달 전부)으로 통일. 단일 연도 데이터(지금)는 라벨 불변 |
+| 14 | scripts/deploy.py `_extract_data`: `^const DATA = (.*?);\s*$`(re.M) 줄 단위. `validate_html`·잔고 급변 검사가 공용 | — |
+| 15 | SKILL.md 5단계 경고 목록 19종(코드 `warns.append` 19개와 1:1), 리포트 구조에 01번 숨김 계좌·13번 경고 렌더 규칙 | — |
+| 16 | build.py `savings_trend_svg` 삭제 | — |
+
+### 개선안
+
+| # | 무엇을 넣었나 | 원 제안과 다른 점·이유 |
+|---|---|---|
+| 1 | tests/fixtures/sample.csv(합성 25행: 7~9월, 이체 3종, 카드 태그, 고정 항목) + tests/test_pipeline.py 30개(잔고 독립 계산·예상 고정지출·validate 파괴 6종·0건 가드·컬럼 누락 7종·cp949·빈 CSV·이체만·경고 11종·월 라벨 연도 접두·화면 경고 필터·deploy 정규식·blob sha·잔고 게이트·스캔 제외). `python3 -m unittest discover tests` | pytest가 환경에 없어 unittest. **실 CSV 행은 한 줄도 넣지 않았다** |
+| 2 | pipeline.py `EXPECTED_MONTHLY_TRANSFERS = {"start": "2026-09", "items": [(생활비, 신한은행, 680000), (생활비, 청년미래적금, 500000), (생활비, 커플통장, 400000)]}` — start 이후 각 달에 해당 이체 행이 없으면 "이체 행 없음", 합계가 다르면 "합계 ≠ 예상" 경고 | 합계 불일치도 경고에 넣었다(오타 68,000 같은 것을 잡기 위해). 그래서 2026-09 CSV에서는 알려진 예외(신한 분할·커플통장 선출금) 2건이 뜬다 — SKILL.md 이력에 "정상"으로 적음. 커플통장 관련은 감춘 계좌라 화면에는 안 실린다 |
+| 3 | 완전 중복 행 경고(건수·묶음 수, **경고만**) · 비고에 카드명 아닌 값 경고 · 빈 CSV/이체만/cp949/컬럼 누락에 `[중단]` 한 줄 메시지(detect_ended.py도 동일) · build.py `esc()`로 세부내용·소분류·대분류·항목 이스케이프, JS `escHtml`로 히트맵 라벨, `DATA_JSON`의 `</`→`<\/` | 사용자 지시대로 중복은 경고만. 이스케이프로 실 CSV의 '>' 5건·'&' 1건 렌더가 `&gt;`·`&amp;`로 바뀐다(화면 표시는 동일) |
+| 4 | deploy.py: `push`가 blob sha가 같으면 "변경 없음, 건너뜀"(빈 커밋 방지) · `CODE_GLOBS` 자동 스캔 · 토큰을 `GITHUB_TOKEN` 환경변수로도 | — |
+| 5 | deploy.py `check_balance_jump`: 저장소에서 받은 index.html의 DATA와 계좌별 잔고 차이가 `BALANCE_JUMP_THRESHOLD`(3,000,000) 초과면 `[확인 필요]` 목록을 찍고 멈춤 → 사용자 확인 후 `--ack-balance`로 진행. `main`이 push 전후 HEAD sha를 찍음 | **하드 중단 아님**: 확인 후 같은 명령에 플래그만 붙이면 진행. 임계치는 상수라 사용자가 조정. github.io 접근 불가라 반영 확인은 sha까지 |
+
+### 미확정 처리(사용자 결정)
+
+- 월초 실행 시 전월 미완성 취급: 규칙 유지. SKILL.md 계산 규칙에 안내 한 줄.
+- SKILL.md 2026-09 예외 서술: 맨 아래 "이력" 절로 이동(금액 리터럴 제거).
+- 커플통장 잔고 음수: 코드·CSV 안내 없음. 이력에 기록. 경고는 대화로만(화면 제외).
+- 2026-09-07 완전 동일 행 1쌍: 실제 2건. CSV 그대로. 이력에 기록.
+
+### 점검표
+
+- audit/checklist.md **v2**: 개정안 1~12 전부 반영. "되돌리면 안 되는 것" 표를 이번 수정에 맞춰 갱신(이체 경고+묻기, 화면 13번=warnings, load_csv 강제, 미래 날짜, 0건 가드, 잔고 급변 게이트, CODE_GLOBS, 월 라벨, tests). 기준선 형식에 "## 수정 기록" 추가.
+
+### 수정 후 자체 확인(검증 세션에서 다시 본다)
+
+- 실 CSV(가계부3.csv) pipeline → build → detect_ended → tests 재실행: 정합성 통과, 터미널 경고 6건(완전 중복 행 2건 · 매달 이체 확인 2건(9월 예외) · 청년미래적금·대여금 거래 0건 · 커플통장 음수), 화면 경고 4건. detect_ended [확인 필요] 1건(리모트뷰, 예상대로). tests 30/30 OK.
+- 수정 전 산출 HTML과 대조: DATA 차이 키 = `diagnostics`(신규 키 9개)·`warnings`(신규)뿐. 비데이터 HTML 차이 = s13 블록 교체 · 세부내용 6행의 `>`/`&` 이스케이프 · JS `escHtml` 3줄. 그 외 동일.
+- validate 파괴 6종 + 0건 가드: 전부 FAIL(tests). validate_html 파괴: JSON·JS·`{REF:`·`{won(`·크기 전부 FAIL, 세부내용 `};` 이제 **통과**, 세부내용 `</script>` 통과(raw `</script>` 1개, 표에 `&lt;b&gt;` 렌더), 잔고 급변 사본(합성 500만원 지출) `--ack-balance` 없이 FAIL·있으면 통과.
+- 결함 1~4·9·10 합성 사본 재실험: 카드명·빈칸 결제수단 → 경고 / 결제수단·고정여부 컬럼 삭제 → [중단] / 미래 날짜 → 경고 + 최신 월·업데이트일 불변 / 날짜 형식·구분 변형 → 경고 / 이체만·빈 CSV → [중단] / 음수·빈칸 금액 → 경고 / 비고 "현대 카드" → 경고 / cp949 → [중단] / 청년미래적금 이체 삭제 → "이체 행 없음" 경고.
+- grep 재확인: SKILL.md에 "화면에 나오지 않으므로"·"유일한 방어선"·"이체 누락을 잡는 검증이 없다"·"한쪽만 있으면"·이체 금액 리터럴 0회. build.py `_couple`·`savings_trend` 0회. deploy.py 하드코딩 목록·non-greedy 정규식 0회. pipeline.py 빈 컬럼 생성 0회.
 
 ## 이전 기록 (2026-09-06 원문 보존)
 
