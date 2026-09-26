@@ -1,12 +1,20 @@
+import html as _html
 import json
 
 with open('data_bundle.json', encoding='utf-8') as f:
     bundle = json.load(f)
 
-DATA_JSON = json.dumps(bundle, ensure_ascii=False)
+# JSON 문자열 안의 "</"는 "<\/"로 바꿔 둔다. 세부내용에 "</script>"가 들어오면
+# 브라우저가 거기서 script 블록을 끊어 화면 전체가 죽는다. "\/"는 JSON에서 "/"와 같다.
+DATA_JSON = json.dumps(bundle, ensure_ascii=False).replace("</", "<\\/")
 
 def won(n):
     return f"{n:,.0f}"
+
+def esc(s):
+    """CSV에서 온 문자열(세부내용·소분류 등)을 HTML에 넣기 전에 이스케이프.
+    '<'가 들어오면 표가 깨지고, '&'·'>'는 그대로 출력되던 자리."""
+    return _html.escape(str(s), quote=False)
 
 kpi = bundle['kpi']
 category = bundle['category']
@@ -55,11 +63,6 @@ _mom_cut_lede = (
     "달이 끝나면 전체 기간으로 자동 전환돼요."
 ) if _mom_cut else "두 달 모두 끝나서 전체 기간으로 비교했어요."
 
-# 확인이 필요한 항목에서 쓰는 계산값 (하드코딩 금지 — 데이터가 바뀌면 같이 움직여야 함)
-_couple = next((x for x in bundle['subcategory_ranking']
-                if x['소분류'] == '커플통장'), None)
-_couple_avg = (_couple['합계'] / len(months_included)) if _couple and months_included else 0
-
 # ---- pre-render some static table rows (values only; layout/format via CSS) ----
 
 def fv_rows():
@@ -68,7 +71,7 @@ def fv_rows():
         pct = r['고정비중']
         rows.append(f"""
         <tr>
-          <td class="name">{r['대분류']}</td>
+          <td class="name">{esc(r['대분류'])}</td>
           <td class="num">{won(r['고정'])}원</td>
           <td class="num muted">{won(r['변동'])}원</td>
           <td class="num">{pct}%</td>
@@ -195,8 +198,8 @@ def card_category_rows():
         rows = "".join(f"""
           <tr>
             <td class="num muted card-tx-date">{i['날짜']}</td>
-            <td class="name">{i['소분류']}</td>
-            <td>{i['세부내용']}</td>
+            <td class="name">{esc(i['소분류'])}</td>
+            <td>{esc(i['세부내용'])}</td>
             <td class="num strong card-tx-amt">{won(i['금액'])}원</td>
           </tr>""" for i in items)
         blocks.append(f"""
@@ -218,8 +221,8 @@ def top_rows():
         <tr>
           <td class="rank top-rank-col">{i:02d}</td>
           <td class="num muted"><span class="top-date-full">{r['날짜']}</span><span class="top-date-short">{short_date}</span></td>
-          <td class="name top-cat-col">{r['대분류']} <span class="muted">/ {r['소분류']}</span></td>
-          <td>{r['세부내용']}</td>
+          <td class="name top-cat-col">{esc(r['대분류'])} <span class="muted">/ {esc(r['소분류'])}</span></td>
+          <td>{esc(r['세부내용'])}</td>
           <td class="top-status-col">{tag}</td>
           <td class="num strong">{won(r['금액'])}원</td>
         </tr>""")
@@ -232,9 +235,9 @@ def projection_rows():
         row_class = ' class="row-warn"' if r['상태']=='확인필요' else ''
         parts = r['항목'].split(' / ')
         if len(parts) == 3:
-            item_html = f'<span class="proj-item-full">{r["항목"]}</span><span class="proj-item-short">{parts[-1]}</span>'
+            item_html = f'<span class="proj-item-full">{esc(r["항목"])}</span><span class="proj-item-short">{esc(parts[-1])}</span>'
         else:
-            item_html = r['항목']
+            item_html = esc(r['항목'])
         rows.append(f"""
         <tr{row_class}>
           <td class="name">{item_html}</td>
@@ -255,10 +258,10 @@ def projection_cards():
         cards.append(f"""
         <div class="tx-card">
           <div class="tx-card-top">
-            <span class="tx-card-desc">{short_name}{warn_badge}</span>
+            <span class="tx-card-desc">{esc(short_name)}{warn_badge}</span>
             <span class="tx-card-amt tx-expense">{won(r['월평균'])}원/월</span>
           </div>
-          <div class="tx-card-meta muted">{main_cat} · 최근 {r['마지막월']} · {N_COMPLETED}개월 {won(r['합계'])}원</div>
+          <div class="tx-card-meta muted">{esc(main_cat)} · 최근 {r['마지막월']} · {N_COMPLETED}개월 {won(r['합계'])}원</div>
         </div>""")
     return "".join(cards)
 
@@ -335,10 +338,10 @@ def income_summary():
     inc = bundle.get('income_breakdown', [])
     if not inc:
         return "수입 내역이 없어요."
-    first = f"수입은 <b>{inc[0]['항목']}가 {inc[0]['비중']}%</b>"
+    first = f"수입은 <b>{esc(inc[0]['항목'])}가 {inc[0]['비중']}%</b>"
     if len(inc) == 1:
         return first + "로 전부예요."
-    return first + f"로 절대적이고, {inc[1]['항목']}가 {inc[1]['비중']}%로 뒤를 이어요."
+    return first + f"로 절대적이고, {esc(inc[1]['항목'])}가 {inc[1]['비중']}%로 뒤를 이어요."
 
 def _compare_start_label():
     """14번 비교 시작 시점. pipeline.py의 TARGET_COMPARISON_START가 바뀌면
@@ -365,14 +368,14 @@ def _top_first_label():
     if not top_expenses:
         return ""
     t = top_expenses[0]
-    return f" · 1위 {t['세부내용']} ({won(t['금액'])}원)"
+    return f" · 1위 {esc(t['세부내용'])} ({won(t['금액'])}원)"
 
 def _fv_top_label():
     """고정비중이 가장 높은 대분류. 지출이 하나도 없으면 max()가 죽는다."""
     if not fv:
         return ""
     t = max(fv, key=lambda x: x['고정비중'])
-    return f" · 최고 {t['대분류']} {t['고정비중']}%"
+    return f" · 최고 {esc(t['대분류'])} {t['고정비중']}%"
 
 def _mom_range_label():
     """전월→당월 라벨. 달이 하나뿐이면 prev가 None이라 .split이 죽던 자리."""
@@ -393,7 +396,7 @@ def projection_excluded_rows():
     for r in bundle['projection']['excluded']:
         rows.append(f"""
         <tr>
-          <td class="name">{r['항목']}</td>
+          <td class="name">{esc(r['항목'])}</td>
           <td class="num muted">{r['마지막월']}</td>
           <td class="num muted">{won(r['누적합계'])}원</td>
           <td class="muted">{r['사유']}</td>
@@ -432,9 +435,9 @@ def monthly_tx_tabs_and_panels():
             <tr>
               <td class="num muted">{r['날짜']}</td>
               <td class="{sign_class}">{r['구분']}</td>
-              <td class="name">{r['대분류']}</td>
-              <td class="muted">{r['소분류']}</td>
-              <td>{r['세부내용']}</td>
+              <td class="name">{esc(r['대분류'])}</td>
+              <td class="muted">{esc(r['소분류'])}</td>
+              <td>{esc(r['세부내용'])}</td>
               <td>{fixed_tag}</td>
               <td class="num {sign_class}">{won(r['금액'])}원</td>
             </tr>""")
@@ -442,10 +445,10 @@ def monthly_tx_tabs_and_panels():
             cards.append(f"""
             <div class="tx-card">
               <div class="tx-card-top">
-                <span class="tx-card-desc">{desc}</span>
+                <span class="tx-card-desc">{esc(desc)}</span>
                 <span class="tx-card-amt {sign_class}">{sign}{won(r['금액'])}원</span>
               </div>
-              <div class="tx-card-meta muted">{r['대분류']} · {r['소분류']} · {r['날짜']}</div>
+              <div class="tx-card-meta muted">{esc(r['대분류'])} · {esc(r['소분류'])} · {r['날짜']}</div>
             </div>""")
         net_val = net_by_month.get(m, 0)
         net_sign = '+' if net_val >= 0 else ''
@@ -486,7 +489,7 @@ def category_detail_accordions():
         subs = bundle['detail'][name]
         sub_rows = "".join(f"""
           <tr>
-            <td class="name">{s['소분류']}</td>
+            <td class="name">{esc(s['소분류'])}</td>
             <td class="num muted">{s['건수']}건</td>
             <td class="num">{won(s['합계'])}원</td>
           </tr>""" for s in subs)
@@ -494,7 +497,7 @@ def category_detail_accordions():
         <details class="detail-item">
           <summary class="cd-row cd-summary">
             <span class="cd-rank cat-rank-col">{i:02d}</span>
-            <span class="cd-name name">{name}</span>
+            <span class="cd-name name">{esc(name)}</span>
             <span class="cd-num num">{won(c['합계'])}원</span>
             <span class="cd-num cd-avg-col num muted">{won(c['월평균'])}원</span>
             <span class="cd-num num muted">{c['비중']}%</span>
@@ -506,48 +509,19 @@ def category_detail_accordions():
     return "".join(blocks)
 
 
-def savings_trend_svg():
-    m = bundle['monthly']
-    labels = m['labels']
-    rates = m.get('savings_rate', [])
-    if not rates:
-        return ''
-    W, H = 700, 240
-    ML, MR, MT, MB = 50, 16, 16, 30
-    pw, ph = W - ML - MR, H - MT - MB
-    lo, hi = min(min(rates), 0), max(max(rates), 0)
-    span = (hi - lo) or 1
-    pad = span * 0.12
-    lo, hi = lo - pad, hi + pad
-    span = hi - lo
+def warning_items():
+    """13번 '확인이 필요한 항목'. pipeline.py의 warnings_for()가 낸 경고를 그대로 보여준다.
 
-    def y(v):
-        return MT + ph - (v - lo) / span * ph
-
-    def x(i):
-        return ML + (pw / max(len(rates) - 1, 1)) * i
-
-    grid = ''
-    for k in range(5):
-        v = lo + span * k / 4
-        yy = y(v)
-        grid += f'<line x1="{ML}" y1="{yy:.1f}" x2="{ML+pw}" y2="{yy:.1f}" class="axis-line"/>'
-        grid += f'<text x="{ML-8}" y="{yy+4:.1f}" text-anchor="end" class="axis-label">{v:.0f}%</text>'
-    zy = y(0)
-    grid += f'<line x1="{ML}" y1="{zy:.1f}" x2="{ML+pw}" y2="{zy:.1f}" style="stroke:#241A17;stroke-width:1"/>'
-
-    pts = [(x(i), y(v)) for i, v in enumerate(rates)]
-    path = ' '.join(('M' if i == 0 else 'L') + f'{px:.1f},{py:.1f}'
-                    for i, (px, py) in enumerate(pts))
-    dots = ''.join(
-        f'<circle cx="{px:.1f}" cy="{py:.1f}" r="3.5" fill="{"#2E6B52" if rates[i]>=0 else "#A8172A"}"/>'
-        for i, (px, py) in enumerate(pts))
-    xlabels = ''.join(
-        f'<text x="{x(i):.1f}" y="{MT+ph+20}" text-anchor="middle" class="month-label">{lab}</text>'
-        for i, lab in enumerate(labels))
-    return (f'<svg viewBox="0 0 {W} {H}" width="100%" height="100%">{grid}'
-            f'<path d="{path}" fill="none" stroke="#2E6B52" stroke-width="2.5"/>'
-            f'{dots}{xlabels}</svg>')
+    예전에는 여기가 하드코딩 2줄(커플통장 월평균·일시 수입 조언)이었고 pipeline 경고는
+    화면에 안 올라갔다(2026-09-06 #2·#3·#6). 커플통장 줄은 2026-09부터 커플통장이
+    지출이 아니라 이체로 기록되면서 지표가 무의미해져 삭제했다(2026-09-26 사용자 지시).
+    커플통장 등 감춘 계좌를 언급하는 경고는 pipeline 쪽(screen_warnings_for)에서 이미 뺐다.
+    """
+    warns = bundle.get('warnings', [])
+    if not warns:
+        return '<p class="muted" style="margin:0;">확인할 항목 없음 — 이번 CSV 집계에서 경고가 없었어요.</p>'
+    items = "".join(f"<li>{esc(w)}</li>" for w in warns)
+    return f'<ol class="action-list">{items}</ol>'
 
 
 def mom_rows():
@@ -561,7 +535,7 @@ def mom_rows():
         sign = '+' if d > 0 else ''
         rows.append(f"""
         <tr>
-          <td class="name">{r['대분류']}</td>
+          <td class="name">{esc(r['대분류'])}</td>
           <td class="num muted mom-prev-col" style="white-space:nowrap;">{won(r['전월'])}원</td>
           <td class="num" style="white-space:nowrap;">{won(r['당월'])}원</td>
           <td class="num {cls}" style="white-space:nowrap;">{sign}{won(d)}원</td>
@@ -1310,11 +1284,9 @@ html = f"""<!DOCTYPE html>
       <span class="section-num">16</span>
       <h2>확인이 필요한 항목</h2>
     </div>
+    <p class="lede">이번 CSV를 집계하면서 pipeline이 낸 경고예요. 계산은 됐지만 값이 조용히 어긋날 수 있는 자리라 한 번 확인이 필요해요. 경고가 없으면 "확인할 항목 없음"으로 표시돼요.</p>
     <div class="card">
-      <ol class="action-list">
-        <li>내여자 / 커플통장 월평균 {won(round(_couple_avg))}원 — 지출 상위권 고정 항목이라 적정 수준인지 점검</li>
-        <li>실업급여·퇴직금 등 일시 수입 유입 시 소비 쏠림 방지용 배정 규칙(예: N% 저축 우선) 검토</li>
-      </ol>
+      {warning_items()}
     </div>
   </section>
 
@@ -1341,6 +1313,7 @@ html = f"""<!DOCTYPE html>
 const DATA = {DATA_JSON};
 
 function fmtMan(v) {{ return Math.round(v/10000).toLocaleString() + '만'; }}
+function escHtml(s) {{ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }}
 
 // ---- 01 월별 수입/지출 (순수 SVG, 라이브러리 없음) ----
 (function() {{
@@ -1409,12 +1382,12 @@ function showTxMonth(m) {{
 (function() {{
   const h = DATA.heatmap;
   const table = document.getElementById('heatmapTable');
-  let thead = '<thead><tr><th class="rowh">대분류</th>' + h.months.map(m => `<th>${{m}}</th>`).join('') + '</tr></thead>';
+  let thead = '<thead><tr><th class="rowh">대분류</th>' + h.months.map(m => `<th>${{escHtml(m)}}</th>`).join('') + '</tr></thead>';
   let bodyRows = '';
   h.categories.forEach((cat, i) => {{
     const row = h.matrix[i];
     const max = Math.max(...row, 1);
-    bodyRows += '<tr><td class="rowh">' + cat + '</td>';
+    bodyRows += '<tr><td class="rowh">' + escHtml(cat) + '</td>';
     row.forEach(v => {{
       const t = v / max;
       const bg = t === 0 ? 'transparent' : `rgba(168,23,42,${{(0.12 + t*0.75).toFixed(2)}})`;
