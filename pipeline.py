@@ -135,12 +135,29 @@ CARD_TARGETS = {"현대카드": 400000, "신한카드": 1000000}
 # "2026-07" 처럼 직접 적으면 그 값을 그대로 쓴다 (특별한 이유가 있을 때만).
 TARGET_COMPARISON_START = "auto"
 
+# 매달 있어야 하는 이체 (출금 계좌 표기, 입금 계좌 표기, 예상 합계)
+#
+# 3단계의 "이체 건 확인"을 코드로 받친다. 사람이 잊어도 누락·합계 불일치가 경고로 뜬다.
+# 경고일 뿐 배포를 막지는 않으므로 3단계에서 사용자에게 묻는 절차는 그대로 유지한다.
+# start = 이 검사를 시작하는 월. 계좌 관리 시작(2026-09) 이전 달에는 이체 기록이
+# 없는 게 정상이라 그 달들은 보지 않는다.
+EXPECTED_MONTHLY_TRANSFERS = {
+    "start": "2026-09",
+    "items": [
+        ("생활비", "신한은행",     680000),  # SHINHAN_FIXED_ITEMS 합계에 맞춘 금액
+        ("생활비", "청년미래적금", 500000),
+        ("생활비", "커플통장",     400000),
+    ],
+}
+
 
 # ============================================================
 # CSV 로딩 — 견고한 파싱
 # ============================================================
 
-TEXT_COLS = ["구분", "대분류", "소분류", "세부내용", "결제수단", "고정여부", "비고"]
+# CSV 컬럼 9개. 여기가 유일한 정의다. 하나라도 없으면 load_csv가 중단한다.
+EXPECTED_COLS = ["날짜", "구분", "대분류", "소분류", "세부내용", "금액", "결제수단", "고정여부", "비고"]
+TEXT_COLS = [c for c in EXPECTED_COLS if c not in ("날짜", "금액")]
 
 
 def _ym(s):
@@ -167,30 +184,64 @@ def parse_amount(value):
     return -v if negative else v
 
 
-def load_csv(path):
-    df = pd.read_csv(path, encoding="utf-8-sig", low_memory=False)
+def load_csv(path, today=None):
+    """CSV → DataFrame.
+
+    로딩 단계에서 빼거나 못 읽은 행은 조용히 넘기지 않고 df.attrs["load_notices"]에
+    건수를 남긴다. build_bundle이 이것을 diagnostics에 실어 warnings_for()가
+    [경고] 블록으로 출력한다. (예전에는 여기서 [주의]만 찍고 경고 목록에는 없어서
+    "경고 없음"으로 끝날 수 있었다.)
+
+    today: 미래 날짜 판정 기준일. None이면 실행일. 테스트에서 고정값을 넣는다.
+    """
+    try:
+        df = pd.read_csv(path, encoding="utf-8-sig", low_memory=False, dtype=str)
+    except UnicodeDecodeError:
+        raise ValueError(
+            "CSV를 UTF-8로 읽을 수 없습니다. 엑셀 기본 저장(CP949)일 가능성이 큽니다 — "
+            "'CSV UTF-8(쉼표로 분리)' 형식으로 다시 저장해서 올려주세요.") from None
     df.columns = [c.strip() for c in df.columns]
 
-    for c in TEXT_COLS:
-        if c not in df.columns:
-            df[c] = ""
-        df[c] = df[c].fillna("").astype(str).str.strip().replace("nan", "")
+    # 필수 컬럼 9개 전부 있어야 한다. 예전에는 없는 컬럼을 빈 값으로 만들어 진행했고,
+    # 결제수단 컬럼이 빠진 CSV가 경고 없이 잔고를 틀리게 만들었다.
+    missing = [c for c in EXPECTED_COLS if c not in df.columns]
+    if missing:
+        raise ValueError(f"CSV에 필요한 컬럼이 없습니다: {missing} "
+                         f"(기대: {EXPECTED_COLS} / 실제: {list(df.columns)})")
 
-    if "금액" not in df.columns:
-        raise ValueError("CSV에 '금액' 컬럼이 없습니다.")
-    if "날짜" not in df.columns:
-        raise ValueError("CSV에 '날짜' 컬럼이 없습니다.")
+    for c in TEXT_COLS:
+        df[c] = df[c].fillna("").astype(str).str.strip().replace("nan", "")
 
     # 완전히 빈 행 제거
     df = df[df["날짜"].notna() & (df["날짜"].astype(str).str.strip() != "")]
+    if len(df) == 0:
+        raise ValueError("CSV에 데이터 행이 없습니다(헤더만 있음).")
 
     df["금액"] = df["금액"].apply(parse_amount)
     df["날짜"] = pd.to_datetime(df["날짜"], errors="coerce")
 
-    bad_dates = df["날짜"].isna().sum()
+    notices = {}
+
+    bad_dates = int(df["날짜"].isna().sum())
     if bad_dates:
         print(f"  [주의] 날짜를 해석할 수 없는 행 {bad_dates}건을 건너뜁니다.")
+        notices["bad_dates"] = bad_dates
     df = df.dropna(subset=["날짜"]).reset_index(drop=True)
+
+    # 실행일보다 뒤인 날짜 행(연·월 오타)은 최신 월·업데이트일을 밀어버린다.
+    # 중단하지 않고 집계에서 뺀 뒤 건수·최대 날짜를 경고로 낸다 (2026-09-26 사용자 지시).
+    today = pd.Timestamp(today).normalize() if today is not None else pd.Timestamp.today().normalize()
+    future = df["날짜"] > today
+    if future.any():
+        n_future = int(future.sum())
+        max_future = df.loc[future, "날짜"].max().strftime("%Y-%m-%d")
+        print(f"  [주의] 실행일({today.date()})보다 뒤인 날짜 행 {n_future}건(최대 {max_future})을 집계에서 뺍니다.")
+        notices["future_rows"] = n_future
+        notices["future_max"] = max_future
+        notices["today"] = str(today.date())
+        df = df[~future].reset_index(drop=True)
+    if len(df) == 0:
+        raise ValueError("날짜를 읽을 수 있는 행이 하나도 없습니다(전부 해석 불가 또는 미래 날짜).")
 
     df["월"] = df["날짜"].dt.strftime("%Y-%m")
 
@@ -198,10 +249,21 @@ def load_csv(path):
     df["세부내용"] = df["세부내용"].replace(SUBSCRIPTION_ALIASES)
 
     valid_types = {"수입", "지출", "이체"}
-    unknown = set(df["구분"].unique()) - valid_types
+    unknown = sorted(set(df["구분"].unique()) - valid_types)
     if unknown:
-        print(f"  [주의] 알 수 없는 '구분' 값: {unknown}")
+        n_unknown = int(df["구분"].isin(unknown).sum())
+        print(f"  [주의] 알 수 없는 '구분' 값 {unknown} — 해당 {n_unknown}행은 집계·잔고 어디에도 안 들어갑니다.")
+        notices["unknown_types"] = unknown
+        notices["unknown_type_rows"] = n_unknown
 
+    # 완전히 같은 행. 실제로 별건일 수 있어(같은 날 같은 가게 다른 매장 등) 경고만 한다.
+    dup_rows = int(df.duplicated(keep=False).sum())
+    if dup_rows:
+        notices["dup_rows"] = dup_rows
+        notices["dup_groups"] = int(df[df.duplicated(keep=False)]
+                                    .groupby(list(df.columns)).ngroups)
+
+    df.attrs["load_notices"] = notices
     return df
 
 
@@ -211,12 +273,26 @@ def load_csv(path):
 
 
 def build_bundle(df):
+    # load_csv가 남긴 로딩 단계 통지 (필터링 전에 먼저 꺼낸다 — attrs는 연산을 거치며 사라질 수 있다)
+    load_notices = dict(df.attrs.get("load_notices", {}))
+
     core = df[df["구분"].isin(["수입", "지출"])].copy()  # 이체는 수입/지출 집계 제외
     exp = core[core["구분"] == "지출"].copy()
     inc = core[core["구분"] == "수입"].copy()
 
+    if len(core) == 0:
+        raise ValueError("수입·지출 행이 하나도 없습니다(이체만 있거나 '구분' 값이 전부 인식 불가). "
+                         "집계할 수 없어 중단합니다.")
+
     months = sorted(core["월"].unique())
-    month_labels = [f"{int(m.split('-')[1])}월" for m in months]
+    # 월 라벨. 최신 연도가 아닌 달에는 연도를 붙인다 ("2025.11월"). 연도 없이 "1월"만 쓰면
+    # 데이터가 해를 넘길 때 히트맵·추이·원장 탭에 같은 라벨이 두 번 나온다.
+    # build.py의 목표 대비 실적 표와 같은 규칙이다.
+    latest_year = _ym(months[-1])[0]
+    month_labels = []
+    for m in months:
+        y, mo = _ym(m)
+        month_labels.append(f"{mo}월" if y == latest_year else f"{y}.{mo}월")
     N = len(months)
 
     total_income = inc["금액"].sum()
@@ -412,6 +488,40 @@ def build_bundle(df):
          if v and v not in known_accounts}
     )
 
+    # 결제수단에 카드명이 적힌 행. 카드명은 '비고'에 가야 하고, 여기 적히면 그 행은
+    # 어느 계좌에도 안 붙어 잔고에서 빠진다. 예전에는 카드명을 일부러 경고에서
+    # 뺐기 때문에(위 card_tags) 아무 신호가 없었다 (2026-09-06 #1).
+    _cp = core[core["결제수단"].isin(card_tags)]
+    card_in_payment = {"rows": int(len(_cp)), "tags": sorted(_cp["결제수단"].unique())}
+
+    # 기준일 이후인데 결제수단이 빈 수입·지출 행. 계좌 추적 전(8월 이전) 행은 비어 있는 게
+    # 정상이라 가장 이른 기준일 이후만 본다.
+    earliest_as_of = min(pd.Timestamp(m["as_of"]) for m in ACCOUNTS_START.values())
+    blank_payment_after_start = int(len(core[(core["날짜"] > earliest_as_of) & (core["결제수단"] == "")]))
+
+    # 금액이 음수·0인 행. 음수는 총지출을 줄이고 잔고를 늘린다(환불은 '수입'으로 적을 것).
+    negative_rows = int((df["금액"] < 0).sum())
+    zero_rows = int((df["금액"] == 0).sum())
+
+    # 비고에 카드명이 아닌 값. 카드 실적(02·03번)은 비고 == 카드명 정확 일치만 보므로
+    # "현대 카드"처럼 적히면 실적에서 조용히 빠진다.
+    _memo = core[(core["비고"] != "") & ~core["비고"].isin(card_tags)]
+    unknown_memo_tags = sorted(_memo["비고"].unique())
+    unknown_memo_rows = int(len(_memo))
+
+    # 매달 있어야 하는 이체 (EXPECTED_MONTHLY_TRANSFERS) — 누락·합계 불일치
+    transfer_issues = []
+    tr = df[df["구분"] == "이체"]
+    for m in [x for x in months if x >= EXPECTED_MONTHLY_TRANSFERS["start"]]:
+        for src_acct, dst_acct, expected_sum in EXPECTED_MONTHLY_TRANSFERS["items"]:
+            hit = tr[(tr["월"] == m) & (tr["결제수단"] == src_acct) & (tr["소분류"] == dst_acct)]
+            if len(hit) == 0:
+                transfer_issues.append(f"{m} {src_acct}→{dst_acct} 이체 행 없음")
+            elif round(hit["금액"].sum()) != expected_sum:
+                transfer_issues.append(
+                    f"{m} {src_acct}→{dst_acct} 이체 합계 {round(hit['금액'].sum()):,}원 "
+                    f"≠ 예상 {expected_sum:,}원 ({len(hit)}건)")
+
     # ---- 신한은행 고정지출 예상 vs 실제 ----
     # 예상금액이 '한 달치'이므로 실제도 최신 월 한 달치만 본다.
     # 누적 기간과 비교하면 달이 쌓일수록 무조건 초과로 보인다.
@@ -582,7 +692,16 @@ def build_bundle(df):
         "diagnostics": {"unknown_payment": unknown_payment,
                         "unknown_transfer": unknown_transfer,
                         "stale_rule_keys": stale_rule_keys,
-                        "has_completed": has_completed},
+                        "has_completed": has_completed,
+                        "card_in_payment": card_in_payment,
+                        "blank_payment_after_start": blank_payment_after_start,
+                        "earliest_as_of": earliest_as_of.strftime("%Y-%m-%d"),
+                        "negative_rows": negative_rows,
+                        "zero_rows": zero_rows,
+                        "unknown_memo_tags": unknown_memo_tags,
+                        "unknown_memo_rows": unknown_memo_rows,
+                        "transfer_issues": transfer_issues,
+                        "load": load_notices},
         "card_performance": card_performance,
         "card_category_detail": card_detail,
         "fixed_vs_target": fixed_vs_target,
@@ -612,6 +731,13 @@ def validate(bundle):
     if sum(i["합계"] for i in bundle["income_breakdown"]) != kpi_inc:
         errors.append("수입원 합 != KPI 총수입")
 
+    # 0건 가드. 위 검사들은 항등식이라 지출·수입이 전부 0이어도 "합계 일치"로
+    # 통과한다. 누적 가계부에서 총지출·총수입 0은 데이터가 통째로 빠진 것이다.
+    if kpi_exp == 0:
+        errors.append("총지출이 0원입니다 — 지출 행이 하나도 집계되지 않았습니다.")
+    if kpi_inc == 0:
+        errors.append("총수입이 0원입니다 — 수입 행이 하나도 집계되지 않았습니다.")
+
     return errors
 
 
@@ -622,16 +748,56 @@ def warnings_for(bundle):
     거의 실패하지 않는다. 실제 사고는 대부분 '규칙이 데이터와 안 맞는' 쪽에서
     난다 — 계좌명 오타로 거래가 잔고에서 증발하거나, 제외 규칙 키가 옛날
     이름이라 종료된 항목이 계속 예상치에 들어가는 식이다.
+
+    여기 종류를 추가하면 SKILL.md 5단계 경고 목록도 같이 갱신할 것.
     """
     d = bundle.get("diagnostics", {})
+    ld = d.get("load", {})
     warns = []
 
+    # ---- 로딩 단계에서 뺀 행 (예전에는 [주의]로만 찍혀 경고 목록에 없었다) ----
+    if ld.get("bad_dates"):
+        warns.append(f"날짜를 해석할 수 없어 뺀 행 {ld['bad_dates']}건 (YYYY-MM-DD 형식인지 확인)")
+    if ld.get("future_rows"):
+        warns.append(f"실행일({ld.get('today')})보다 뒤인 날짜 행 {ld['future_rows']}건"
+                     f"(최대 {ld.get('future_max')})을 집계에서 뺐습니다. 연·월 오타인지 확인하세요.")
+    if ld.get("unknown_types"):
+        warns.append(f"알 수 없는 '구분' 값 {ld['unknown_types']} 행 {ld.get('unknown_type_rows', 0)}건 "
+                     f"→ 집계·잔고 어디에도 안 들어갔습니다 (수입/지출/이체 중 하나여야 함)")
+    if ld.get("dup_rows"):
+        warns.append(f"완전히 같은 행 {ld['dup_rows']}건({ld.get('dup_groups', 0)}묶음) — "
+                     f"같은 날 같은 금액이 실제 별건이면 무시해도 됩니다")
+
+    # ---- 결제수단·비고 표기 ----
     if d.get("unknown_payment"):
         warns.append("어느 계좌에도 속하지 않는 결제수단 → 잔고에 반영 안 됨: "
                      + ", ".join(d["unknown_payment"]))
+    cip = d.get("card_in_payment") or {}
+    if cip.get("rows"):
+        warns.append(f"결제수단에 카드명이 적힌 행 {cip['rows']}건({', '.join(cip['tags'])}) → 잔고에 반영 안 됨. "
+                     f"카드명은 '비고'에, 결제수단에는 계좌명을 적으세요.")
+    if d.get("blank_payment_after_start"):
+        warns.append(f"기준일({d.get('earliest_as_of')}) 이후인데 결제수단이 빈 수입·지출 행 "
+                     f"{d['blank_payment_after_start']}건 → 잔고에 반영 안 됨")
+    if d.get("unknown_memo_tags"):
+        warns.append(f"비고에 카드명이 아닌 값 {d['unknown_memo_tags']} 행 {d.get('unknown_memo_rows', 0)}건 "
+                     f"→ 카드 실적에 안 잡힘 (카드명 정확 일치만 인식)")
     if d.get("unknown_transfer"):
         warns.append("계좌로 인식되지 않는 이체 상대: "
                      + ", ".join(sorted(set(d["unknown_transfer"]))))
+
+    # ---- 금액 ----
+    if d.get("negative_rows"):
+        warns.append(f"금액이 음수인 행 {d['negative_rows']}건 → 총지출이 줄고 잔고가 늘어납니다 "
+                     f"(환불이면 '수입'으로 적으세요)")
+    if d.get("zero_rows"):
+        warns.append(f"금액이 0원·빈칸인 행 {d['zero_rows']}건")
+
+    # ---- 이체 ----
+    for issue in d.get("transfer_issues", []):
+        warns.append("매달 이체 확인: " + issue)
+
+    # ---- 규칙·기간 ----
     if d.get("stale_rule_keys"):
         warns.append("데이터에서 한 번도 안 걸린 제외 규칙 (이름 변경/오타 의심): "
                      + ", ".join(d["stale_rule_keys"]))
@@ -661,14 +827,30 @@ def warnings_for(bundle):
     return warns
 
 
+def screen_warnings_for(bundle):
+    """리포트 화면 13번 '확인이 필요한 항목'에 올릴 경고.
+
+    터미널 경고와 같되, 화면에서 감춘 계좌(HIDDEN_ACCOUNTS)를 언급하는 경고는
+    뺀다 — 계좌를 화면에서 뺀 이유(2026-09-10)가 그대로 적용된다. 그 경고는
+    대화로만 전달된다.
+    """
+    return [w for w in warnings_for(bundle)
+            if not any(h in w for h in HIDDEN_ACCOUNTS)]
+
+
 def main():
     src = sys.argv[1] if len(sys.argv) > 1 else "가계부9.csv"
     print(f"[1/4] CSV 로딩: {src}")
-    df = load_csv(src)
-    print(f"      {len(df)}건, {df['날짜'].min().date()} ~ {df['날짜'].max().date()}")
+    try:
+        df = load_csv(src)
+        print(f"      {len(df)}건, {df['날짜'].min().date()} ~ {df['날짜'].max().date()}")
 
-    print("[2/4] 집계 중...")
-    bundle = build_bundle(df)
+        print("[2/4] 집계 중...")
+        bundle = build_bundle(df)
+    except ValueError as e:
+        # 입력 자체가 잘못된 경우. 트레이스백 대신 원인을 한 줄로.
+        print(f"      [중단] {e}")
+        sys.exit(1)
 
     print("[3/4] 정합성 검증...")
     errors = validate(bundle)
@@ -686,6 +868,10 @@ def main():
             print("        -", w)
     else:
         print("      경고 없음")
+
+    # 경고를 bundle에 실어 build.py가 화면 13번 '확인이 필요한 항목'에 그대로 렌더한다.
+    # (예전에는 pipeline이 계산만 하고 화면은 하드코딩 2줄이었다 — 2026-09-06 #3)
+    bundle["warnings"] = screen_warnings_for(bundle)
 
     with open("data_bundle.json", "w", encoding="utf-8") as f:
         json.dump(bundle, f, ensure_ascii=False)
