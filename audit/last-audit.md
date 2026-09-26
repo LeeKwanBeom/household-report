@@ -4,6 +4,8 @@
 
 **2026-09-26 수정 회차(같은 날, 별도 세션):** 사용자 채택 — 결함 1~16 전부 · 개선안 1~5 전부 · 점검표 개정안 1~12 전부(→ audit/checklist.md v2). 전부 반영했고 **검증은 다음 세션**에서 받는다. 상세는 아래 "수정 기록". 이월 항목 없음.
 
+**2026-09-27 검증 회차 → 정정·수정 회차 2(별도 세션):** 검증에서 기록 문구 4건 · 코드 2건 · 선택 1건이 나왔고 사용자가 전부 채택(선택 포함). 이 세션에서 반영·자체 확인 완료. 상세는 아래 "검증 회차(2026-09-27) 결과"·"정정·수정 회차 2". 이월 1건(0바이트 CSV 영문 메시지 → "다음 점검에서 대조할 것").
+
 점검 대상
 - 커밋: `5bf65bc` (2026-09-24 "리포트 갱신", main HEAD). codeload tarball에는 .git이 없어 해시는 GitHub API(인증)로 조회.
 - 파일(ls -R, .git 제외): SKILL.md · audit/last-audit.md · build.py · pipeline.py · scripts/deploy.py · scripts/detect_ended.py · index.html · sw.js · manifest.json · favicon.svg · favicon.ico · apple-touch-icon.png · icon-192.png · icon-512.png · icon-maskable-512.png. **install/SKILL.md·audit/checklist.md·README 없음.**
@@ -134,6 +136,7 @@
 - 09-18 같은 빈 커밋(diff 0)이 재발했는지.
 - 2027-01 CSV부터 월 라벨 중복(결함 #13) 실제 발생.
 - install/SKILL.md와 설치본 md5 일치 여부(채택 시).
+- (2026-09-27 검증 회차 기록 밖 관찰 2, 이월) **0바이트 CSV**를 넣으면 `[중단]` 뒤에 영문 메시지가 찍힌다 — pandas `EmptyDataError`("No columns to parse from file")가 `ValueError`로 잡혀 원문 그대로 나온다(pipeline.py `main`·scripts/detect_ended.py `main` 공통, 2026-09-27 실측). 멈추긴 하므로 안전 실패. 한글 원인 문구로 바꿀지는 다음 점검에서 판단.
 
 ## 수정 기록 (2026-09-26 수정 회차)
 
@@ -153,7 +156,7 @@
 | 8 | SKILL.md 3단계: 확인 대상 세 건(원본 `EXPECTED_MONTHLY_TRANSFERS`), 보고 템플릿 금액을 ○○로, "하나라도 없으면" 묻기, "pipeline 경고가 받치지만 묻기가 첫 방어선". 2026-09 예외 서술은 "이력"으로 이동 | 문서의 금액 리터럴(680,000·500,000 등)을 모두 뺐다 — 단일 출처 규칙에 맞춤 |
 | 9 | pipeline.py `validate`: `total_expense == 0`·`total_income == 0`을 [실패]로. 수입·지출 행이 0건이면 그 전에 `build_bundle`이 `ValueError`(이체만) | 원 제안대로. 이체만인 CSV는 validate까지 못 가고 [중단]에서 잡힌다(테스트는 메모리 변조로 0건 가드 확인) |
 | 10 | pipeline.py `negative_rows`·`zero_rows` 진단 + 경고 2종 | — |
-| 11 | scripts/deploy.py `CODE_GLOBS` + `_scan_code_files()`(SKILL.md·pipeline.py·build.py·scripts/*.py·audit/*.md·install/*.md·tests/*.py·tests/fixtures/*.csv). docstring에 `--code-only`·환경변수 사용법 | 하드코딩 목록을 없앴다(개선안 4와 함께). CSV·data_bundle.json·index.html은 패턴에 없고 테스트로 못 박음 |
+| 11 | scripts/deploy.py `CODE_GLOBS` + `_scan_code_files()`(SKILL.md·pipeline.py·build.py·scripts/*.py·audit/*.md·install/*.md·tests/*.py·tests/fixtures/*.csv). docstring에 `--code-only`·환경변수 사용법 | 하드코딩 목록을 없앴다(개선안 4와 함께). 실 가계부 CSV·data_bundle.json·index.html은 패턴에 없고 테스트로 못 박음(tests/fixtures/의 합성 CSV는 테스트의 일부라 올라간다 — 2026-09-27 정정) |
 | 12 | install/SKILL.md ← 설치본 원문 그대로(md5 b411b109, 49행). **내용 무변경이므로 재업로드 불필요** | — |
 | 13 | pipeline.py `build_bundle` 월 라벨: 최신 연도가 아닌 달만 "2025.11월" | 원 제안 "연도가 바뀌는 첫 달에만 접두"가 아니라 build.py `fixed_vs_target_rows`가 이미 쓰는 규칙(최신 연도 아닌 달 전부)으로 통일. 단일 연도 데이터(지금)는 라벨 불변 |
 | 14 | scripts/deploy.py `_extract_data`: `^const DATA = (.*?);\s*$`(re.M) 줄 단위. `validate_html`·잔고 급변 검사가 공용 | — |
@@ -164,7 +167,7 @@
 
 | # | 무엇을 넣었나 | 원 제안과 다른 점·이유 |
 |---|---|---|
-| 1 | tests/fixtures/sample.csv(합성 25행: 7~9월, 이체 3종, 카드 태그, 고정 항목) + tests/test_pipeline.py 30개(잔고 독립 계산·예상 고정지출·validate 파괴 6종·0건 가드·컬럼 누락 7종·cp949·빈 CSV·이체만·경고 11종·월 라벨 연도 접두·화면 경고 필터·deploy 정규식·blob sha·잔고 게이트·스캔 제외). `python3 -m unittest discover tests` | pytest가 환경에 없어 unittest. **실 CSV 행은 한 줄도 넣지 않았다** |
+| 1 | tests/fixtures/sample.csv(합성 25행: 7~9월, 이체 3종, 카드 태그, 고정 항목) + tests/test_pipeline.py 30개(잔고 독립 계산·예상 고정지출·validate 파괴 6종·0건 가드·컬럼 누락 7종·cp949·빈 CSV·이체만·경고 11종·월 라벨 연도 접두·화면 경고 필터·deploy 정규식·blob sha·잔고 게이트·스캔 제외). `python3 -m unittest discover tests` | pytest가 환경에 없어 unittest. **실 행과 전 컬럼 동일한 행 0줄(세부내용으로 구분 — 2026-09-27 정정)** |
 | 2 | pipeline.py `EXPECTED_MONTHLY_TRANSFERS = {"start": "2026-09", "items": [(생활비, 신한은행, 680000), (생활비, 청년미래적금, 500000), (생활비, 커플통장, 400000)]}` — start 이후 각 달에 해당 이체 행이 없으면 "이체 행 없음", 합계가 다르면 "합계 ≠ 예상" 경고 | 합계 불일치도 경고에 넣었다(오타 68,000 같은 것을 잡기 위해). 그래서 2026-09 CSV에서는 알려진 예외(신한 분할·커플통장 선출금) 2건이 뜬다 — SKILL.md 이력에 "정상"으로 적음. 커플통장 관련은 감춘 계좌라 화면에는 안 실린다 |
 | 3 | 완전 중복 행 경고(건수·묶음 수, **경고만**) · 비고에 카드명 아닌 값 경고 · 빈 CSV/이체만/cp949/컬럼 누락에 `[중단]` 한 줄 메시지(detect_ended.py도 동일) · build.py `esc()`로 세부내용·소분류·대분류·항목 이스케이프, JS `escHtml`로 히트맵 라벨, `DATA_JSON`의 `</`→`<\/` | 사용자 지시대로 중복은 경고만. 이스케이프로 실 CSV의 '>' 5건·'&' 1건 렌더가 `&gt;`·`&amp;`로 바뀐다(화면 표시는 동일) |
 | 4 | deploy.py: `push`가 blob sha가 같으면 "변경 없음, 건너뜀"(빈 커밋 방지) · `CODE_GLOBS` 자동 스캔 · 토큰을 `GITHUB_TOKEN` 환경변수로도 | — |
@@ -187,7 +190,55 @@
 - 수정 전 산출 HTML과 대조: DATA 차이 키 = `diagnostics`(신규 키 9개)·`warnings`(신규)뿐. 비데이터 HTML 차이 = s13 블록 교체 · 세부내용 6행의 `>`/`&` 이스케이프 · JS `escHtml` 3줄. 그 외 동일.
 - validate 파괴 6종 + 0건 가드: 전부 FAIL(tests). validate_html 파괴: JSON·JS·`{REF:`·`{won(`·크기 전부 FAIL, 세부내용 `};` 이제 **통과**, 세부내용 `</script>` 통과(raw `</script>` 1개, 표에 `&lt;b&gt;` 렌더), 잔고 급변 사본(합성 500만원 지출) `--ack-balance` 없이 FAIL·있으면 통과.
 - 결함 1~4·9·10 합성 사본 재실험: 카드명·빈칸 결제수단 → 경고 / 결제수단·고정여부 컬럼 삭제 → [중단] / 미래 날짜 → 경고 + 최신 월·업데이트일 불변 / 날짜 형식·구분 변형 → 경고 / 이체만·빈 CSV → [중단] / 음수·빈칸 금액 → 경고 / 비고 "현대 카드" → 경고 / cp949 → [중단] / 청년미래적금 이체 삭제 → "이체 행 없음" 경고.
-- grep 재확인: SKILL.md에 "화면에 나오지 않으므로"·"유일한 방어선"·"이체 누락을 잡는 검증이 없다"·"한쪽만 있으면"·이체 금액 리터럴 0회. build.py `_couple`·`savings_trend` 0회. deploy.py 하드코딩 목록·non-greedy 정규식 0회. pipeline.py 빈 컬럼 생성 0회.
+- grep 재확인: SKILL.md에 "화면에 나오지 않으므로"·"유일한 방어선"·"이체 누락을 잡는 검증이 없다"·"한쪽만 있으면" 0회·이체 금액 리터럴 절차 본문 0회(이력에 시점 기록 1곳 — 2026-09-27 정정). build.py `_couple`·`savings_trend` 0회. deploy.py 하드코딩 목록 0회 · non-greedy 정규식 코드 0회(`_extract_data` docstring의 옛 정규식 설명 1회 — 2026-09-27 정정). pipeline.py 빈 컬럼 생성 0회.
+
+## 검증 회차(2026-09-27) 결과
+
+검증은 별도 세션(문서 `household-report_검증_2026-09-27.md`)에서 받았다. 정정 세션에는 그 문서가 첨부되지 않아 **사용자 지시문에 옮겨 적힌 결과만** 여기 적는다. 지시문 기준으로 2026-09-26 수정 회차의 결함 1~16·개선안 1~5에 대한 별도 이의는 없고, 아래 7건 + 기록 밖 관찰 2건이 전부다.
+
+| # | 종류 | 무엇이 어긋났나(절·함수) | 처리 |
+|---|---|---|---|
+| 1 | 기록 문구 | "수정 후 자체 확인"의 **이체 금액 리터럴 0회** 주장 vs SKILL.md "계산 규칙 > 기타"의 커플통장 문장에 금액이 남아 있었고, "이력"에도 시점 기록으로 금액이 있다 | "기타" 문장에서 금액 제거(→ "커플통장 월 이체분은 지출이 아니라 이체다"). "이력"은 시점 기록이라 그대로. 기록은 "절차 본문 0회(이력에 시점 기록 1곳)"로 정정 |
+| 2 | 기록 문구 | **non-greedy 정규식 0회** 주장 vs scripts/deploy.py `_extract_data` docstring에 옛 정규식 설명 1회 | 코드는 0회가 맞으므로 기록만 "코드 0회(docstring의 옛 정규식 설명 1회)"로 정정 |
+| 3 | 기록 문구 | SKILL.md 7단계 "CSV·data_bundle.json은 절대 올라가지 않는다" vs deploy.py `CODE_GLOBS`에 `tests/fixtures/*.csv`가 있어 합성 CSV는 올라간다 | 7단계 문장을 "실 가계부 CSV·data_bundle.json은 절대 올라가지 않는다. tests/fixtures/의 합성 CSV는 테스트의 일부라 올라간다"로. 수정 기록 결함 11도 같은 취지로 정정 |
+| 4 | 기록 문구 + fixture | 개선안 1 "실 CSV 행은 한 줄도 넣지 않았다" vs tests/fixtures/sample.csv 2행(8/29 커플통장 이체, 9/1 청년미래적금 이체)이 실 CSV 행과 전 컬럼 동일(공개 저장소) | 두 행의 세부내용만 "샘플 …"로 바꿔 실 행과 다르게(날짜·금액·계좌 그대로, 테스트 기대값 불변). 기록은 "실 행과 전 컬럼 동일한 행 0줄(세부내용으로 구분)"로 정정 |
+| 5 | 코드 | scripts/detect_ended.py `build_fixed_keys`: 이체만 있는 CSV에서 "완성된 달이 없어…"로 원인을 잘못 말함(pipeline은 `[중단] 수입·지출 행이 하나도 없습니다…`) | 수입·지출 0건이면 pipeline과 같은 `[중단]` 문구로 exit 1. 테스트 1개 |
+| 6 | 코드 | pipeline.py `load_csv`의 미래 날짜 기준 `today`가 컨테이너 UTC — 검증 실측대로 KST 00~09시에 그날 적은 행이 "실행일보다 뒤"로 빠짐 | 기준일을 한국 날짜로(`today_kst()`). `today` 인자 경로 유지. 테스트 1개, SKILL.md 5단계에 "실행일은 한국 날짜 기준" 한 구절 |
+| 7 | 선택(채택) | 화면 13번(`bundle["warnings"]`)의 "매달 이체 확인 … 합계 ≠ 예상" 문구에 이체 금액이 실림 | 화면 문구는 "합계가 예상과 다릅니다 (N건)"만, 터미널 경고는 금액 유지. 테스트 1개 |
+| 관찰 2 | 기록 밖 | 0바이트 CSV → `[중단]` 뒤 영문 메시지 | 이월 → "다음 점검에서 대조할 것" (관찰 1은 지시문에 내용이 없어 여기 옮기지 못했다) |
+
+## 정정·수정 회차 2 (2026-09-27)
+
+행 번호를 적은 곳은 수정 후 파일 기준(wc -l): SKILL.md 382 · pipeline.py 924 · build.py 1452 · scripts/deploy.py 289 · scripts/detect_ended.py 107 · audit/checklist.md 192 · install/SKILL.md 49 · tests/test_pipeline.py 433 · tests/fixtures/sample.csv 26. **규칙 상수 값은 하나도 바꾸지 않았다.** build.py·deploy.py·checklist.md·install/SKILL.md 무변경. index.html은 올리지 않았고 배포도 없다.
+
+### 기록·문서 정정(1~4)
+
+- SKILL.md "계산 규칙 > 기타" 커플통장 줄: 금액 제거. "이력" 절은 그대로(시점 기록). grep 재확인: SKILL.md에 `40만원` 1회(이력)뿐.
+- SKILL.md 7단계(`--with-code` 문단): 위 표 3의 문장으로. deploy.py `CODE_GLOBS` 자체는 무변경.
+- audit/last-audit.md "수정 기록": 결함 11 행, 개선안 1 행, "수정 후 자체 확인"의 grep 문장 2곳 — 표 1~4대로 정정(각 자리에 "2026-09-27 정정" 표시).
+- tests/fixtures/sample.csv 15행·17행 세부내용 → "샘플 커플통장 이체"·"샘플 적금 이체". 실 CSV(가계부3.csv 640행)와 전 컬럼 대조 → **동일 행 0줄**(수정 전 2줄).
+
+### 코드 수정(5·6)과 선택(7)
+
+| # | 무엇을 고쳤나(절·함수) | 원 지시와 다른 점·이유 |
+|---|---|---|
+| 5 | pipeline.py `NO_CORE_ROWS_MSG` 상수 신설(수입·지출 0건 `[중단]` 문구의 유일한 정의), `build_bundle`이 이것을 `ValueError`로 던짐. scripts/detect_ended.py `build_fixed_keys`가 `NO_CORE_ROWS_MSG`를 import해 `len(core)==0`이면 `SystemExit("[중단] " + 문구)`(exit 1) — "완성된 달" 판정보다 앞에 | 문구를 detect_ended.py에 복사하지 않고 상수로 공유 — "규칙·상수는 pipeline.py에서 import"라는 그 파일의 원칙대로. 이체만 CSV가 아닌 "완성된 달 없음"(수입·지출 1개월)은 종전 메시지 유지 |
+| 6 | pipeline.py `_now_utc()`(현재 시각, 테스트가 이것만 고정) + `today_kst()`(UTC → Asia/Seoul → normalize → tz 제거). `load_csv(today=None)`이 `today_kst()`를 쓴다. `today` 인자 경로는 그대로. 경고 문구의 "실행일(…)"에는 이제 한국 날짜가 찍힌다 | 지시의 `pd.Timestamp.now(tz="Asia/Seoul").normalize().tz_localize(None)`과 동등하되, 시각 소스를 `_now_utc()`로 분리해 테스트가 시계를 고정할 수 있게 했다. 실측: 2026-09-26 16:01 UTC(= 9/27 01:01 KST)에 UTC `today()`=09-26, `today_kst()`=09-27, 실 CSV 사본에 넣은 09-27 합성 행이 집계에 남음(future 0건) |
+| 7 | pipeline.py `build_bundle` 이체 검사 루프가 `transfer_issues`(터미널, 금액 포함)와 `transfer_issues_screen`(화면, 합계 불일치는 "이체 합계가 예상과 다릅니다 (N건)")을 같은 자리에서 만든다 → `diagnostics`에 키 1개 추가(14개). `warnings_for(bundle, screen=False)`가 `screen`에 따라 둘 중 하나를 쓰고, `screen_warnings_for`는 `screen=True`. "이체 행 없음" 문구는 양쪽 동일 | 지시 밖 1구절: SKILL.md 5단계 "경고는 화면 13번에도 그대로 실린다" 괄호에 "합계 불일치는 화면에서 금액 없이 건수만" 추가 — 문서↔코드 어긋남을 남기지 않기 위해. **주의:** DATA로 임베드되는 `diagnostics.transfer_issues`(터미널 문구)에는 금액이 그대로 있다(페이지 소스). 화면 목록만 바꾼 것이며, 이건 지시 범위 밖이라 손대지 않음 |
+
+### 테스트(신규 3개 → 33개)
+
+- `Warnings.test_transfer_sum_mismatch_screen_has_no_amount`(7): 신한은행 이체 68,000 사본 → 터미널 문구에 `≠ 예상`·금액 있음, 화면 문구는 정확히 "매달 이체 확인: 2026-09 생활비→신한은행 이체 합계가 예상과 다릅니다 (1건)"·`원` 없음·천 단위 숫자 없음. "이체 행 없음"은 양쪽 같음.
+- `Warnings.test_future_date_uses_korean_date`(6): `_now_utc`를 2026-09-26 15:30 UTC(= 09-27 00:30 KST)로 고정 → `today_kst()`=09-27, 09-27 행이 집계에 남고 경고 없음, `latest_update`="9월 27일"; 같은 시각에 09-28 행은 "실행일(2026-09-27)" 경고와 함께 빠짐.
+- `DetectEndedChecks.test_transfer_only_csv_stops_with_pipeline_message`(5): fixture의 이체 행만으로 detect_ended `main()` → `SystemExit` 문구 = `"[중단] " + NO_CORE_ROWS_MSG`, "완성된 달" 없음, pipeline `build_bundle`도 같은 문구.
+- 되돌린 사본 확인: 세 수정을 각각 원상복구한 사본에서 신규 3개가 전부 FAIL(각 테스트가 자기 회귀를 잡는다).
+
+### 수정 후 자체 확인
+
+- 실 CSV(가계부3.csv 640행, 2026-01-01~09-24) pipeline → build → detect_ended 재실행: 정합성 통과, **터미널 경고 6건 · 화면 경고 4건 · detect_ended [확인 필요] 1건(리모트뷰)** — 수정 전과 동일. `python3 -m unittest discover tests` 33/33 OK.
+- 수정 전 bundle과 대조: 차이 = `diagnostics.transfer_issues_screen`(신규)·`warnings[1]`(신한은행 합계 불일치 문구에서 금액 제거)뿐. HTML 비데이터 차이 = s13의 그 한 줄뿐.
+- grep 재확인: SKILL.md `40만원` 1회(이력), "절대 올라가지" 1회(정정 문장), "한국 날짜" 1회, "금액 없이 건수만" 1회. last-audit.md "2026-09-27 정정" 4곳. pipeline.py `Timestamp.today` 코드 0회(`today_kst` docstring의 옛 방식 설명 1회). fixture↔실 CSV 전 컬럼 동일 행 0줄.
+- 손대지 않은 것(기록만): scripts/deploy.py `CODE_GLOBS` 주석 "CSV·data_bundle.json·index.html 은 여기 절대 넣지 않는다"는 표 3과 같은 취지로 낡았다(코드 주석이라 이번 범위 밖). tests/test_pipeline.py·SKILL.md 주의사항의 "실제 CSV 행을 복사해 넣지 않는다"는 규칙 서술이라 그대로.
 
 ## 이전 기록 (2026-09-06 원문 보존)
 
