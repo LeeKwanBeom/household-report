@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pipeline import (  # noqa: E402
     ENDED_FIXED_ITEMS,
     MANUALLY_EXCLUDED_FIXED_ITEMS,
+    NO_CORE_ROWS_MSG,
     load_csv,
 )
 
@@ -28,6 +29,9 @@ GAP_THRESHOLD = 2  # 이 개월 수 이상 공백이면 종료 추정
 def build_fixed_keys(df):
     """pipeline.py의 매달 예상 고정지출과 동일한 키 체계로 고정 항목을 집계한다."""
     core = df[df["구분"].isin(["수입", "지출"])]
+    # 이체만 있는 CSV는 "완성된 달이 없어"가 아니라 pipeline과 같은 원인으로 멈춘다 (2026-09-27 검증).
+    if len(core) == 0:
+        raise SystemExit(f"[중단] {NO_CORE_ROWS_MSG}")
     months = sorted(core["월"].unique())
     if len(months) < 2:
         raise SystemExit("완성된 달이 없어 종료 추정을 할 수 없습니다.")
