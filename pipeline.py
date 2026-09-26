@@ -166,6 +166,21 @@ def _ym(s):
     return int(y), int(m)
 
 
+def _now_utc():
+    """현재 시각(UTC, tz-aware). 테스트가 이 함수만 고정값으로 바꿔 시각을 통제한다."""
+    return pd.Timestamp.now(tz="UTC")
+
+
+def today_kst():
+    """미래 날짜 판정 기준일 = 한국 날짜(tz 없는 자정 Timestamp).
+
+    컨테이너 시계는 UTC라 pd.Timestamp.today()를 쓰면 KST 00~09시에 그날 적은 행이
+    '실행일보다 뒤'로 빠졌다(2026-09-27 검증 실측). 가계부는 한국에서 적으므로
+    실행일은 한국 날짜 기준이다.
+    """
+    return _now_utc().tz_convert("Asia/Seoul").normalize().tz_localize(None)
+
+
 def parse_amount(value):
     """금액 문자열을 float으로 변환. 빈값·공백·괄호음수·통화기호 처리."""
     s = str(value).strip()
@@ -192,7 +207,7 @@ def load_csv(path, today=None):
     [경고] 블록으로 출력한다. (예전에는 여기서 [주의]만 찍고 경고 목록에는 없어서
     "경고 없음"으로 끝날 수 있었다.)
 
-    today: 미래 날짜 판정 기준일. None이면 실행일. 테스트에서 고정값을 넣는다.
+    today: 미래 날짜 판정 기준일. None이면 실행일(한국 날짜, today_kst()). 테스트에서 고정값을 넣는다.
     """
     try:
         df = pd.read_csv(path, encoding="utf-8-sig", low_memory=False, dtype=str)
@@ -230,7 +245,8 @@ def load_csv(path, today=None):
 
     # 실행일보다 뒤인 날짜 행(연·월 오타)은 최신 월·업데이트일을 밀어버린다.
     # 중단하지 않고 집계에서 뺀 뒤 건수·최대 날짜를 경고로 낸다 (2026-09-26 사용자 지시).
-    today = pd.Timestamp(today).normalize() if today is not None else pd.Timestamp.today().normalize()
+    # 실행일은 컨테이너(UTC)가 아니라 한국 날짜다 — today_kst() 참고.
+    today = pd.Timestamp(today).normalize() if today is not None else today_kst()
     future = df["날짜"] > today
     if future.any():
         n_future = int(future.sum())
@@ -271,6 +287,11 @@ def load_csv(path, today=None):
 # 집계
 # ============================================================
 
+# 수입·지출 행이 0건일 때의 [중단] 메시지. scripts/detect_ended.py도 같은 상황에서 이 문구로
+# 멈춘다(예전에는 "완성된 달이 없어…"로 원인을 잘못 말했다 — 2026-09-27 검증). 여기가 유일한 정의다.
+NO_CORE_ROWS_MSG = ("수입·지출 행이 하나도 없습니다(이체만 있거나 '구분' 값이 전부 인식 불가). "
+                    "집계할 수 없어 중단합니다.")
+
 
 def build_bundle(df):
     # load_csv가 남긴 로딩 단계 통지 (필터링 전에 먼저 꺼낸다 — attrs는 연산을 거치며 사라질 수 있다)
@@ -281,8 +302,7 @@ def build_bundle(df):
     inc = core[core["구분"] == "수입"].copy()
 
     if len(core) == 0:
-        raise ValueError("수입·지출 행이 하나도 없습니다(이체만 있거나 '구분' 값이 전부 인식 불가). "
-                         "집계할 수 없어 중단합니다.")
+        raise ValueError(NO_CORE_ROWS_MSG)
 
     months = sorted(core["월"].unique())
     # 월 라벨. 최신 연도가 아닌 달에는 연도를 붙인다 ("2025.11월"). 연도 없이 "1월"만 쓰면
@@ -510,17 +530,24 @@ def build_bundle(df):
     unknown_memo_rows = int(len(_memo))
 
     # 매달 있어야 하는 이체 (EXPECTED_MONTHLY_TRANSFERS) — 누락·합계 불일치
+    # 터미널용(transfer_issues)은 금액을 적고, 화면 13번용(transfer_issues_screen)은 합계 불일치를
+    # 금액 없이 건수만 적는다(2026-09-27 사용자 지시). 둘은 같은 루프에서 만들어 어긋나지 않는다.
     transfer_issues = []
+    transfer_issues_screen = []
     tr = df[df["구분"] == "이체"]
     for m in [x for x in months if x >= EXPECTED_MONTHLY_TRANSFERS["start"]]:
         for src_acct, dst_acct, expected_sum in EXPECTED_MONTHLY_TRANSFERS["items"]:
             hit = tr[(tr["월"] == m) & (tr["결제수단"] == src_acct) & (tr["소분류"] == dst_acct)]
             if len(hit) == 0:
-                transfer_issues.append(f"{m} {src_acct}→{dst_acct} 이체 행 없음")
+                msg = f"{m} {src_acct}→{dst_acct} 이체 행 없음"
+                transfer_issues.append(msg)
+                transfer_issues_screen.append(msg)
             elif round(hit["금액"].sum()) != expected_sum:
                 transfer_issues.append(
                     f"{m} {src_acct}→{dst_acct} 이체 합계 {round(hit['금액'].sum()):,}원 "
                     f"≠ 예상 {expected_sum:,}원 ({len(hit)}건)")
+                transfer_issues_screen.append(
+                    f"{m} {src_acct}→{dst_acct} 이체 합계가 예상과 다릅니다 ({len(hit)}건)")
 
     # ---- 신한은행 고정지출 예상 vs 실제 ----
     # 예상금액이 '한 달치'이므로 실제도 최신 월 한 달치만 본다.
@@ -701,6 +728,7 @@ def build_bundle(df):
                         "unknown_memo_tags": unknown_memo_tags,
                         "unknown_memo_rows": unknown_memo_rows,
                         "transfer_issues": transfer_issues,
+                        "transfer_issues_screen": transfer_issues_screen,
                         "load": load_notices},
         "card_performance": card_performance,
         "card_category_detail": card_detail,
@@ -741,13 +769,16 @@ def validate(bundle):
     return errors
 
 
-def warnings_for(bundle):
+def warnings_for(bundle, screen=False):
     """중단시킬 정도는 아니지만 조용히 틀린 값을 만드는 상황들.
 
     위 validate()는 같은 데이터를 다시 집계해 비교하는 항등식이라 구조적으로
     거의 실패하지 않는다. 실제 사고는 대부분 '규칙이 데이터와 안 맞는' 쪽에서
     난다 — 계좌명 오타로 거래가 잔고에서 증발하거나, 제외 규칙 키가 옛날
     이름이라 종료된 항목이 계속 예상치에 들어가는 식이다.
+
+    screen=True 는 화면 13번용 문구. 지금은 "매달 이체 확인"의 합계 불일치만 다르다
+    (금액 없이 건수만 — diagnostics["transfer_issues_screen"]). 그 외 문구는 터미널과 같다.
 
     여기 종류를 추가하면 SKILL.md 5단계 경고 목록도 같이 갱신할 것.
     """
@@ -794,7 +825,7 @@ def warnings_for(bundle):
         warns.append(f"금액이 0원·빈칸인 행 {d['zero_rows']}건")
 
     # ---- 이체 ----
-    for issue in d.get("transfer_issues", []):
+    for issue in d.get("transfer_issues_screen" if screen else "transfer_issues", []):
         warns.append("매달 이체 확인: " + issue)
 
     # ---- 규칙·기간 ----
@@ -832,9 +863,10 @@ def screen_warnings_for(bundle):
 
     터미널 경고와 같되, 화면에서 감춘 계좌(HIDDEN_ACCOUNTS)를 언급하는 경고는
     뺀다 — 계좌를 화면에서 뺀 이유(2026-09-10)가 그대로 적용된다. 그 경고는
-    대화로만 전달된다.
+    대화로만 전달된다. "매달 이체 확인"의 합계 불일치는 금액 없이 건수만 싣는다
+    (warnings_for(screen=True), 2026-09-27).
     """
-    return [w for w in warnings_for(bundle)
+    return [w for w in warnings_for(bundle, screen=True)
             if not any(h in w for h in HIDDEN_ACCOUNTS)]
 
 
