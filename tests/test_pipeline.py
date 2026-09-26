@@ -14,10 +14,12 @@ import copy
 import io
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
+from unittest import mock
 
 import pandas as pd
 
@@ -29,10 +31,11 @@ import pipeline  # noqa: E402
 from pipeline import (  # noqa: E402
     ACCOUNTS_START, ACCOUNT_KEY, ENDED_FIXED_ITEMS, EXPECTED_COLS,
     EXPECTED_MONTHLY_TRANSFERS, HIDDEN_ACCOUNTS, MANUALLY_EXCLUDED_FIXED_ITEMS,
-    SUBSCRIPTION_ALIASES, build_bundle, load_csv, screen_warnings_for, validate,
-    warnings_for,
+    NO_CORE_ROWS_MSG, SUBSCRIPTION_ALIASES, build_bundle, load_csv,
+    screen_warnings_for, today_kst, validate, warnings_for,
 )
 import deploy  # noqa: E402
+import detect_ended  # noqa: E402
 
 FIXTURE = os.path.join(ROOT, "tests", "fixtures", "sample.csv")
 TODAY = "2026-09-26"  # fixture의 마지막 행(09-25)보다 뒤, 미래 날짜 테스트 행(10-05)보다 앞
@@ -297,6 +300,52 @@ class Warnings(unittest.TestCase):
         self.assertFalse(any(m < EXPECTED_MONTHLY_TRANSFERS["start"] for m in
                              [x.split()[0] for x in issues]), issues)
 
+    def test_transfer_sum_mismatch_screen_has_no_amount(self):
+        """화면 13번(screen_warnings_for)에는 합계 불일치를 금액 없이 건수만 싣고,
+        터미널(warnings_for)에는 금액을 그대로 둔다 (2026-09-27 정정·수정 회차 2, 선택 7)."""
+        df = fixture_rows()
+        i = df[(df["구분"] == "이체") & (df["소분류"] == "신한은행")].index[0]
+        df.loc[i, "금액"] = "68,000"
+        _, b = run_rows(df)
+        terminal = [w for w in warnings_for(b) if w.startswith("매달 이체 확인:")]
+        screen = [w for w in screen_warnings_for(b) if w.startswith("매달 이체 확인:")]
+        self.assertEqual(len(terminal), 1, terminal)
+        self.assertEqual(len(screen), 1, screen)
+        self.assertIn("≠ 예상", terminal[0])
+        self.assertIn("68,000원", terminal[0])
+        self.assertEqual(screen[0], "매달 이체 확인: 2026-09 생활비→신한은행 이체 합계가 예상과 다릅니다 (1건)")
+        self.assertNotIn("원", screen[0])
+        self.assertIsNone(re.search(r"\d{1,3}(,\d{3})+", screen[0]), screen[0])  # 금액 꼴 숫자 없음
+        # "이체 행 없음"은 금액이 없으므로 양쪽 문구가 같다
+        df2 = fixture_rows()
+        df2 = df2[~((df2["구분"] == "이체") & (df2["소분류"] == "청년미래적금"))]
+        _, b2 = run_rows(df2)
+        missing = "매달 이체 확인: 2026-09 생활비→청년미래적금 이체 행 없음"
+        self.assertIn(missing, warnings_for(b2))
+        self.assertIn(missing, screen_warnings_for(b2))
+
+    def test_future_date_uses_korean_date(self):
+        """실행일 기준은 컨테이너 UTC가 아니라 한국 날짜 — UTC로는 아직 내일이지만 KST로는
+        오늘인 날짜 행이 집계에 남는다 (2026-09-27 검증 실측, 수정 6)."""
+        # 2026-09-26 15:30 UTC = 2026-09-27 00:30 KST
+        fixed_now = pd.Timestamp("2026-09-26 15:30", tz="UTC")
+        with mock.patch.object(pipeline, "_now_utc", return_value=fixed_now):
+            self.assertEqual(today_kst(), pd.Timestamp("2026-09-27"))
+            df = add_row(fixture_rows(), 날짜="2026-09-27", 구분="지출", 대분류="식비", 소분류="외식",
+                         세부내용="실험", 금액="900,000", 결제수단="생활비")
+            warns, b = self._warns(df, today=None)  # today=None → today_kst() 경로
+        _, base = run_rows(fixture_rows())
+        self.assertFalse(any("실행일" in w for w in warns), warns)
+        self.assertEqual(b["kpi"]["total_expense"], base["kpi"]["total_expense"] + 900_000)
+        self.assertEqual(b["latest_update"], "9월 27일")
+        # 같은 시각에 KST로도 미래인 날짜(09-28)는 여전히 빠진다
+        with mock.patch.object(pipeline, "_now_utc", return_value=fixed_now):
+            df2 = add_row(fixture_rows(), 날짜="2026-09-28", 구분="지출", 대분류="식비", 소분류="외식",
+                          세부내용="실험", 금액="900,000", 결제수단="생활비")
+            warns2, b2 = self._warns(df2, today=None)
+        self.assertTrue(any("실행일(2026-09-27)" in w and "2026-09-28" in w for w in warns2), warns2)
+        self.assertEqual(b2["kpi"]["total_expense"], base["kpi"]["total_expense"])
+
 
 class MonthLabels(unittest.TestCase):
     def test_year_prefix_when_crossing_year(self):
@@ -314,6 +363,32 @@ class MonthLabels(unittest.TestCase):
         _, b = run_rows(df, today="2026-01-31")
         self.assertEqual(b["monthly"]["labels"], ["2025.11월", "2025.12월", "1월"])
         self.assertEqual(b["heatmap"]["months"], b["monthly"]["labels"])
+
+
+class DetectEndedChecks(unittest.TestCase):
+    def test_transfer_only_csv_stops_with_pipeline_message(self):
+        """이체만 있는 CSV: "완성된 달이 없어…"가 아니라 pipeline과 같은 [중단] 문구로 exit 1
+        (2026-09-27 정정·수정 회차 2, 수정 5)."""
+        df = fixture_rows()
+        df = df[df["구분"] == "이체"]
+        tmp = tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False,
+                                          encoding="utf-8-sig", newline="")
+        df.to_csv(tmp, index=False)
+        tmp.close()
+        try:
+            with mock.patch.object(sys, "argv", ["detect_ended.py", tmp.name]):
+                with redirect_stdout(io.StringIO()):
+                    with self.assertRaises(SystemExit) as cm:
+                        detect_ended.main()
+        finally:
+            os.unlink(tmp.name)
+        self.assertEqual(str(cm.exception), "[중단] " + NO_CORE_ROWS_MSG)
+        self.assertIn("수입·지출 행이 하나도 없습니다", str(cm.exception))
+        self.assertNotIn("완성된 달", str(cm.exception))
+        # pipeline 쪽(build_bundle)도 같은 문구다
+        with self.assertRaises(ValueError) as cm2:
+            run_rows(df)
+        self.assertEqual(str(cm2.exception), NO_CORE_ROWS_MSG)
 
 
 class DeployChecks(unittest.TestCase):
