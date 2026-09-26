@@ -61,7 +61,10 @@ def main():
     if len(sys.argv) < 2:
         raise SystemExit("사용법: python3 scripts/detect_ended.py <csv파일명>")
 
-    df = load_csv(sys.argv[1])
+    try:
+        df = load_csv(sys.argv[1])
+    except ValueError as e:
+        raise SystemExit(f"[중단] {e}")
     g, completed_months, in_progress = build_fixed_keys(df)
 
     already = set(ENDED_FIXED_ITEMS) | set(MANUALLY_EXCLUDED_FIXED_ITEMS)
