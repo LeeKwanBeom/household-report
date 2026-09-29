@@ -146,7 +146,7 @@ TARGET_COMPARISON_START = "auto"
 EXPECTED_MONTHLY_TRANSFERS = {
     "start": "2026-09",
     "items": [
-        ("생활비", "신한은행",     680000),  # SHINHAN_FIXED_ITEMS 합계에 맞춘 금액
+        ("생활비", "신한은행",     702000),  # SHINHAN_FIXED_ITEMS 합계(701,578원)를 올림한 금액. 2026-10부터 (2026-09-29 사용자 지시)
         ("생활비", "청년미래적금", 500000),
         ("생활비", "커플통장",     400000),
     ],
