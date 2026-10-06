@@ -193,6 +193,29 @@ push가 끝나면 `HEAD: <전> → <후>`가 찍힌다. 올린 게 있는데 sha
 권한·브랜치를 의심한다. GitHub Pages 사이트 자체는 이 환경에서 접근할 수 없어
 반영 확인은 커밋 sha까지다.
 
+#### 대체 경로 — API 업로드가 막혔을 때 (git push)
+
+`deploy.py`가 검증(`validate_html`·잔고 급변 검사)은 통과했는데 업로드에서
+`[403] Write access to this GitHub API path is not permitted through this proxy`로
+실패하면, 토큰 문제가 아니라 **작업 환경의 프록시가 GitHub API 쓰기를 막은 것**이다
+(2026-10-06 실측). 이때는 git push로 올린다. **검증을 건너뛰고 바로 push하지 않는다.**
+
+1. 세션에 저장소를 쓰기 권한으로 연결한다: `add_repo`(owner `LeeKwanBeom`, repo
+   `household-report`, access `push`) → 안내대로 `/home/claude/household-report`에 clone.
+   1단계 codeload 받기가 403으로 실패했을 때도 같은 clone을 받기 대용으로 쓴다
+2. 실 CSV·`data_bundle.json`은 **저장소 폴더 밖**(예: `/home/claude/gagyebu-work/`)에 둔다.
+   `pipeline.py`는 현재 폴더에 `data_bundle.json`을 쓰므로, 빌드 뒤 밖으로 옮기고
+   `__pycache__`도 지운다. `git status --porcelain`에 아무것도 없어야 한다
+3. 올리기 직전에 원격과 맞춘다: `git fetch origin main && git reset --hard origin/main`
+4. 산출 HTML을 `index.html`로 복사 → `git add index.html` → 커밋 → `git push origin HEAD:main`.
+   코드를 고쳤으면(`--with-code`에 해당) 그 파일만 골라 `git add`한다. `git add -A` 금지
+5. 커밋 작성자 이메일은 GitHub noreply 주소를 쓴다
+   (`322668067+LeeKwanBeom@users.noreply.github.com`). 개인 이메일로 커밋하면
+   `push declined due to email privacy restrictions`로 거절된다
+6. `git fetch origin main` 후 로컬·원격 sha가 같은지 확인하고, 사용자에게 커밋 sha를 알린다
+
+이 경로에서는 사용자 토큰이 쓰이지 않는다. 토큰이 대화에 붙여넣어졌으면 폐기를 권한다.
+
 배포 후 URL을 안내한다:
 
 > 배포 완료했어요. https://leekwanbeom.github.io/household-report/
@@ -364,6 +387,8 @@ HTML의 `<section id>`는 개편 이력 때문에 번호와 일치하지 않는�
   `합계 ≠ 예상`은 분할 이체·선출금이면 정상일 수 있으니 확인만 한다
 - `deploy.py`의 `[확인 필요] … 잔고가 … 넘게 바뀐 계좌` → 사용자에게 확인, 맞으면 `--ack-balance`
 - 배포 뒤 `HEAD` sha가 안 바뀜 → 올릴 파일이 전부 같았거나 권한 문제
+- `deploy.py` 업로드가 `[403] … not permitted through this proxy` → 환경 프록시 차단. 7단계
+  "대체 경로"로 git push. codeload 받기가 403이어도 같은 경로(`add_repo` + clone)로 받는다
 - 종료 추정에 리모트뷰가 걸림 → 계산 규칙의 리모트뷰 항목 참고(재개 달이 진행 중이면 무시)
 
 ---
