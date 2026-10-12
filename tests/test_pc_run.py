@@ -435,6 +435,25 @@ class ScopeAndExposure(PcRunBase):
                          ["index.html", "pipeline.py"])
         self.assertEqual(self.remote_main(), git(self.repo, "rev-parse", "HEAD"))
 
+    def test_code_round_with_rename_deploys(self):
+        """폴더·파일 이름 변경 커밋: 최종 차이도 삭제+추가로 센다 — 커밋별 경로(range_touched)와 같아야
+        '중간 커밋에만 있는 경로'로 잘못 막히지 않는다 (2026-10-13 pc/household-run → q-household-run)."""
+        os.makedirs(os.path.join(self.repo, "pc", "moved"))
+        git(self.repo, "mv", "pc/code-tab.md", "pc/moved/code-tab.md")
+        git(self.repo, "commit", "-q", "-m", "rename")
+        self.write_csv(csv_variant(add=[EXTRA_ROW]))
+        rc, out, rid = self.build()
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.stamp(rid)["code_files"], ["pc/code-tab.md", "pc/moved/code-tab.md"])
+        rc, out = self.pc("review", "--run", rid)
+        self.assertEqual(rc, 0, out)
+        old = self.remote_main()
+        rc, out = self.pc("deploy", "--run", rid, "--confirm", self.code_of(rid))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(sorted(git(self.repo, "diff", "--name-only", "--no-renames", old, "HEAD").split()),
+                         ["index.html", "pc/code-tab.md", "pc/moved/code-tab.md"])
+        self.assertEqual(self.remote_main(), git(self.repo, "rev-parse", "HEAD"))
+
     def test_non_code_file_in_code_round_blocks_build(self):
         self.commit_in_clone("secret.csv", fixture_text(), force_add=True)
         rc, out, _ = self.build()

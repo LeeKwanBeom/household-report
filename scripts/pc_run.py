@@ -299,7 +299,9 @@ def ahead_behind(ctx):
 
 
 def diff_files(ctx, a, b):
-    files = glines(ctx.repo, "diff", "--name-only", a, b)
+    # --no-renames: 이름 변경을 삭제+추가 두 경로로 센다. range_touched와 같아야 이름 변경 커밋이
+    # '중간 커밋에만 있는 경로'로 잘못 막히지 않는다 (2026-10-13 스킬 폴더 이름 변경).
+    files = glines(ctx.repo, "diff", "--name-only", "--no-renames", a, b)
     if files is None:  # 범위 검사가 조용히 빈 목록으로 통과하지 않게
         raise RuntimeError(f"git diff --name-only {a} {b} 실패")
     return files
