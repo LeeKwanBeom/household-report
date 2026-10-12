@@ -1,11 +1,11 @@
 ---
-name: household-run
+name: q-household-run
 description: 이 PC(D:\household) Claude Code 탭에서 가계부 리포트를 재계산·확인·배포한다. "가계부 업데이트", "가계부 리포트", "가계부 CSV 넣어줘", "가계부 배포", "household report", "가계부 갱신", "리포트 다시 만들어줘" 같은 말이 나오거나 가계부 CSV를 다룰 때 반드시 이 스킬을 쓴다. 이 폴더에서는 설치본 household-report-update(웹용) 대신 이 스킬이다.
 ---
 
-# 가계부 리포트 — 이 PC Code 탭 (/household-run)
+# 가계부 리포트 — 이 PC Code 탭 (/q-household-run)
 
-정본은 저장소 `pc/household-run/SKILL.md`, 절차 설명은 `pc/code-tab.md`. 웹(claude.ai)은 저장소 SKILL.md 그대로다.
+정본은 저장소 `pc/q-household-run/SKILL.md`, 절차 설명은 `pc/code-tab.md`. 웹(claude.ai)은 저장소 SKILL.md 그대로다.
 
 ## 지키는 것
 

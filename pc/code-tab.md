@@ -1,7 +1,7 @@
 # 가계부 리포트 — 이 PC Claude Code 탭 절차
 
 웹(claude.ai)은 저장소 `SKILL.md` 그대로다. 이 문서는 이 PC(Windows · `D:\household` · Code 탭)에서만 쓴다.
-실행은 `scripts/pc_run.py`가 하고, 세션은 로컬 스킬 `/household-run`(정본 `pc/household-run/SKILL.md`)의 순서를 따른다.
+실행은 `scripts/pc_run.py`가 하고, 세션은 로컬 스킬 `/q-household-run`(정본 `pc/q-household-run/SKILL.md`)의 순서를 따른다.
 설계 근거: 2026-10-12 Code 탭 이전 탐색 기준선(설계안 2) — 요약은 `audit/last-audit.md` 맨 위 절.
 
 ## 1. 폴더
@@ -9,7 +9,7 @@
 ```
 D:\household\
   CLAUDE.md                          로컬 안내 (정본 pc/CLAUDE.md)
-  .claude\skills\household-run\      진입 스킬 /household-run (정본 pc/household-run/SKILL.md)
+  .claude\skills\q-household-run\    진입 스킬 /q-household-run (정본 pc/q-household-run/SKILL.md)
   .claude\settings.json              설치본 스킬 거부 1줄 (정본 pc/settings.json — 사용자가 둔다)
   household-report\                  운영 clone — main · core.autocrlf=false · git 쓰기는 여기서만(pc_run.py)
   .venv\                             python -m venv --system-site-packages --without-pip (설치 0)
@@ -25,7 +25,7 @@ D:\household\
 ## 2. 처음 한 번
 
 1. venv: `python -m venv --system-site-packages --without-pip D:\household\.venv` — 사용자 site의 pandas·numpy를 그대로 쓴다(설치 0). `check`가 판을 찍고, 공개판과 같은 md5를 낸 판(pandas 3.0.6 · numpy 2.5.3)과 다르면 [주의].
-2. 로컬 파일: `pc/household-run/SKILL.md` → `D:\household\.claude\skills\household-run\SKILL.md`, `pc/CLAUDE.md` → `D:\household\CLAUDE.md`를 바이트 그대로 복사한다.
+2. 로컬 파일: `pc/q-household-run/SKILL.md` → `D:\household\.claude\skills\q-household-run\SKILL.md`, `pc/CLAUDE.md` → `D:\household\CLAUDE.md`를 바이트 그대로 복사한다.
 3. 설치본 거부(사용자가 둔다 — PowerShell):
    ```powershell
    New-Item -ItemType Directory -Force D:\household\.claude | Out-Null; Copy-Item -LiteralPath D:\household\household-report\pc\settings.json -Destination D:\household\.claude\settings.json

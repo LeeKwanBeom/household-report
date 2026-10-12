@@ -62,7 +62,7 @@ EXCLUDE_LINES = ["*.csv", "!tests/fixtures/*.csv", "data_bundle.json", "__pycach
 REFERENCE_VERSIONS = {"pandas": "3.0.6", "numpy": "2.5.3"}
 # (작업 루트 기준 로컬 파일, 저장소 정본). md5가 다르면 S0가 [주의].
 LOCAL_FILES = [
-    (".claude/skills/household-run/SKILL.md", "pc/household-run/SKILL.md"),
+    (".claude/skills/q-household-run/SKILL.md", "pc/q-household-run/SKILL.md"),
     ("CLAUDE.md", "pc/CLAUDE.md"),
     (".claude/settings.json", "pc/settings.json"),
 ]
