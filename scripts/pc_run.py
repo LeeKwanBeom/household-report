@@ -901,6 +901,7 @@ def evaluate(ctx, run, stamp, out, acks, verbose=True):
     plog = read_text(os.path.join(run, "pipeline.log"))
     dlog = read_text(os.path.join(run, "detect.log"))
     latest_month = (bundle.get("months_included") or ["?"])[-1]
+    ev.same_as_base = md5_bytes(report_bytes) == md5_bytes(base_bytes)
 
     # (a) 이체
     say("── (a) 매달 이체 ──")
@@ -961,7 +962,8 @@ def evaluate(ctx, run, stamp, out, acks, verbose=True):
                                     f"{base_latest}까지예요. 더 최신 CSV를 주세요."))
     elif new_latest == base_latest:
         out.info(f"CSV 최신 {new_latest} = 공개판 최신 — 같은 날짜까지다(같은 판이거나 정정판)")
-        ev.notes.append(f"공개판과 같은 날짜({new_latest})까지의 CSV입니다 — 정정판이 맞는지 확인해 주세요")
+        if not ev.same_as_base:
+            ev.notes.append(f"공개판과 같은 날짜({new_latest})까지의 CSV입니다 — 정정판이 맞는지 확인해 주세요")
     else:
         out.ok(f"CSV 최신 {new_latest} > 공개판 최신 {base_latest}")
 
@@ -1001,7 +1003,6 @@ def evaluate(ctx, run, stamp, out, acks, verbose=True):
 
     # (f) 기준판 대비 변동
     say("── (f) 기준판 대비 ──")
-    ev.same_as_base = md5_bytes(report_bytes) == md5_bytes(base_bytes)
     if base_data:
         bk, nk = base_data.get("kpi", {}), bundle.get("kpi", {})
         for key, label in (("total_income", "총수입"), ("total_expense", "총지출"), ("net", "순잉여")):
@@ -1023,10 +1024,15 @@ def evaluate(ctx, run, stamp, out, acks, verbose=True):
     return ev
 
 
+def deploy_code_files(ctx, stamp):
+    """함께 push될 코드 파일. 리허설의 앞선 커밋은 개발 브랜치라 배포 대상이 아니다(병합으로 올린다)."""
+    return [] if ctx.rehearsal else list(stamp.get("code_files", []))
+
+
 def approval_block(ctx, stamp, ev):
     code = stamp["report_md5"][:8]
     files = ([] if ev.same_as_base else [f"index.html ({stamp['base_md5'][:8]} → {code})"]) + \
-        [f"{f} (코드 회차, 이미 로컬 커밋됨)" for f in stamp.get("code_files", [])]
+        [f"{f} (코드 회차, 이미 로컬 커밋됨)" for f in deploy_code_files(ctx, stamp)]
     period = stamp.get("csv_period") or ["?", "?"]
     lines = [
         f"배포할 판: 회차 {stamp['run']} · CSV {stamp['csv_copy']} (md5 {stamp['csv_src_md5'][:8]} · "
@@ -1036,9 +1042,17 @@ def approval_block(ctx, stamp, ev):
     if (stamp.get("uploads_csv_count") or 0) > 1:
         lines.append(f"uploads의 CSV {stamp['uploads_csv_count']}개 중 위 파일을 골랐습니다")
     lines.append("커밋될 파일: " + (", ".join(files) if files else "없음(같은 판 — 커밋·push 0)"))
+    if ctx.rehearsal and stamp.get("code_files"):
+        lines.append(f"[리허설] 개발 브랜치 커밋의 파일 {len(stamp['code_files'])}개는 배포 대상이 아니다"
+                     f"(검증 뒤 병합으로 올린다)")
     lines.append(f"[경고] {ev.warn_count}건은 위에서 말씀드린 그대로입니다")
     lines += ev.notes
-    lines.append(f"배포하려면 \"배포 {code}\"라고 답해 주세요. 다른 답이면 배포하지 않습니다.")
+    if ev.same_as_base:
+        lines.append("공개판과 바이트까지 같은 판입니다 — 배포해도 바뀌는 것이 없습니다")
+    if ctx.rehearsal:
+        lines.append(f"[리허설] 배포 질문은 하지 않는다(운영이면 여기서 \"배포 {code}\" 답을 받는다)")
+    else:
+        lines.append(f"배포하려면 \"배포 {code}\"라고 답해 주세요. 다른 답이면 배포하지 않습니다.")
     return code, lines
 
 
@@ -1155,7 +1169,9 @@ def cmd_deploy(ctx, args):
         return 1
     head_index = show_blob(ctx, "HEAD:index.html")
     same = head_index is not None and md5_bytes(head_index) == stamp["report_md5"]
-    code_files = stamp.get("code_files", [])
+    code_files = deploy_code_files(ctx, stamp)
+    if ctx.rehearsal and stamp.get("code_files"):
+        out.info(f"[리허설] 개발 브랜치 커밋의 파일 {len(stamp['code_files'])}개는 배포 대상이 아니다(병합으로 올린다)")
     if same:
         print("커밋될 파일: " + ("없음(같은 판)" if not code_files else
                                 f"index.html 없음(같은 판) · 코드 {code_files}(이미 로컬 커밋됨)"))

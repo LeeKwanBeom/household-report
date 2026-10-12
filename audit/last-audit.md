@@ -1,3 +1,77 @@
+# Code 탭 이전 — 탐색 기준선 요약 · 구현 기록 (2026-10-12)
+
+공개 저장소다 — 이 절에는 금액·합계·잔고 숫자·세부내용을 적지 않는다(md5·건수·파일:행만).
+탐색 기록 원문은 저장소 밖(`D:\household\household_Code탭이전_탐색_2026-10-12.md`, 로컬)에 있다. PC 절차는 `pc/code-tab.md`.
+
+## 탐색 기준선 요약
+
+- 목표: 웹(claude.ai — 설치본 → 저장소 SKILL.md) 흐름을 이 PC(Windows · Claude Code 탭 · `D:\household`)에서도 돌린다. 웹 명령·웹 결과는 그대로 둔다.
+- 고른 것(사용자 "추천대로"): 설계안 2 — `scripts/pc_run.py` 실행 스크립트(가드는 코드) · 폴더 3-0 그대로 · `.venv --system-site-packages`(설치 0) · 로컬 스킬 `/household-run` · 설치본 차단 = 로컬 CLAUDE.md + 로컬 스킬 + 사용자가 두는 `settings.json` 거부 1줄 · 웹 스킬 공용(`pc/` + SKILL.md 머리 한 줄) · 시험 배포 없음(첫 실사용 1회 = 시험 배포, `git revert` 준비) · 첫 실사용은 다음 새 CSV 1회 index.html만(코드 회차 제외) · 반영 확인 상한 Actions 약 3분 + 공개판 md5 약 12분.
+- 막음 기준: 잔고·합계 오류, 틀린 판 배포(옛 CSV·옛 코드로 만든 판 포함), 토큰·개인 원본 데이터의 공개 노출(공개 노출만은 실수 둘이 겹쳐도 막음).
+- 이 PC에서 그대로 안 되던 자리(탐색 1절): `pipeline.py`:740 `%-m`(glibc 전용 → Windows ValueError, 시험 33개 중 24 오류) · `build.py`:1449 `/mnt/user-data/outputs` 고정 경로(+ newline 없음 → CRLF로 md5가 달라짐) · `pipeline.py`:902 cp949 콘솔에서 '—' UnicodeEncodeError(bundle 쓰기 전) · 중간 파일이 현재 폴더(옛 bundle로 rc 0) · 토큰 배포 대신 git push · 기준판을 새 판으로 덮으면 잔고 급변 검사가 무력해짐 · 설치본 트리거가 이 폴더에서도 불림.
+- 완료 기준 18줄(줄 번호는 탐색 기록 4절): 1 S0 PASS · 2 저장소 시험이 이 PC에서 전부 통과 · 3 같은 CSV → report md5 = 공개판(`0754d5d` index.html `85f451f9…`) · 4 웹 결과 불변 · 5 회차마다 새 폴더, pipeline rc ≠ 0이면 build 안 함 · 6 build는 main·깨끗한 트리에서만, push 직전 로컬 HEAD = origin/main = stamp · 원본 CSV md5 = stamp · 7 배포 report md5 = 사용자가 답한 승인 코드, 승인 코드는 멈춤 질문이 다 끝난 회차에만 · 8 CSV 최신 날짜 < 공개판이면 멈춤, 여럿이면 묻기 · 9 기준판 = `git show <stamp.head>:index.html` · 10 최신 달 이체 누락이면 멈추고 묻기 · 11 push 범위 = index.html(+승인 코드 목록), 루트 git 없음 · 12 토큰 0 · 13 push 1회 · force 0 · 재시도 0 · 14 "배포 완료"는 공개판 md5 = report일 때만 · 15 dry-run 기본 · 16 이 폴더 트리거 → `/household-run`(설치본 미호출) · 17 `runs\log.md` 한 줄 · 18 실제 환경 리허설.
+- 반박 뒤 유지된 막음(설계에 반영): K1 빌드한 것과 배포 때 코드·CSV가 묶여 있지 않음 · K2 승인한 판과 배포하는 판이 묶여 있지 않음 · K3 `D:\household` 루트 git.
+- 탐색 이월 1~8: 1 공개 index.html 임베드 DATA(현행 설계, 이전과 무관) · 2 같은 날짜 정정판 구분 · 3 SKILL.md 7절 토큰 문구·대체 경로 `reset --hard`(로컬 CLAUDE.md로 막음) · 4 `CODE_GLOBS`가 `pc_run.py`를 웹 `--with-code` 대상에 넣음 · 5 안 3 전용 · 6 checklist에 "pc_run·PC 절은 PC 회차에서" 한 줄 · 7 `__pycache__`(exclude 줄) · 8 pandas·numpy 판 변동(S0 [주의]).
+
+## 구현 기록 (2026-10-12 · 구현 세션 Opus 5.5)
+
+검증 세션이 읽을 자리
+- 개발 clone `D:\household\household-report-dev`(`git clone -c core.autocrlf=false`, origin = GitHub) · 브랜치 `feature/pc-code-tab`(base `0754d5d` = origin/main) · 커밋은 로컬만(push 0).
+- 리허설 대상 커밋과 최종 커밋 sha는 아래 "리허설 결과"와 채팅 마지막에 적는다(이 절을 담은 커밋이 브랜치 끝이다 — `git rev-parse feature/pc-code-tab`).
+- 운영 clone `D:\household\household-report`는 이 회차에 바꾸지 않았다(HEAD `0754d5d`, exclude 줄 없음 — 첫 실사용에서 `sync`가 넣는다).
+
+바꾼 것
+- `pipeline.py`:740-741 `latest_update`를 `f"{m}월 {d}일"`로(웹과 같은 문자열 — 2025~2028 매일 strftime 대조 시험) · 끝 `__main__` 아래 stdout utf-8.
+- `build.py`:1449-1455 출력 경로 = `HOUSEHOLD_OUT`(없으면 웹 경로 그대로) · `newline=''`.
+- `scripts/detect_ended.py` 끝 `__main__` 아래 stdout utf-8.
+- `scripts/pc_run.py`(새): `check · sync · build · review · deploy · live · record` + `--rehearsal`. 3-0 표의 S0~⑦과 K1·K2·K3 대응을 코드로 지킨다.
+- `tests/test_pc_run.py`(새, git 임시 bare 저장소 · 네트워크 0) · `tests/test_pipeline.py`에 `PcPortability` 4개(한 자리 월·일 서식 · strftime 동치 · redirect_stdout 아래 main · cp949 콘솔).
+- `pc/`(새): `code-tab.md` · `household-run/SKILL.md` · `CLAUDE.md` · `settings.json`.
+- `SKILL.md`:8 머리 한 줄 "이 PC Code 탭은 `pc/code-tab.md` — 웹은 아래 그대로." 웹 명령·웹 절차 문구는 그대로.
+- 저장소 밖(로컬): `D:\household\.venv`(`--system-site-packages --without-pip`) · `D:\household\.claude\skills\household-run\SKILL.md`·`D:\household\CLAUDE.md`(= `pc/` 사본, md5 같음). `D:\household\.claude\settings.json`은 사용자가 둔다. 탐색 사본 `D:\household\_explore\`(21 MB)는 사용자 확인 뒤 지웠다.
+
+임의 결정
+1. venv는 `--without-pip`(pip 자체도 설치하지 않음). 사용자 site의 pandas 3.0.6 · numpy 2.5.3이 보인다.
+2. pc_run이 부르는 파이썬에 `PYTHONHASHSEED=0` — `pipeline.py`:681 전월 대비 증감이 set 순회라 |증감| 동률이면 순서가 프로세스마다 바뀐다(합성 fixture에서 실측). 실 CSV는 동률이 없어 시드와 무관하게 md5가 같다(탐색 실측 · 이번 실측).
+3. review·deploy·live·record는 **가장 최근 회차 폴더만** 받는다(K2 보강 — 실패한 build도 회차로 센다).
+4. 이체 멈춤의 해제는 `--ack-transfer`. deploy도 ③을 같은 프로세스에서 다시 평가하므로 같은 플래그가 있어야 한다. 옛 CSV(최신 날짜 < 공개판) 멈춤은 넘길 플래그가 없다.
+5. 잔고 급변은 멈춤이 아니라 승인 질문에 싣는다 — 사용자 답 "배포 <승인 코드>"가 웹의 `--ack-balance`를 대신한다(3-0 승인 줄).
+6. `sync` 명령을 더했다 — 운영 clone이 origin/main보다 **뒤에만** 있을 때 `merge --ff-only`, 앞섬·갈라짐은 멈춤. exclude 줄도 여기서 넣는다. `pc_run.py`가 아직 없는 병합 직후 첫 회는 로컬 스킬 0절의 git 명령으로 같은 일을 한다.
+7. 코드 회차 파일 검사 — 앞선 커밋의 파일이 `deploy.CODE_GLOBS` + `pc/*` 밖이거나, `.csv`에 원본 CSV와 같은 줄이 있으면 build·deploy FAIL(공개 노출 — 강제 add 실수 + 승인 실수 둘이 겹치는 길).
+8. 리허설 모드: 회차 폴더 `work-rehearsal\` · `deploy --confirm`·`sync`·`record` 막힘 · exclude 줄 없음은 [주의] · 개발 브랜치 커밋 파일은 "커밋될 파일"에서 빼고 따로 한 줄.
+9. base.html은 build가 만든다(review는 쓰기 0). review·deploy는 base.html = `git show <stamp.head>:index.html`인지 다시 대조한다.
+10. push 인증 확인은 `git push --dry-run origin refs/remotes/origin/main:refs/heads/main`(원격과 같은 커밋 — 무엇도 바꾸지 않는 refspec).
+11. live 마감은 push 시각 기준(Actions 180초 · 공개판 720초) — 다시 불러도 같은 마감에서 끝난다. 결과는 회차 폴더 `live.json`, 배포 결과는 `deploy.json`(stamp는 build만 쓴다).
+12. detect_ended rc ≠ 0(한 달치 CSV 등)은 [주의] — 리포트에는 영향이 없다.
+13. CSV 경로는 clone 밖이면 받는다(`uploads` 밖도) — 검증 세션이 `D:\household-verify`에서 실 CSV를 읽기만 하며 돌릴 수 있게.
+
+시험
+- (리허설 전) 이 PC 전체 시험: 결과는 아래 "리허설 결과"에 함께 적는다.
+
+리허설 결과
+- (대기 — 사용자가 새 Code 탭 세션에서 돌린다)
+
+이월(이번 회차)
+- `pipeline.py`:681 증감 동률 순서가 해시 시드에 따라 바뀐다 — 웹도 같다. 실 CSV는 동률이 없다. 고치면 동률 순서가 웹 공개판과 달라질 수 있어 이 회차에서 건드리지 않았다(PC는 시드 0).
+- PC 시험 시간 약 3분 — 임시 폴더(`%TEMP%`)가 백신 검사 경로라 git·파이썬 하위 프로세스가 느리다.
+
+병합 방법(검증 "가도 된다" 뒤 · 사용자 승인 1회 · 검증 clone에서 · force 0 · push 1회 · 재시도 0)
+
+```bash
+export GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never; unset GIT_ASKPASS SSH_ASKPASS
+URL=https://github.com/LeeKwanBeom/household-report.git
+SHA=<검증한 커밋 sha — 브랜치 끝>
+git cat-file -e "$SHA^{commit}"                               # 검증한 커밋이 이 clone에 있다
+git fetch "$URL" main                                          # 원격 main → FETCH_HEAD
+git merge-base --is-ancestor FETCH_HEAD "$SHA" && echo FF-OK   # FF-OK가 안 나오면 멈춘다(원격이 움직였다)
+git push "$URL" "$SHA:refs/heads/main"                         # 빨리 감기만 받는다(+·--force 없음)
+git ls-remote "$URL" refs/heads/main                           # = $SHA
+```
+
+그 뒤 index.html은 바뀌지 않으므로 공개판 md5는 그대로(`85f451f9…`)여야 한다. 운영 clone 갱신은 첫 실사용 세션에서: 로컬 스킬 0절(깨끗 · `0 N`일 때만 `git merge --ff-only origin/main`) → `pc_run.py sync`(exclude 줄) → `pc_run.py check` PASS. 개발 clone `D:\household\household-report-dev`와 `D:\household\work-rehearsal\`은 병합 뒤 지워도 된다(사용자 확인).
+
+---
+
 # 점검 기준선
 
 점검일 2026-09-26 (정기 점검 1회차, 점검표 v1) / **결함 16건 · 개선안 5건 · 인용불가 0건** / 직전 기준선(2026-09-06) 대비: 해결 0 · 미해결 7 · 근거없음 0 · 신규 9

@@ -593,6 +593,8 @@ class RehearsalAndSync(PcRunBase):
         self.assertEqual(rc, 0, out)
         rc, out = self.pc("deploy", "--run", rid, rehearsal=True, repo=dev)
         self.assertEqual(rc, 0, out)
+        self.assertIn("커밋될 파일: 없음(같은 판)", out)       # 개발 커밋은 배포 대상이 아니다
+        self.assertIn("개발 브랜치 커밋의 파일 1개는 배포 대상이 아니다", out)
         before = self.remote_main()
         code = self.stamp(rid, rehearsal=True)["report_md5"][:8]
         rc, out = self.pc("deploy", "--run", rid, "--confirm", code, rehearsal=True, repo=dev)
