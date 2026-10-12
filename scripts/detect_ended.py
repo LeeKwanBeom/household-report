@@ -104,4 +104,7 @@ def main():
 
 
 if __name__ == "__main__":
+    # pipeline.py와 같은 이유(cp949 콘솔의 '—'). main() 밖에 두어야 시험의 redirect_stdout이 안 깨진다.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     main()

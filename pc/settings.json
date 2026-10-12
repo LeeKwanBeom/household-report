@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "deny": [
+      "Skill(skill:anthropic-skills:household-report-update)"
+    ]
+  }
+}

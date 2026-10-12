@@ -1446,7 +1446,12 @@ def renumber_sections(doc):
 
 html = renumber_sections(html)
 
-with open('/mnt/user-data/outputs/이관범_가계부_분석_리포트.html', 'w', encoding='utf-8') as f:
+# 출력 경로: 환경 변수 HOUSEHOLD_OUT이 있으면 그 경로(이 PC의 scripts/pc_run.py가 회차 폴더를 넘긴다),
+# 없으면 웹 경로 그대로. newline=''은 Windows에서 \n이 \r\n으로 바뀌어 공개판과 바이트가 달라지는 것을 막는다
+# (리눅스에서는 바뀌는 것이 없다).
+import os as _os
+_out = _os.environ.get('HOUSEHOLD_OUT') or '/mnt/user-data/outputs/이관범_가계부_분석_리포트.html'
+with open(_out, 'w', encoding='utf-8', newline='') as f:
     f.write(html)
 
 print("done, length:", len(html))

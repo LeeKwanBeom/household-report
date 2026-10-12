@@ -365,6 +365,58 @@ class MonthLabels(unittest.TestCase):
         self.assertEqual(b["heatmap"]["months"], b["monthly"]["labels"])
 
 
+class PcPortability(unittest.TestCase):
+    """이 PC(Windows)에서 막히던 자리를 고친 줄이 웹(리눅스) 결과를 바꾸지 않는지
+    (2026-10-12 Code 탭 이전 — 탐색 기준선 1-5·1-7, 시험 후보 2)."""
+
+    def test_latest_update_single_digit_month_day(self):
+        df = fixture_rows()
+        df = df[df["날짜"] <= "2026-09-05"]
+        _, b = run_rows(df)
+        self.assertEqual(b["latest_update"], "9월 5일")
+
+    def test_latest_update_format_equals_strftime_no_pad(self):
+        """f"{m}월 {d}일" = strftime("%-m월 %-d일")(glibc, 웹) — Windows판은 %#m으로 대조. 2025~2028 매일."""
+        from datetime import date, timedelta
+        fmt = "%#m월 %#d일" if os.name == "nt" else "%-m월 %-d일"
+        d = date(2025, 1, 1)
+        while d <= date(2028, 12, 31):
+            self.assertEqual(f"{d.month}월 {d.day}일", d.strftime(fmt))
+            d += timedelta(days=1)
+
+    def _tmp_csv_dir(self, rows):
+        import shutil
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        rows.to_csv(os.path.join(tmp, "in.csv"), index=False, encoding="utf-8-sig")
+        return tmp
+
+    def test_main_under_redirect_stdout(self):
+        """stdout utf-8 줄은 __main__ 아래에 있다 — main()을 redirect_stdout 아래에서 불러도 깨지지 않는다."""
+        tmp = self._tmp_csv_dir(fixture_rows())
+        cwd = os.getcwd()
+        try:
+            os.chdir(tmp)
+            with mock.patch.object(sys, "argv", ["pipeline.py", "in.csv"]), redirect_stdout(io.StringIO()):
+                pipeline.main()
+        finally:
+            os.chdir(cwd)
+        self.assertTrue(os.path.exists(os.path.join(tmp, "data_bundle.json")))
+
+    def test_cp949_console_does_not_crash(self):
+        """콘솔이 cp949여도 경고 줄의 '—'에서 죽지 않고 bundle을 쓴다(예전: UnicodeEncodeError · exit 1)."""
+        import subprocess
+        df = fixture_rows()
+        tmp = self._tmp_csv_dir(pd.concat([df, df.tail(1)], ignore_index=True))  # 같은 행 → '—' 경고
+        env = dict(os.environ, PYTHONIOENCODING="cp949", PYTHONUTF8="0", PYTHONDONTWRITEBYTECODE="1")
+        for argv in (["pipeline.py", "in.csv"], ["scripts/detect_ended.py", "in.csv"]):
+            r = subprocess.run([sys.executable, os.path.join(ROOT, argv[0]), argv[1]], cwd=tmp,
+                               capture_output=True, env=env)
+            self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace"))
+            self.assertIn("—", r.stdout.decode("utf-8"))
+        self.assertTrue(os.path.exists(os.path.join(tmp, "data_bundle.json")))
+
+
 class DetectEndedChecks(unittest.TestCase):
     def test_transfer_only_csv_stops_with_pipeline_message(self):
         """이체만 있는 CSV: "완성된 달이 없어…"가 아니라 pipeline과 같은 [중단] 문구로 exit 1

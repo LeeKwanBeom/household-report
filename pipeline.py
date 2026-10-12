@@ -737,7 +737,8 @@ def build_bundle(df):
         "fixed_vs_target": fixed_vs_target,
         "month_over_month": month_over_month,
         "months_included": months,
-        "latest_update": latest_date.strftime("%-m월 %-d일"),
+        # strftime("%-m월 %-d일")과 같은 문자열. %-m은 glibc 전용이라 Windows에서 ValueError가 났다.
+        "latest_update": f"{latest_date.month}월 {latest_date.day}일",
     }
 
 
@@ -923,4 +924,8 @@ def main():
 
 
 if __name__ == "__main__":
+    # 콘솔이 cp949(Windows)면 경고 줄의 '—'에서 UnicodeEncodeError로 bundle을 쓰기 전에 죽는다.
+    # main() 안에 두면 시험의 redirect_stdout(StringIO)에서 깨지므로 여기 둔다.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     main()

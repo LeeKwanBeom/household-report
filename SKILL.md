@@ -5,6 +5,8 @@ description: 이관범 가계부 CSV를 받아 리포트를 재계산하고 GitH
 
 # 가계부 리포트 업데이트
 
+> 이 PC Code 탭은 `pc/code-tab.md` — 웹은 아래 그대로.
+
 이관범님의 가계부 CSV를 받아 리포트를 재계산하고 GitHub Pages에 배포한다.
 
 빌드 코드(`pipeline.py`, `build.py`, `scripts/`)는 이 저장소에 있다. 컨테이너가
