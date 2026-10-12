@@ -31,7 +31,7 @@ import pipeline  # noqa: E402
 from pipeline import (  # noqa: E402
     ACCOUNTS_START, ACCOUNT_KEY, ENDED_FIXED_ITEMS, EXPECTED_COLS,
     EXPECTED_MONTHLY_TRANSFERS, HIDDEN_ACCOUNTS, MANUALLY_EXCLUDED_FIXED_ITEMS,
-    NO_CORE_ROWS_MSG, SUBSCRIPTION_ALIASES, build_bundle, load_csv,
+    NO_CORE_ROWS_MSG, SUBSCRIPTION_ALIASES, build_bundle, fixed_app_name, load_csv,
     screen_warnings_for, today_kst, validate, warnings_for,
 )
 import deploy  # noqa: E402
@@ -113,7 +113,7 @@ class FixtureSanity(unittest.TestCase):
         comp = months[:-1]
         fx = core[(core["구분"] == "지출") & core["월"].isin(comp) & (core["고정여부"] == "고정")].copy()
         fx["세부내용"] = fx["세부내용"].replace(SUBSCRIPTION_ALIASES)
-        fx["키"] = fx.apply(lambda r: "문화생활비 / 어플·멤버쉽 / " + r["세부내용"]
+        fx["키"] = fx.apply(lambda r: "문화생활비 / 어플·멤버쉽 / " + fixed_app_name(r["세부내용"])
                           if r["소분류"] == "어플/멤버쉽" else r["대분류"] + " / " + r["소분류"], axis=1)
         g = fx.groupby("키")["금액"].sum()
         g = g[~g.index.isin(ENDED_FIXED_ITEMS + MANUALLY_EXCLUDED_FIXED_ITEMS)]
@@ -441,6 +441,80 @@ class DetectEndedChecks(unittest.TestCase):
         with self.assertRaises(ValueError) as cm2:
             run_rows(df)
         self.assertEqual(str(cm2.exception), NO_CORE_ROWS_MSG)
+
+    def _detect_blocks(self, df):
+        """detect_ended.main() 출력을 머리줄 → 항목 줄 목록으로 나눈다."""
+        tmp = tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False,
+                                          encoding="utf-8-sig", newline="")
+        df.to_csv(tmp, index=False)
+        tmp.close()
+        out = io.StringIO()
+        try:
+            with mock.patch.object(sys, "argv", ["detect_ended.py", tmp.name]), redirect_stdout(out):
+                detect_ended.main()
+        finally:
+            os.unlink(tmp.name)
+        blocks, head = {}, None
+        for ln in out.getvalue().splitlines():
+            if ln.startswith("["):
+                head = ln[:ln.index("]") + 1]
+                blocks[head] = []
+            elif head and ln.startswith("  - "):
+                blocks[head].append(ln[4:])
+        return blocks
+
+    def test_irregular_fixed_items_use_their_own_gap(self):
+        """불규칙 고정 항목은 항목별 기준(IRREGULAR_FIXED_ITEMS)을 넘을 때만 [확인 필요] (2026-10-12).
+        fixture의 완성된 마지막 달은 2026-08이다."""
+        df = fixture_rows()
+        df = add_row(df, 날짜="2026-05-10", 구분="지출", 대분류="교통비", 소분류="대중교통",
+                     세부내용="교통", 금액="5,000", 고정여부="고정")     # 3개월 공백 < 4
+        df = add_row(df, 날짜="2026-04-10", 구분="지출", 대분류="뷰티", 소분류="복용약",
+                     세부내용="약", 금액="9,000", 고정여부="고정")       # 4개월 공백 < 13
+        df = add_row(df, 날짜="2026-03-10", 구분="지출", 대분류="의료비", 소분류="약값",
+                     세부내용="약", 금액="9,000", 고정여부="고정")       # 5개월 공백 ≥ 4
+        df = add_row(df, 날짜="2026-03-12", 구분="지출", 대분류="샘플", 소분류="정기",
+                     세부내용="샘플", 금액="1,000", 고정여부="고정")     # 기본 기준 2개월
+        blocks = self._detect_blocks(df)
+        ask = " ".join(blocks.get("[확인 필요]", []))
+        irregular = " ".join(blocks.get("[불규칙 고정]", []))
+        self.assertIn("의료비 / 약값", ask)
+        self.assertIn("샘플 / 정기", ask)
+        self.assertNotIn("대중교통", ask)
+        self.assertNotIn("복용약", ask)
+        self.assertIn("교통비 / 대중교통", irregular)
+        self.assertIn("뷰티 / 복용약", irregular)
+
+    def test_fixed_app_groups_join_renamed_subscription(self):
+        """'클로드' → '클로드 맥스 5x'처럼 이름이 바뀐 구독은 한 키로 본다 — 종료 추정에 안 걸린다."""
+        df = fixture_rows()
+        df = add_row(df, 날짜="2026-04-10", 구분="지출", 대분류="문화생활비", 소분류="어플/멤버쉽",
+                     세부내용="클로드", 금액="30,000", 고정여부="고정")
+        df = add_row(df, 날짜="2026-08-10", 구분="지출", 대분류="문화생활비", 소분류="어플/멤버쉽",
+                     세부내용="클로드 맥스 5x", 금액="180,000", 고정여부="고정")
+        blocks = self._detect_blocks(df)
+        everything = " ".join(" ".join(v) for v in blocks.values())
+        self.assertNotIn("클로드", everything)
+
+
+class FixedAppGroups(unittest.TestCase):
+    def test_projection_joins_names_but_transactions_keep_them(self):
+        """예상 고정지출은 '클로드…'를 한 항목으로 묶고, 거래 내역의 세부내용은 원본 그대로 둔다."""
+        df = fixture_rows()
+        df = add_row(df, 날짜="2026-07-10", 구분="지출", 대분류="문화생활비", 소분류="어플/멤버쉽",
+                     세부내용="클로드", 금액="30,000", 고정여부="고정")
+        df = add_row(df, 날짜="2026-08-10", 구분="지출", 대분류="문화생활비", 소분류="어플/멤버쉽",
+                     세부내용="클로드 맥스 5x", 금액="180,000", 고정여부="고정")
+        _, b = run_rows(df)
+        items = [p for p in b["projection"]["items"] if "클로드" in p["항목"]]
+        self.assertEqual([p["항목"] for p in items], ["문화생활비 / 어플·멤버쉽 / 클로드"])
+        self.assertEqual(items[0]["합계"], 210000)
+        self.assertEqual(items[0]["마지막월"], "2026-08")
+        self.assertIn("클로드 맥스 5x", [t["세부내용"] for t in b["monthly_tx"]["2026-08"]])
+
+    def test_fixed_app_name(self):
+        self.assertEqual(fixed_app_name("클로드 추가료"), "클로드")
+        self.assertEqual(fixed_app_name("샘플OTT"), "샘플OTT")
 
 
 class DeployChecks(unittest.TestCase):

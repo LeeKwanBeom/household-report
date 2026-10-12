@@ -18,12 +18,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pipeline import (  # noqa: E402
     ENDED_FIXED_ITEMS,
+    IRREGULAR_FIXED_ITEMS,
     MANUALLY_EXCLUDED_FIXED_ITEMS,
     NO_CORE_ROWS_MSG,
+    fixed_app_name,
     load_csv,
 )
 
-GAP_THRESHOLD = 2  # 이 개월 수 이상 공백이면 종료 추정
+GAP_THRESHOLD = 2  # 이 개월 수 이상 공백이면 종료 추정 (IRREGULAR_FIXED_ITEMS는 항목별 기준)
 
 
 def build_fixed_keys(df):
@@ -49,7 +51,7 @@ def build_fixed_keys(df):
 
     # 여러 구독이 한 소분류에 섞여 있어 세부내용 단위로 따로 본다
     app = fixed[fixed["소분류"] == "어플/멤버쉽"].copy()
-    app["키"] = "문화생활비 / 어플·멤버쉽 / " + app["세부내용"]
+    app["키"] = "문화생활비 / 어플·멤버쉽 / " + app["세부내용"].map(fixed_app_name)
 
     g = pd.concat([non_app, app], ignore_index=True).groupby("키").agg(
         마지막월=("월", "max"), 등장월수=("월", "nunique"), 합계=("금액", "sum"),
@@ -59,6 +61,11 @@ def build_fixed_keys(df):
     g["공백"] = ((last_completed.year - last_dt.dt.year) * 12
                 + (last_completed.month - last_dt.dt.month))
     return g, completed_months, months[-1]
+
+
+def gap_limit(key):
+    """이 키를 [확인 필요]로 물을 공백(개월). 불규칙 고정 항목은 항목별 기준을 쓴다."""
+    return IRREGULAR_FIXED_ITEMS.get(key, GAP_THRESHOLD)
 
 
 def main():
@@ -73,8 +80,10 @@ def main():
 
     already = set(ENDED_FIXED_ITEMS) | set(MANUALLY_EXCLUDED_FIXED_ITEMS)
     stale = g[g["공백"] >= GAP_THRESHOLD].sort_values("공백", ascending=False)
+    over = stale["공백"] >= stale["키"].map(gap_limit)
 
-    new = stale[~stale["키"].isin(already)]
+    new = stale[~stale["키"].isin(already) & over]
+    irregular = stale[~stale["키"].isin(already) & ~over]
     known = stale[stale["키"].isin(already)]
 
     print(f"기준: 완성된 {len(completed_months)}개월 "
@@ -93,6 +102,14 @@ def main():
         print()
         print("  실제로 종료된 항목이 있으면 pipeline.py의 ENDED_FIXED_ITEMS에 추가하고,")
         print("  SKILL.md의 종료 항목 목록에도 같이 반영할 것.")
+        print("  결제 간격만 불규칙한 고정 항목이면 IRREGULAR_FIXED_ITEMS에 공백 기준과 함께 넣는다.")
+
+    if not irregular.empty:
+        print()
+        print(f"[불규칙 고정] {len(irregular)}건 (항목별 기준 안 — 조치 불필요):")
+        for _, r in irregular.iterrows():
+            print(f"  - {r['키']}: 마지막 {r['마지막월']} "
+                  f"({int(r['공백'])}개월 공백, {gap_limit(r['키'])}개월부터 다시 물음)")
 
     if not known.empty:
         print()

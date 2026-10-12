@@ -93,6 +93,31 @@ SUBSCRIPTION_ALIASES = {
     "이모티콘 월구독": "이모티콘",
 }
 
+# 고정 항목 키를 만들 때만 하나로 묶는 어플·멤버쉽 이름 (세부내용이 이 이름으로 시작하면 그 이름).
+# SUBSCRIPTION_ALIASES와 달리 세부내용 자체는 바꾸지 않는다 — 거래 내역 화면에는 원본 이름이 남는다.
+FIXED_APP_GROUPS = [
+    # 2026-09부터 '클로드 맥스 5x'·'클로드 맥스 20x'·'클로드 추가료'로 적는다 (2026-10-12 사용자 확인)
+    "클로드",
+]
+
+
+def fixed_app_name(name):
+    """어플·멤버쉽 고정 항목 키에 쓸 이름. FIXED_APP_GROUPS 접두어면 그 이름으로 묶는다."""
+    for base in FIXED_APP_GROUPS:
+        if name.startswith(base):
+            return base
+    return name
+
+
+# 결제 간격이 불규칙한 고정 항목 → 종료 추정(detect_ended.py)이 [확인 필요]로 묻는 공백 기준(개월)
+# 기본 기준(2개월)보다 길게 잡는다. 예상 고정지출에는 그대로 들어간다. (2026-10-12 사용자 확인)
+IRREGULAR_FIXED_ITEMS = {
+    "교통비 / 대중교통": 4,
+    "문화생활비 / 어플·멤버쉽 / 클로드": 4,
+    "의료비 / 약값": 4,    # 알레르기 약 — 2026-09부터 이 분류로 적는다
+    "뷰티 / 복용약": 13,   # 이소티논: 1년에 한 번 사서 계속 먹는다 (1년 + 한 달 여유)
+}
+
 # TOP15에서 제외 (매달 반복되는 큰 금액이라 순위를 독점)
 TOP_EXPENSE_EXCLUSIONS = [
     ("금융", "회생"),
@@ -439,7 +464,7 @@ def build_bundle(df):
 
     app = fixed_rows[fixed_rows["소분류"] == "어플/멤버쉽"].copy()
     app["대분류"] = "문화생활비"
-    app["키"] = "문화생활비 / 어플·멤버쉽 / " + app["세부내용"]
+    app["키"] = "문화생활비 / 어플·멤버쉽 / " + app["세부내용"].map(fixed_app_name)
     g2 = app.groupby(["대분류", "키"]).agg(
         등장월수=("월", "nunique"), 마지막월=("월", "max"), 합계=("금액", "sum")).reset_index()
 
