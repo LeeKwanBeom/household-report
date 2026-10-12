@@ -316,26 +316,55 @@ def _csv_rows(data):
     return {ln for ln in lines[1:] if ln}
 
 
+def _lines(data):
+    return {ln.strip() for ln in data.decode("utf-8-sig", "replace").splitlines() if ln.strip()}
+
+
+def range_touched(ctx):
+    """origin/main..HEAD의 커밋마다 건드린 경로 → 그 커밋들. push는 최종 트리가 아니라 이 커밋들을
+    통째로 올리므로, 중간 커밋에 들어갔다 빠진 파일도 여기 잡혀야 한다(자체 검토 막음 B1)."""
+    commits = glines(ctx.repo, "rev-list", "refs/remotes/origin/main..HEAD")
+    if commits is None:
+        raise RuntimeError("git rev-list origin/main..HEAD 실패")
+    touched = {}
+    for c in commits:
+        files = glines(ctx.repo, "diff", "--name-only", "--no-renames", f"{c}^", c)
+        if files is None:
+            raise RuntimeError(f"git diff {c[:7]}^ {c[:7]} 실패")
+        for f in files:
+            touched.setdefault(f, []).append(c)
+    return touched
+
+
 def code_file_problems(ctx, files, csv_src):
-    """코드 회차 파일 검사 — 공개 저장소로 나갈 파일이 코드 경로 밖이거나(실데이터 강제 add 등)
-    fixture CSV에 실 CSV 행이 그대로 들어 있으면 문제 목록을 돌려준다."""
+    """코드 회차 검사 — origin/main..HEAD의 **모든 커밋**이 건드린 경로를 본다.
+    최종 차이(files)에 없는 경로를 건드렸거나(고치는 커밋으로 덮은 중간 커밋), 코드 경로 밖이거나
+    (실데이터 강제 add 등), 어느 커밋의 blob에라도 원본 CSV와 같은 줄이 있으면 문제 목록을 돌려준다."""
     pats = list(deploy.CODE_GLOBS) + PC_DOC_GLOBS
-    bad, real = [], None
-    for f in files:
+    touched = range_touched(ctx)
+    bad = []
+    extra = sorted(set(touched) - set(files))
+    if extra:
+        bad.append(f"중간 커밋에서 건드리고 최종 차이에는 없는 경로 {extra} — push하면 그 커밋이 이력째 공개된다. "
+                   f"고치는 커밋을 더하지 말고 그 커밋들을 버린다(사용자 확인 뒤 reset)")
+    for f in sorted(touched):
         if f == "index.html":
             bad.append("index.html(배포 커밋은 deploy만 만든다)")
         elif not any(fnmatch.fnmatchcase(f, pat) for pat in pats):
             bad.append(f"{f}(코드 경로 밖)")
-        elif f.lower().endswith(".csv"):
-            blob = show_blob(ctx, f"HEAD:{f}")
-            if blob is None:  # 지운 파일
+    real = None
+    for f in sorted(touched):
+        for c in touched[f]:
+            blob = show_blob(ctx, f"{c}:{f}")
+            if blob is None:  # 그 커밋에서 지운 파일
                 continue
             if real is None:
                 with open(csv_src, "rb") as fh:
                     real = _csv_rows(fh.read())
-            same = _csv_rows(blob) & real
+            same = _lines(blob) & real
             if same:
-                bad.append(f"{f}(실 CSV와 같은 행 {len(same)}개)")
+                bad.append(f"{f}@{c[:7]}(실 CSV와 같은 줄 {len(same)}개)")
+                break
     return bad
 
 
@@ -417,6 +446,25 @@ def classify_transfers(bundle):
     return stops, infos
 
 
+def transfer_only_month(ctx, run, stamp, month):
+    """수입·지출 행 없이 이체 행만 있는 달(CSV 최신 날짜의 달)의 매달 이체를 pipeline과 같은 기준으로 대조한다.
+    pipeline.py를 그 clone에서 그대로 불러 load_csv·EXPECTED_MONTHLY_TRANSFERS를 쓴다(규칙을 옮겨 적지 않는다).
+    → ({"missing": ["YYYY-MM 출금→입금 이체 행 없음", …], "rows": {입금 계좌: 금액 합}}, 검사 시작 월)"""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("_household_pipeline", os.path.join(ctx.repo, "pipeline.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    with redirect_stdout(io.StringIO()):
+        df = mod.load_csv(os.path.join(run, stamp["csv_copy"]))
+    tr = df[(df["구분"] == "이체") & (df["월"] == month)]
+    missing = []
+    for src, dst, _ in mod.EXPECTED_MONTHLY_TRANSFERS["items"]:
+        if len(tr[(tr["결제수단"] == src) & (tr["소분류"] == dst)]) == 0:
+            missing.append(f"{month} {src}→{dst} 이체 행 없음")
+    rows = {k: int(round(v)) for k, v in tr.groupby("소분류")["금액"].sum().items()}
+    return {"missing": missing, "rows": rows}, mod.EXPECTED_MONTHLY_TRANSFERS["start"]
+
+
 def log_block(text, header, prefix):
     """pipeline.log의 [경고] 줄 / detect.log의 [확인 필요] 줄을 꺼낸다."""
     items, on = [], False
@@ -480,7 +528,7 @@ def cmd_check(ctx, args):
             out.fail(f"운영 clone이 origin/main보다 {b}커밋 뒤에만 있다 — 빨리 감기 가능: "
                      f"`pc_run.py sync` 뒤 check 다시")
         elif b == 0:
-            files = diff_files(ctx, "refs/remotes/origin/main", "HEAD")
+            files = sorted(range_touched(ctx))
             commits = glines(ctx.repo, "log", "--oneline", "refs/remotes/origin/main..HEAD") or []
             if "index.html" in files:
                 out.fail("push되지 않은 배포 커밋이 있다(안전망) — 커밋 목록을 사용자에게 보이고 묻는다. "
@@ -726,7 +774,7 @@ def cmd_build(ctx, args):
         out.info(f"코드 회차: 앞선 커밋 {a}개 · 코드 파일 {code_files} — 승인 질문에 싣고 index.html과 함께 1 push")
     else:
         out.ok(f"HEAD = origin/main ({head[:7]})")
-    if code_files and os.path.isfile(csv_src):
+    if a:  # 앞선 커밋이 있으면 최종 차이가 비어 있어도(고치는 커밋으로 덮은 경우) 커밋마다 본다
         bad = code_file_problems(ctx, code_files, csv_src)
         if bad:
             out.fail(f"앞선 커밋에 공개 저장소로 나가면 안 되는 파일: {bad}")
@@ -906,7 +954,17 @@ def evaluate(ctx, run, stamp, out, acks, verbose=True):
     # (a) 이체
     say("── (a) 매달 이체 ──")
     stops, infos = classify_transfers(bundle)
+    # CSV 최신 날짜의 달에 수입·지출 행이 없으면 pipeline은 그 달 이체를 보지 않는다(months = 수입·지출 달).
+    # 그 달은 회차 폴더의 CSV 사본으로 직접 대조해 같은 멈춤을 낸다(자체 검토 막음 B2).
+    newest = latest_date_of(bundle)
+    data_month = newest.strftime("%Y-%m") if newest else latest_month
+    tx_only = None
+    if data_month > latest_month:
+        tx_only, start = transfer_only_month(ctx, run, stamp, data_month)
+        if data_month >= start:
+            stops = stops + tx_only["missing"]
     for s in stops:
+        m = s.split(" ", 1)[0]
         dst = s.split("→", 1)[1].split(" ", 1)[0] if "→" in s else "?"
         if acks.get("transfer"):
             out.info(f"{s} — 사용자가 그대로 진행하기로 답함(--ack-transfer)")
@@ -914,12 +972,15 @@ def evaluate(ctx, run, stamp, out, acks, verbose=True):
         else:
             print(f"[멈춤] {s}")
             ev.stops.append(("transfer",
-                             f"이번 CSV에 {latest_month} [{dst}] 이체 건이 안 보여요. 빠뜨리신 걸까요? "
-                             f"빠뜨리셨다면 그 줄(날짜 {latest_month}-01 · 구분 이체 · 소분류 {dst} · 결제수단 생활비 · "
+                             f"이번 CSV에 {m} [{dst}] 이체 건이 안 보여요. 빠뜨리신 걸까요? "
+                             f"빠뜨리셨다면 그 줄(날짜 {m}-01 · 구분 이체 · 소분류 {dst} · 결제수단 생활비 · "
                              f"금액은 pipeline.py EXPECTED_MONTHLY_TRANSFERS 값)을 추가한 CSV를 다시 주시고, "
                              f"그대로 두실 거면 '그대로 진행'이라고 답해 주세요."))
     for s in infos:
         out.info(f"매달 이체 확인(지난 달·합계 — 확인만): {s}")
+    if tx_only is not None:
+        out.info(f"{data_month}에는 수입·지출 행이 없고 이체 행만 있다: "
+                 + (" · ".join(f"{k} {v:,}원" for k, v in tx_only["rows"].items()) or "없음"))
     tx = [t for t in bundle.get("monthly_tx", {}).get(latest_month, []) if t.get("구분") == "이체"]
     if tx:
         agg = {}
@@ -1126,7 +1187,9 @@ def preflight(ctx, run, stamp, out, acks, code):
         out.fail(f"origin/main..HEAD 파일 {files} ⊄ 승인된 코드 파일 {sorted(allowed)}")
     elif files:
         out.info(f"코드 회차 파일(승인 질문에 실림): {files}")
-    bad = code_file_problems(ctx, files, stamp["csv_src"]) if files and os.path.isfile(stamp["csv_src"]) else []
+    bad = []
+    if origin and origin != rev(ctx, "HEAD") and os.path.isfile(stamp["csv_src"]):
+        bad = code_file_problems(ctx, files, stamp["csv_src"])
     if bad:
         out.fail(f"공개 저장소로 나가면 안 되는 파일: {bad}")
     check_integrity(ctx, run, stamp, out)
@@ -1214,11 +1277,12 @@ def cmd_deploy(ctx, args):
     new_head = rev(ctx, "HEAD")
     # push 직전 범위 검사
     files = diff_files(ctx, "refs/remotes/origin/main", "HEAD")
+    touched = sorted(range_touched(ctx))   # 최종 차이만이 아니라 올라갈 커밋들이 건드린 경로 전부
     allowed = set(code_files) | ({"index.html"} if not same else set())
     n_commits = int(gtext(ctx.repo, "rev-list", "--count", "refs/remotes/origin/main..HEAD")[1] or -1)
     expect_commits = stamp.get("ahead", 0) + (0 if same else 1)
-    if not set(files) <= allowed or n_commits != expect_commits:
-        out.fail(f"push 범위가 승인과 다르다 — 파일 {files} ⊄ {sorted(allowed)} 또는 커밋 {n_commits} ≠ {expect_commits}. "
+    if not set(files) <= allowed or not set(touched) <= allowed or n_commits != expect_commits:
+        out.fail(f"push 범위가 승인과 다르다 — 파일 {touched} ⊄ {sorted(allowed)} 또는 커밋 {n_commits} ≠ {expect_commits}. "
                  f"push하지 않는다(로컬 커밋은 남는다 — check의 안전망 절차)")
         return 1
     print(f"[PASS] push 범위 = {files} · 커밋 {n_commits}개")

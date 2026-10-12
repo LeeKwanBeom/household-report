@@ -448,7 +448,30 @@ class ScopeAndExposure(PcRunBase):
         self.commit_in_clone("tests/fixtures/sample.csv", header + "\n" + EXTRA_ROW + "\n", force_add=True)
         rc, out, _ = self.build()
         self.assertEqual(rc, 1, out)
-        self.assertIn("실 CSV와 같은 행", out)
+        self.assertIn("실 CSV와 같은 줄", out)
+
+    def test_reverted_intermediate_commit_with_real_rows_blocks(self):
+        """중간 커밋에 들어갔다가 고치는 커밋으로 빠진 실 행도 막는다 — push는 커밋을 통째로 올린다(자체 검토 막음 B1)."""
+        self.write_csv(csv_variant(add=[EXTRA_ROW]))
+        header = fixture_text().splitlines()[0]
+        self.commit_in_clone("tests/fixtures/leak.csv", header + "\n" + EXTRA_ROW + "\n", force_add=True)
+        git(self.repo, "rm", "-q", "--", "tests/fixtures/leak.csv")
+        git(self.repo, "commit", "-q", "-m", "fix")
+        self.commit_in_clone("pipeline.py", "# 코드\n")
+        rc, out, _ = self.build()
+        self.assertEqual(rc, 1, out)
+        self.assertIn("중간 커밋에서 건드리고 최종 차이에는 없는 경로", out)
+        self.assertIn("실 CSV와 같은 줄", out)
+
+    def test_force_added_csv_untracked_later_still_blocks(self):
+        """강제 add한 CSV를 다음 커밋에서 rm --cached로 '지워도' 막는다(B1)."""
+        self.commit_in_clone("data/x.csv", fixture_text(), force_add=True)
+        git(self.repo, "rm", "-q", "--cached", "--", "data/x.csv")
+        git(self.repo, "commit", "-q", "-m", "untrack")
+        rc, out, _ = self.build()
+        self.assertEqual(rc, 1, out)
+        self.assertIn("코드 경로 밖", out)
+        self.assertIn("중간 커밋에서 건드리고", out)
 
     def test_stamp_code_list_narrower_than_push_blocks(self):
         """push 범위 = index.html + 승인된 코드 파일. stamp 목록 밖 파일이 범위에 있으면 push하지 않는다."""
@@ -512,6 +535,27 @@ class ReviewStops(PcRunBase):
         self.assertIn(f"승인 코드: {self.code_of(rid)}", out)
         rc, out = self.pc("deploy", "--run", rid, "--ack-transfer")
         self.assertEqual(rc, 0, out)
+
+    def test_transfer_only_new_month_is_checked(self):
+        """CSV 최신 날짜의 달에 이체 행만 있으면(수입·지출 없음) 그 달 이체도 대조해 멈춘다(자체 검토 막음 B2)."""
+        rows = ['2026-10-01,이체,이체,신한은행,고정비 이체,"702,000",생활비,고정,',
+                '2026-10-01,이체,이체,청년미래적금,샘플 적금 이체,"500,000",생활비,고정,']
+        self.write_csv(csv_variant(add=rows))
+        rc, out, rid = self.build()
+        self.assertEqual(rc, 0, out)
+        rc, out = self.pc("review", "--run", rid)
+        self.assertEqual(rc, 2, out)
+        self.assertIn("[멈춤] 2026-10 생활비→커플통장 이체 행 없음", out)
+        self.assertNotIn("승인 코드:", out)
+        rc, out = self.pc("deploy", "--run", rid)
+        self.assertEqual(rc, 1, out)
+        rows.append('2026-10-01,이체,이체,커플통장,커플통장 이체,"400,000",생활비,고정,')
+        self.write_csv(csv_variant(add=rows))
+        rc, out, rid = self.build()
+        self.assertEqual(rc, 0, out)
+        rc, out = self.pc("review", "--run", rid)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("2026-10에는 수입·지출 행이 없고 이체 행만 있다", out)
 
     def test_validate_skip_line_or_empty_base_fails(self):
         """잔고 급변 검사를 '건너뜀'이면 FAIL(시험 후보 1)."""
