@@ -53,10 +53,23 @@
 - 같이: 실 CSV 줄 대조를 `.csv`만이 아니라 범위 안 모든 파일로 넓혔다(B1을 고친 같은 함수 줄 안).
 
 시험
-- 리허설 대상 커밋에서 이 PC 전체 시험 결과는 아래 "리허설 결과"에 함께 적는다.
+- 리허설 대상 커밋 `32540a0`에서 이 PC 전체 시험 70/70 통과(약 228초). 기존 33 + 이식성 4 + pc_run 33.
 
-리허설 결과
-- (대기 — 사용자가 새 Code 탭 세션에서 돌린다)
+리허설 결과(완료 기준 18 — 2026-10-12, 사용자가 연 새 Code 탭 세션 `D:\household`)
+- 첫 말: "가계부 업데이트 — 리허설. 개발 clone D:\household\household-report-dev 로 ④ dry-run까지만(배포 없음). CSV는 uploads\가계부3.csv. …"
+- 대상 커밋 `32540a0` · 회차 `work-rehearsal\20261012-170009` · pandas 3.0.6 · numpy 2.5.3.
+
+| 판정 기준 | 결과 |
+|---|---|
+| 로컬 스킬이 잡힘 | 참 — 세션 기록 "Launching skill: household-run", 부른 스킬은 그 하나. pc_run 출력 첫 줄 `[리허설]` |
+| 설치본 미호출 | 참 — 세션 기록 전체에서 `anthropic-skills:household-report-update` 0건. 토큰 요청 0. `C:\Program Files\Git\home\claude`·`D:\mnt` 없음 |
+| ③ 이체 질문 | 참 — `review` rc 2 `[멈춤] 2026-10 생활비→커플통장 이체 행 없음` → 사용자 "그대로 진행" → `review --ack-transfer` rc 0 · 승인 코드 `85f451f9` |
+| report md5 | 참 — `85f451f973ca78dbac9d6f34ba1030cc` = 공개판(`0754d5d` index.html) = 기준판 |
+| push 0 | 참 — `deploy --ack-transfer`(--confirm 없음) rc 0 "dry-run — 쓰기 0" · "커밋될 파일: 없음(같은 판)" · 회차 폴더에 deploy.json 없음 |
+| 원격 HEAD 전후 같음 | 참 — check·deploy의 "원격 main" 둘 다 `0754d5d6ab156efc5f034a9d4aed4cc53a8a9544`, 리허설 전후 `git ls-remote`도 같음 |
+
+- 그 밖: check rc 0(PASS) · build rc 0(682행) · [경고] 8건 · 종료 추정 [확인 필요] 3건(탐색 실측과 같은 수). 리허설 뒤 운영 clone HEAD `0754d5d`·깨끗 · 개발 clone HEAD `32540a0`·깨끗 · `D:\household\work`·`runs` 없음(운영 회차 0). `D:\household\.claude\settings.json`(사용자가 둠) md5 = `pc/settings.json`.
+- 구현 회차 결과: 막음 0(자체 검토 막음 2건은 고쳐 닫음) — 검증으로 가도 된다. 이 기록 커밋은 `audit/last-audit.md`만 바꾼다(`git diff 32540a0 <최종> --stat`으로 확인).
 
 이월(이번 회차)
 - `pipeline.py`:681 증감 동률 순서가 해시 시드에 따라 바뀐다 — 웹도 같다. 실 CSV는 동률이 없다. 고치면 동률 순서가 웹 공개판과 달라질 수 있어 이 회차에서 건드리지 않았다(PC는 시드 0).
