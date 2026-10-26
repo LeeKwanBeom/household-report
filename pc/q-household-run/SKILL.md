@@ -1,6 +1,6 @@
 ---
 name: q-household-run
-description: 이 PC(D:\household) Claude Code 탭에서 가계부 리포트를 재계산·확인·배포한다. "가계부 업데이트", "가계부 리포트", "가계부 CSV 넣어줘", "가계부 배포", "household report", "가계부 갱신", "리포트 다시 만들어줘" 같은 말이 나오거나 가계부 CSV를 다룰 때 반드시 이 스킬을 쓴다. 이 폴더에서는 설치본 household-report-update(웹용) 대신 이 스킬이다.
+description: 이 PC(D:\household) Claude Code 탭에서 가계부 리포트를 재계산·확인·배포한다. "가계부 업데이트", "가계부 리포트", "가계부 CSV 넣어줘", "가계부 배포", "household report", "가계부 갱신", "리포트 다시 만들어줘" 같은 말이 나오거나 가계부 CSV를 다룰 때 반드시 이 스킬을 쓴다. 금융사 내역 파일을 CSV 행으로 정리하는 "내역 정리"("카드 내역 넣었어", "통장 내역 정리")도 이 스킬이다. 이 폴더에서는 설치본 household-report-update(웹용) 대신 이 스킬이다.
 ---
 
 # 가계부 리포트 — 이 PC Code 탭 (/q-household-run)
@@ -21,6 +21,7 @@ description: 이 PC(D:\household) Claude Code 탭에서 가계부 리포트를 �
 ```bash
 export PY=/d/household/.venv/Scripts/python.exe PYTHONUTF8=1 PYTHONDONTWRITEBYTECODE=1 GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never; unset GIT_ASKPASS SSH_ASKPASS
 RUN="$PY /d/household/household-report/scripts/pc_run.py"
+IMP="$PY /d/household/household-report/scripts/pc_import.py"
 ```
 
 **리허설** — 사용자가 첫 말에 "리허설"과 개발 clone 경로를 줄 때만: `RUN="$PY <개발 clone>/scripts/pc_run.py --rehearsal"`(경로는 `/d/...` 꼴). 출력 첫 줄이 `[리허설]`이어야 한다. 리허설은 ④ dry-run까지다: 승인 질문은 보이기만 하고, `deploy`를 `--confirm` 없이 돌린 뒤 끝낸다. 운영 회차에서는 쓰지 않는다.
@@ -34,6 +35,20 @@ cd /d/household/household-report && git status --porcelain && git fetch origin &
 ```
 
 status 줄이 하나도 없고 숫자가 `0 N`(N ≥ 1)이면 `git merge --ff-only origin/main` → `$RUN sync`(exclude 줄) → 1로. 그 밖(앞섬·갈라짐·바뀐 파일)이면 멈추고 사용자에게 보인다.
+
+## 내역 정리 — 사용자가 "내역 정리"(내역 파일을 넣었다)고 할 때만, ①의 앞에
+
+절차 설명은 `pc/code-tab.md` 12절. 금융사 사이트를 열거나 로그인·내려받기를 하지 않는다(파일은 사용자가 받아 넣는다).
+비밀번호(카카오뱅크 암호 엑셀 포함)를 묻거나 받지 않는다 — 엑셀에서 풀어 저장한 파일만 쓴다.
+
+1. `$IMP scan` — 파일·출처별 건수·확인 필요(종류별 첫 줄들)·카드대금 대조·잔액 대조·apply 막힘을 대화로 전한다.
+   `[FAIL]`(설정 없음·CSV 둘 이상 등)이면 멈추고 그 줄을 보인다.
+2. 확인 필요를 묻는다(종류별로 묶어서). 사용자가 `확인필요.xlsx`를 채우면 그 파일을, 대화로 답하면
+   `$IMP answer --run <회차> --item <번호> --set 처리=… [--set 대분류=…]`로 적는다(열린 엑셀이 있으면 닫아 달라고 한다).
+   답하지 않은 항목은 보류로 남아 다음에 다시 올라온다 — 다 답하지 않아도 된다.
+3. `$IMP apply --run <회차>`(dry-run) — 새 행·지울 행·규칙 추가·막힘을 보인다. 막힘(`--skip`·`--ack-*`)은 사용자에게 사유를 받아서만 붙인다.
+4. 사용자가 적용하라고 하면 `$IMP apply --run <회차> [같은 --skip·--ack-*] --confirm` → 아래 흐름 1(S0)부터.
+   CSV를 고치고 싶다고 하면 scan부터 다시(새 회차).
 
 ## 흐름
 
