@@ -58,6 +58,8 @@
 
 병합 방법(검증 "가도 된다" 뒤 · 사용자 승인 1회 · force 0 · push 1회 · 재시도 0) — 로컬 기록의 명령 그대로: 개발 clone에서 `git fetch origin` → `git merge-base --is-ancestor origin/main <브랜치 끝>`(FF-OK) → `pc_run.code_file_problems`(실값 대조) 결과 없음 확인 → `git push <URL> <브랜치 끝>:refs/heads/main`(빨리 감기만) → `git ls-remote` = 브랜치 끝. 그 뒤 운영 clone `pc_run.py sync`(exclude 줄 4개 추가) → 로컬 사본 `pc/q-household-run/SKILL.md` 복사 → `pc_run.py check` PASS. index.html은 바뀌지 않는다.
 
+수정 회차(첫째 — 검증 막음 둘): 공개 노출 대조가 현대카드 꼴 날짜 셀(`YYYY년 M월 D일`)과 세 자리 미만 금액의 (날짜, 금액)을 놓치던 구멍을 닫음(설정 서명·원장이 읽은 거래를 시각 없는 꼴·월-일 꼴로도 대조) · 규칙이 결제수단을 바꾼 카드 행은 그 통장의 비고 빈 손 행도 '경로 다른 짝'으로 물음(자동 추가 없음) — 둘 다 회귀 시험. 기존 시험 합성 값 하나가 실 거래와 겹쳐 그 값을 바꾸고 브랜치를 다시 묶음(옛 브랜치는 이름만 바꿔 남김).
+
 ---
 
 # Code 탭 이전 — 탐색 기준선 요약 · 구현 기록 (2026-10-12)
