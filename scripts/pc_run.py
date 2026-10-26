@@ -57,7 +57,11 @@ COMMIT_NAME = "LeeKwanBeom"
 COMMIT_EMAIL = "322668067+LeeKwanBeom@users.noreply.github.com"
 
 OPS_CLONE = "household-report"          # 운영 clone 폴더 이름 (<home>/household-report)
-EXCLUDE_LINES = ["*.csv", "!tests/fixtures/*.csv", "data_bundle.json", "__pycache__/"]
+EXCLUDE_LINES = ["*.csv", "!tests/fixtures/*.csv", "data_bundle.json", "__pycache__/",
+                 "rules/", "*.xlsx", "*.xls", "*.sqlite"]
+# 내역 정리(pc_import.py)의 실데이터 꼴 — 이 확장자의 경로는 내용과 상관없이 공개 저장소로 내보내지 않는다(내역 자동화 3-0 11).
+DATA_EXTS = (".xlsx", ".xlsm", ".xls", ".sqlite", ".sqlite3", ".db", ".toml")
+DATA_MAGIC = (b"PK\x03\x04", b"\xd0\xcf\x11\xe0", b"SQLite format 3\x00")
 # 2026-10-12 리허설·탐색에서 공개판과 같은 md5를 낸 판. 다르면 S0가 [주의](이월 8).
 REFERENCE_VERSIONS = {"pandas": "3.0.6", "numpy": "2.5.3"}
 # (작업 루트 기준 로컬 파일, 저장소 정본). md5가 다르면 S0가 [주의].
@@ -338,10 +342,212 @@ def range_touched(ctx):
     return touched
 
 
+_DATE_RX = re.compile(r"(?<!\d)(20\d{2})([-./]?)(\d{2})\2(\d{2})(?!\d)")
+_MD_RX = re.compile(r"(?<![\d\-./])(0[1-9]|1[0-2])([-./])(0[1-9]|[12]\d|3[01])(?![\d\-./])")
+_TIME_RX = re.compile(r"(?<![\d:])([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?(?![\d:])")
+_AMT_RX = re.compile(r"(?<![\d.])(?<!\d,)\d{1,3}(?:,\d{3})+(?![\d.]|,\d)|(?<![\d.])(?<!\d,)\d{3,}(?![\d.]|,\d)")
+_ID_RX = re.compile(r"\d[\d\- ]{6,}\d")
+_FIELD_SPLIT = re.compile(r"[,\t|;\"'\[\]{}()=:]")
+
+
+def _ids_in(text):
+    """8자리 이상 숫자열(가운데 '-'·공백 허용) — 승인번호·계좌번호 꼴. 날짜 꼴(20YY-MM-DD)은 식별 숫자가 아니다."""
+    out = set()
+    for m in _ID_RX.finditer(text):
+        d = re.sub(r"\D", "", m.group(0))
+        if len(d) >= 8 and not (len(d) == 8 and re.fullmatch(r"20\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])", d)):
+            out.add(d)
+    return out
+
+
+def _stamps_in_text(text):
+    """한 줄의 (날짜[ 시각], 금액) 조합 + (월-일, 금액). 날짜·시각을 뺀 나머지에서 3자리 이상 숫자를 금액으로 본다.
+    연도 없는 'MM-DD'(시험 도우미 꼴)도 월-일 도장으로 본다. 시각은 한 자리 시('9:05')도 받는다."""
+    dates = []
+    for m in _DATE_RX.finditer(text):
+        try:
+            dates.append(date(int(m.group(1)), int(m.group(3)), int(m.group(4))).isoformat())
+        except ValueError:
+            pass
+    mds = [f"{m.group(1)}-{m.group(3)}" for m in _MD_RX.finditer(_DATE_RX.sub(" ", text))]
+    mds += [d[5:] for d in dates]
+    if not dates and not mds:
+        return set()
+    times = [f"{int(m.group(1)):02d}:{m.group(2)}" for m in _TIME_RX.finditer(text)]
+    rest = _TIME_RX.sub(" ", _MD_RX.sub(" ", _DATE_RX.sub(" ", text)))
+    amts = {int(x.replace(",", "")) for x in _AMT_RX.findall(rest)}
+    out = {(d, a) for d in dates for a in amts}
+    out |= {(f"{d} {t}", a) for d in dates for t in times for a in amts}
+    out |= {("MD " + md, a) for md in mds for a in amts}
+    return out
+
+
+def _row_values(cells, v):
+    """내역 파일 한 행(셀 목록) → 실값 집합에 (날짜[ 시각], 금액) · 숫자열을 더한다."""
+    dates, times, amts = [], [], set()
+    for t, val in cells:
+        if t == "d":
+            dates.append(val.date().isoformat())
+            if (val.hour, val.minute) != (0, 0):
+                times.append(val.strftime("%H:%M"))
+        elif t == "t":
+            times.append(val.strftime("%H:%M"))
+        elif t == "n":
+            if float(val).is_integer() and abs(val) >= 100:
+                amts.add(int(abs(val)))
+        elif t == "s":
+            s = str(val).strip()
+            for m in _DATE_RX.finditer(s):
+                try:
+                    dates.append(date(int(m.group(1)), int(m.group(3)), int(m.group(4))).isoformat())
+                except ValueError:
+                    pass
+            times += [f"{int(m.group(1)):02d}:{m.group(2)}" for m in _TIME_RX.finditer(s)]
+            if re.fullmatch(r"[-+(]?[\d,]+원?\)?", s) and len(re.sub(r"\D", "", s)) >= 3:
+                amts.add(int(re.sub(r"\D", "", s)))
+            v["ids"] |= _ids_in(s)
+    for d in dates:
+        for a in amts:
+            # 시각을 뺀 꼴·연도 없는 꼴로 옮겨도 잡히게 (날짜, 금액) · (월-일, 금액)도 넣는다
+            v["stamps"] |= {(f"{d} {tm}", a) for tm in times} | {(d, a), ("MD " + d[5:], a)}
+
+
+def real_values(ctx, csv_src):
+    """공개 노출 대조용 실값(내역 자동화 3-0 11) — uploads/**(가계부 CSV·백업·내역 파일)·rules/**에서 뽑는다.
+    lines: 가계부 CSV·분류규칙.csv 데이터 줄 · ids: 8자리 이상 숫자열(승인번호·계좌번호) ·
+    stamps: 내역 파일 행의 (날짜[ 시각], 금액) · words: 가맹점 원문·규칙 키·설정의 적요 패턴·식별 값."""
+    import sqlite3
+    import tomllib
+    import import_sources as srcmod
+    v = {"lines": set(), "ids": set(), "stamps": set(), "words": set()}
+    generic = set()     # 설정이 적요·거래구분·통장 안 칸으로 선언한 낱말 — 가맹점 문자열로 보지 않는다
+    inbox = os.path.normcase(os.path.join(ctx.uploads, "내역")) + os.sep
+    play = os.path.join(ctx.home, "work-rehearsal", "내역")       # 리허설 놀이터(실 CSV·rules 사본)
+    paths = [csv_src] if csv_src and os.path.isfile(csv_src) else []
+    for root in (ctx.uploads, os.path.join(ctx.home, "rules"), os.path.join(play, "uploads"),
+                 os.path.join(play, "rules")):
+        for r, _, fs in os.walk(root):
+            paths += [os.path.join(r, n) for n in sorted(fs)]
+    for full in paths:
+        low = full.lower()
+        in_inbox = os.path.normcase(full).startswith(inbox)
+        try:
+            if low.endswith(".csv") and not in_inbox:
+                with open(full, "rb") as fh:
+                    data = fh.read()
+                v["lines"] |= {ln for ln in _csv_rows(data) if re.search(r"\w", ln)}
+                if os.path.basename(full) == "분류규칙.csv":
+                    import csv as _csv
+                    for row in _csv.DictReader(io.StringIO(data.decode("utf-8-sig"), newline="")):
+                        v["words"] |= {x.strip() for x in (row.get("원문", ""), row.get("키", ""))
+                                       if len(x.strip()) >= 3}
+            elif low.endswith(".toml"):
+                with open(full, "rb") as fh:
+                    raw = tomllib.load(fh)
+                for s in raw.get("source", []):
+                    for x in s.get("identity", []):
+                        v["ids"] |= _ids_in(str(x))
+                        if len(str(x).strip()) >= 5:
+                            v["words"].add(str(x).strip())
+                for sec in ("transfer", "transfer_ambiguous", "card_payment", "income", "internal"):
+                    for t in raw.get(sec, []):
+                        if t.get("field") in ("memo", "category") or sec == "internal":
+                            # 은행 적요·거래구분·통장 안 칸 낱말(오픈뱅킹 이체·세이프박스 …) — 개인 값이 아니다
+                            generic |= {str(x).strip("^$").replace("\\", "") for x in t.get("patterns", [])}
+                            continue
+                        for pat in t.get("patterns", []):
+                            lit = str(pat).strip("^$").replace("\\", "")
+                            if len(lit) >= 5:
+                                v["words"].add(lit)
+                            v["ids"] |= _ids_in(lit)
+            elif low.endswith((".sqlite", ".sqlite3", ".db")):
+                from pathlib import Path
+                con = sqlite3.connect(Path(full).absolute().as_uri() + "?mode=ro", uri=True)
+                try:
+                    for (data,) in con.execute("SELECT data FROM tx"):
+                        t = json.loads(data)
+                        if len(str(t.get("merchant", "")).strip()) >= 3 and not (
+                                t.get("kind") == "bank" and str(t.get("merchant", "")).strip() == str(t.get("status", "")).strip()):
+                            v["words"].add(str(t["merchant"]).strip())
+                        v["ids"] |= _ids_in(str(t.get("approval", "")))
+                        tm = str(t.get("time") or "")[:5]
+                        v["stamps"].add((t["date"] + (f" {tm}" if tm else ""), abs(int(t.get("amount", 0)))))
+                finally:
+                    con.close()
+            elif in_inbox:
+                _, sheets = srcmod.read_table(full)
+                for _, rows in sheets:
+                    for row in rows:
+                        _row_values(row, v)
+        except Exception:  # noqa: BLE001 — 읽을 수 없는 파일(암호 원본 등)은 경로·바이너리 검사로 막는다
+            continue
+    # 내역 파일의 가맹점 원문: 설정이 있으면 그 출처 서명으로 읽어 가맹점 칸을 더한다
+    cfg_path = os.path.join(ctx.home, "rules", "계좌.toml")
+    if os.path.isfile(cfg_path) and os.path.isdir(os.path.join(ctx.uploads, "내역")):
+        try:
+            import pipeline as _pl
+            cfg = srcmod.load_config(cfg_path, set(_pl.ACCOUNT_KEY.values()), set(_pl.CARD_TARGETS))
+        except Exception:  # noqa: BLE001
+            cfg = None
+            print("[주의] 공개 노출 대조: rules/계좌.toml을 읽지 못해 내역 가맹점 원문은 대조하지 않는다"
+                  "(숫자·날짜·금액·규칙 줄은 대조한다)")
+        for r, _, fs in os.walk(os.path.join(ctx.uploads, "내역")) if cfg else ():
+            for n in fs:
+                try:
+                    _, sheets = srcmod.read_table(os.path.join(r, n))
+                except Exception:  # noqa: BLE001
+                    continue
+                for s in cfg["sources"]:
+                    try:
+                        hit = srcmod.identify(sheets, s)
+                        if hit:
+                            for t in srcmod.parse_sheet(sheets[hit[0]][1], hit[1], s, n):
+                                # 통장 '내용'이 거래구분과 같은 줄(세이프박스 등)은 은행 메뉴 낱말이다
+                                if len(t.merchant.strip()) >= 3 and not (t.kind == "bank" and
+                                                                         t.merchant.strip() == t.status.strip()):
+                                    v["words"].add(t.merchant.strip())
+                            break
+                    except Exception:  # noqa: BLE001
+                        continue
+    v["words"] -= generic
+    return v
+
+
+def blob_hits(blob, v, public=frozenset()):
+    """텍스트 blob과 실값 집합이 겹치는 곳 → 짧은 설명 목록(첫 몇 개). 바이너리 꼴이면 그것만.
+    가맹점·규칙 문자열은 4자 이상이면 줄 안 부분 문자열(공백 무시)로, 3자면 칸 단위로 찾는다 — '(주)…' 꼴 상호도."""
+    if blob.startswith(DATA_MAGIC):
+        return ["엑셀·sqlite 바이너리"]
+    text = blob.decode("utf-8-sig", "replace")
+    same = (_lines(blob) - public) & v["lines"]
+    hits = [f"실 CSV와 같은 줄 {len(same)}개"] if same else []
+    long_words = {re.sub(r"\s+", "", w) for w in v["words"] if len(re.sub(r"\s+", "", w)) >= 4}
+    short_words = {w for w in v["words"] if len(re.sub(r"\s+", "", w)) < 4}
+    ids = stamps = words = 0
+    for ln in text.splitlines():
+        s = ln.strip()
+        if not s or s in public:      # origin/main에 이미 있던 줄은 새 노출이 아니다
+            continue
+        ids += len(_ids_in(s) & v["ids"])
+        stamps += len(_stamps_in_text(s) & v["stamps"])
+        squashed = re.sub(r"\s+", "", s)
+        words += sum(1 for w in long_words if w in squashed)
+        words += len({f.strip() for f in _FIELD_SPLIT.split(s)} & short_words)
+    if ids:
+        hits.append(f"실 승인번호·계좌 식별 숫자 {ids}개")
+    if stamps:
+        hits.append(f"실 내역의 날짜+금액 {stamps}개")
+    if words:
+        hits.append(f"실 가맹점·규칙·적요 문자열 {words}개")
+    return hits
+
+
 def code_file_problems(ctx, files, csv_src):
     """코드 회차 검사 — origin/main..HEAD의 **모든 커밋**이 건드린 경로를 본다.
     최종 차이(files)에 없는 경로를 건드렸거나(고치는 커밋으로 덮은 중간 커밋), 코드 경로 밖이거나
-    (실데이터 강제 add 등), 어느 커밋의 blob에라도 원본 CSV와 같은 줄이 있으면 문제 목록을 돌려준다."""
+    (실데이터 강제 add 등), 내역·규칙·원장 꼴 경로(xlsx·xls·sqlite·toml)이거나, 어느 커밋의 blob에라도
+    실값(가계부 CSV 줄 · 내역 파일의 승인번호·거래일시+금액·가맹점 · 계좌 식별 문자열 · 규칙 줄)이 있으면
+    문제 목록을 돌려준다(내역 자동화 3-0 11 — CODE_GLOBS를 넓히기 전에 이 대조가 먼저다)."""
     pats = list(deploy.CODE_GLOBS) + PC_DOC_GLOBS
     touched = range_touched(ctx)
     bad = []
@@ -354,18 +560,21 @@ def code_file_problems(ctx, files, csv_src):
             bad.append("index.html(배포 커밋은 deploy만 만든다)")
         elif not any(fnmatch.fnmatchcase(f, pat) for pat in pats):
             bad.append(f"{f}(코드 경로 밖)")
-    real = None
+        if f.lower().endswith(DATA_EXTS):
+            bad.append(f"{f}(내역·규칙·원장 꼴 경로 — 내용과 상관없이 공개 금지)")
+    vals = None
     for f in sorted(touched):
+        base = show_blob(ctx, f"refs/remotes/origin/main:{f}")
+        public = frozenset(_lines(base)) if base is not None else frozenset()
         for c in touched[f]:
             blob = show_blob(ctx, f"{c}:{f}")
             if blob is None:  # 그 커밋에서 지운 파일
                 continue
-            if real is None:
-                with open(csv_src, "rb") as fh:
-                    real = _csv_rows(fh.read())
-            same = _lines(blob) & real
-            if same:
-                bad.append(f"{f}@{c[:7]}(실 CSV와 같은 줄 {len(same)}개)")
+            if vals is None:
+                vals = real_values(ctx, csv_src)
+            hits = blob_hits(blob, vals, public)
+            if hits:
+                bad.append(f"{f}@{c[:7]}({' · '.join(hits)})")
                 break
     return bad
 

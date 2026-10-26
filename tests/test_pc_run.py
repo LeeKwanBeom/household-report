@@ -492,6 +492,61 @@ class ScopeAndExposure(PcRunBase):
         self.assertIn("코드 경로 밖", out)
         self.assertIn("중간 커밋에서 건드리고", out)
 
+    def put_real_import_files(self):
+        """작업 루트에 '실' 내역 파일·규칙(시험용 합성 값)을 둔다 — 대조 집합의 원천."""
+        inbox = os.path.join(self.home, "uploads", "내역", "2026-10-27")
+        os.makedirs(inbox)
+        with open(os.path.join(inbox, "card.csv"), "w", encoding="utf-8", newline="") as f:
+            f.write("카드번호,****9999\r\n이용일시,가맹점명,이용금액,승인번호\r\n"
+                    "2026-10-05 13:47:00,비밀상점 역삼,\"23,456\",87654321\r\n")
+        rules = os.path.join(self.home, "rules")
+        os.makedirs(rules)
+        with open(os.path.join(rules, "분류규칙.csv"), "w", encoding="utf-8-sig", newline="") as f:
+            f.write("키,대분류,소분류,세부내용,고정여부,결제수단,물음,원문,만든 날,근거 회차\r\n"
+                    "비밀가게,식비,외식,비밀가게,,,자동,비밀가게 3호점,2026-10-27,x\r\n")
+
+    def test_real_import_values_in_commit_block_build(self):
+        """내역 자동화 3-0 11 · 완료 기준 22: 실 내역 파일·규칙에서 뽑은 값 1개라도 커밋에 있으면 FAIL
+        (승인번호 · 거래일시+금액 · 가맹점 원문 · 규칙 줄). 시험 후보 13."""
+        self.put_real_import_files()
+        cases = [
+            ("tests/test_x.py", "APPROVAL = '87654321'\n", "승인번호"),
+            ("tests/test_x.py", "ROW = '2026.10.05 13:47', 23456\n", "날짜+금액"),
+            ("tests/test_x.py", "M = ['비밀가게 3호점']\n", "가맹점"),
+            ("tests/fixtures/r.csv", "비밀가게,식비,외식,비밀가게,,,자동,비밀가게 3호점,2026-10-27,x\n", "실 CSV와 같은 줄"),
+        ]
+        for rel, text, want in cases:
+            with self.subTest(want=want):
+                base = git(self.repo, "rev-parse", "HEAD")
+                self.commit_in_clone(rel, text, force_add=True)
+                rc, out, _ = self.build()
+                self.assertEqual(rc, 1, out)
+                self.assertIn(want, out)
+                git(self.repo, "reset", "-q", "--hard", base)
+        # 같은 꼴의 가짜 값(다른 날짜·금액·번호)은 통과 — 오탐으로 막지 않는다
+        self.commit_in_clone("tests/test_x.py", "ROW = '2026.10.05 13:48', 23457, '87654320', '가짜상점'\n")
+        self.write_csv(csv_variant(add=[EXTRA_ROW]))
+        rc, out, _ = self.build()
+        self.assertEqual(rc, 0, out)
+
+    def test_data_paths_and_binaries_block_build(self):
+        """xlsx·xls·sqlite·toml 경로는 내용과 상관없이 FAIL · 바이너리(zip·OLE·sqlite 머리)는 이름을 바꿔도 FAIL."""
+        base = git(self.repo, "rev-parse", "HEAD")
+        self.commit_in_clone("tests/fixtures/real.xlsx", "x", force_add=True)
+        rc, out, _ = self.build()
+        self.assertEqual(rc, 1, out)
+        self.assertIn("내역·규칙·원장 꼴 경로", out)
+        git(self.repo, "reset", "-q", "--hard", base)
+        path = os.path.join(self.repo, "tests", "fixtures", "renamed.csv")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(b"PK\x03\x04" + b"\x00" * 30)
+        git(self.repo, "add", "-f", "--", "tests/fixtures/renamed.csv")
+        git(self.repo, "commit", "-q", "-m", "bin")
+        rc, out, _ = self.build()
+        self.assertEqual(rc, 1, out)
+        self.assertIn("바이너리", out)
+
     def test_stamp_code_list_narrower_than_push_blocks(self):
         """push 범위 = index.html + 승인된 코드 파일. stamp 목록 밖 파일이 범위에 있으면 push하지 않는다."""
         self.commit_in_clone("build.py", "# 코드\n")
@@ -708,8 +763,9 @@ class RehearsalAndSync(PcRunBase):
             text = f.read()
         for line in pc_run.EXCLUDE_LINES:
             self.assertIn(line, text.splitlines())
-        # 회차 산출물을 clone에 실수로 두어도 git status에 안 잡힌다
-        for name in ("x.csv", "data_bundle.json"):
+        # 회차 산출물·내역 파일·규칙·원장을 clone에 실수로 두어도 git status에 안 잡힌다
+        os.makedirs(os.path.join(self.repo, "rules"))
+        for name in ("x.csv", "data_bundle.json", "card.xlsx", "bank.xls", "rules/계좌.toml", "원장.sqlite"):
             with open(os.path.join(self.repo, name), "w") as f:
                 f.write("x")
         self.assertEqual(git(self.repo, "status", "--porcelain"), "")
