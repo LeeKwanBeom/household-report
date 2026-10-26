@@ -320,6 +320,28 @@ NO_CORE_ROWS_MSG = ("수입·지출 행이 하나도 없습니다(이체만 있�
                     "집계할 수 없어 중단합니다.")
 
 
+def account_balance(df, name, until=None):
+    """계좌 잔고 → (잔고, 반영 건수).
+
+    계좌마다 as_of가 다르므로 계좌별로 따로 자른다. as_of 당일까지의 거래는
+    이미 시작 잔고에 들어 있으므로 '초과(>)' 비교를 쓴다.
+    until: 이 날짜까지의 거래만 센다(None이면 상한 없음 — 리포트). PC 내역 정리
+    (scripts/pc_import.py)의 잔액 대조가 은행 파일 끝 날짜까지 잘라 같은 공식을 쓴다.
+    """
+    meta = ACCOUNTS_START[name]
+    start = meta["balance"]
+    short = ACCOUNT_KEY[name]
+    src = df[df["날짜"] > pd.Timestamp(meta["as_of"])]
+    if until is not None:
+        src = src[src["날짜"] <= pd.Timestamp(until)]
+    income = src[(src["구분"] == "수입") & (src["결제수단"] == short)]["금액"].sum()
+    expense = src[(src["구분"] == "지출") & (src["결제수단"] == short)]["금액"].sum()
+    out = src[(src["구분"] == "이체") & (src["결제수단"] == short)]["금액"].sum()
+    into = src[(src["구분"] == "이체") & (src["소분류"] == short)]["금액"].sum()
+    moved = len(src[((src["결제수단"] == short) | (src["소분류"] == short))])
+    return round(start + income - expense - out + into), moved
+
+
 def build_bundle(df):
     # load_csv가 남긴 로딩 단계 통지 (필터링 전에 먼저 꺼낸다 — attrs는 연산을 거치며 사라질 수 있다)
     load_notices = dict(df.attrs.get("load_notices", {}))
@@ -497,24 +519,10 @@ def build_bundle(df):
     stale_rule_keys = [k for k in excluded_keys if k not in seen_keys]
 
     # ---- 계좌 잔고 ----
-    # 계좌마다 as_of가 다르므로 계좌별로 따로 자른다. as_of 당일까지의 거래는
-    # 이미 시작 잔고에 들어 있으므로 '초과(>)' 비교를 쓴다.
-    def account_balance(name):
-        meta = ACCOUNTS_START[name]
-        start = meta["balance"]
-        short = ACCOUNT_KEY[name]
-        src = df[df["날짜"] > pd.Timestamp(meta["as_of"])]
-        income = src[(src["구분"] == "수입") & (src["결제수단"] == short)]["금액"].sum()
-        expense = src[(src["구분"] == "지출") & (src["결제수단"] == short)]["금액"].sum()
-        out = src[(src["구분"] == "이체") & (src["결제수단"] == short)]["금액"].sum()
-        into = src[(src["구분"] == "이체") & (src["소분류"] == short)]["금액"].sum()
-        moved = len(src[((src["결제수단"] == short) | (src["소분류"] == short))])
-        return round(start + income - expense - out + into), moved
-
     accounts_list = []
     for name, meta in ACCOUNTS_START.items():
         # 대여금도 예외 없이 계산한다. 회수 기록이 있으면 줄어야 하기 때문이다.
-        bal, moved = account_balance(name)
+        bal, moved = account_balance(df, name)
         accounts_list.append({"name": name, "start_balance": meta["balance"],
                               "current_balance": bal, "desc": meta["desc"],
                               "as_of": meta["as_of"], "tx_count": moved,
