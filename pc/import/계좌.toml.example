@@ -1,0 +1,127 @@
+# 내역 정리(scripts/pc_import.py) 설정 예시 — 값은 전부 가짜다.
+#
+# 실제 파일은 clone 밖 D:\household\rules\계좌.toml 이다(공개 저장소에 올리지 않는다).
+# 열 이름·값 꼴은 금융사 실물 파일을 보고 그대로 적는다(탐색 기준선 2-1의 [추론]은 실물로 확정).
+# 하나라도 어긋나면 그 출처는 '실패'로 요란하게 멈춘다 — 조용히 잘못 읽지 않게(3-0 2).
+#
+# 계좌명은 pipeline.py ACCOUNT_KEY 값(생활비·신한은행·청년미래적금·대여금·커플통장·주식잔고),
+# 카드명은 CARD_TARGETS(현대카드·신한카드)만 쓴다. 파일이 있는 통장(bank 출처)이 아닌 계좌는
+# '파일 없는 제외 계좌'로 본다.
+
+start_date = "2026-10-01"            # 자동화 시작일 — 이 날 전 거래는 버린다(고른 항목 17)
+date_slack = { card = 2, bank = 0 }  # 손 행과 짝 지을 때 날짜 여유 D(카드 2 · 통장 0)
+
+# 출처 하나 = 금융사 파일 꼴 하나. 넷 다 맞아야 그 출처로 읽는다(3-0 2):
+#   (a) columns: 머리 줄 열 이름 정확 일치(순서까지)
+#   (b) values: 열마다 셀 형(s 문자열 · n 숫자 · d 날짜시각 · t 시각 · b 참거짓 · any)과 정규식(fullmatch)
+#   (c) roles: 열 역할 — date · time · amount(카드) · out/in(통장) · merchant · memo · approval · balance ·
+#       cancel(상태 열) · installment_months / installment_seq · billed(실결제액) · points · foreign · pay_date
+#   (d) identity: 파일 머리(머리 줄 위 칸들)나 identity_column 값에 들어 있어야 하는 카드·계좌 식별 문자열
+[[source]]
+id = "가짜카드A"
+kind = "card"
+card = "현대카드"
+account = "생활비"                    # 청구 계좌(카드값이 빠지는 통장 — 결제수단 기본값)
+file_types = ["xls", "xlsx", "text"]
+columns = ["이용일자", "이용시각", "가맹점명", "이용금액", "할부개월", "승인번호", "상태"]
+identity = ["0000"]                   # 예: 카드번호 끝 4자리(가짜)
+date_basis = "승인일"                 # 승인일 / 매입일(매입일이면 날짜 여유를 5로 올린다 — 3-0 2)
+date_formats = ["%Y.%m.%d"]
+installment_mode = "total"            # total(승인 총액 + 할부개월) / per_seq(회차별 행) / none
+cancel_values = ["취소"]
+pay_day = 14                          # 결제일
+cycle_months_before = 1               # 이용기간: (결제월 - 1)월 cycle_start_day일 ~ 다음 달 전날
+cycle_start_day = 1
+footer_re = "^(합계|총계)"
+[source.roles]
+date = "이용일자"
+time = "이용시각"
+merchant = "가맹점명"
+amount = "이용금액"
+installment_months = "할부개월"
+approval = "승인번호"
+cancel = "상태"
+[source.values]
+"이용일자" = { type = "s", re = '\d{4}\.\d{2}\.\d{2}' }
+"이용시각" = { type = "s", re = '\d{2}:\d{2}:\d{2}' }
+"가맹점명" = { type = "s" }
+"이용금액" = { type = ["n", "s"], re = '-?[\d,]+' }
+"할부개월" = { type = "s", re = '일시불|\d+개월' }
+"승인번호" = { type = "s", re = '\d{8}' }
+"상태" = { type = "s", re = '정상|취소' }
+
+[[source]]
+id = "가짜통장"
+kind = "bank"
+account = "생활비"
+file_types = ["xlsx"]
+columns = ["거래일시", "적요", "내용", "출금액", "입금액", "잔액"]
+identity = ["0000-00-0000000"]        # 예: 계좌번호(가짜)
+date_formats = ["%Y.%m.%d %H:%M:%S"]
+[source.roles]
+date = "거래일시"
+merchant = "내용"
+memo = ["적요", "내용"]
+out = "출금액"
+in = "입금액"
+balance = "잔액"
+[source.values]
+"거래일시" = { type = "s", re = '\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2}' }
+"적요" = { type = "s" }
+"내용" = { type = "s", empty_ok = true }
+"출금액" = { type = "n" }
+"입금액" = { type = "n" }
+"잔액" = { type = "n" }
+
+# 이체 — 적요 패턴은 '^…'·'…$' 정규식이거나 정확 일치 문자열이다(3-0 5).
+# 패턴은 계좌마다 유일한 식별자(상대 은행+계좌 끝자리·별명)여야 한다. 둘 이상 계좌에 걸리는
+# 본인 이름 같은 패턴은 transfer_ambiguous에 두면 자동 행 0 — 확인 필요로만 올라온다.
+[[transfer]]
+account = "생활비"                    # 이 통장 파일에서
+counterpart = "신한은행"              # 이 상대와 오간 이체
+patterns = ['^가짜은행 0000$']
+
+[[transfer_ambiguous]]
+account = "생활비"
+patterns = ["홍길동"]                 # 예: 본인 이름(가짜)
+candidates = ["커플통장", "신한은행", "청년미래적금", "주식잔고"]
+default = "커플통장"
+
+# 이체 쌍 기본값(이체 행의 대분류·세부내용·고정여부)
+[[transfer_pair]]
+from = "생활비"
+to = "신한은행"
+"대분류" = "이체"
+"세부내용" = "고정비 이체"
+"고정여부" = "고정"
+
+# 카드대금 출금 — 행을 만들지 않고 청구 주기 카드 행 합계와 대조한다
+[[card_payment]]
+account = "생활비"
+card = "현대카드"
+patterns = ['^가짜카드A$']
+
+# 급여·이자처럼 규칙으로 자동 처리할 입금(그 밖 입금은 '확인 필요(항목명)')
+[[income]]
+account = "생활비"
+patterns = ['^가짜회사$']
+"대분류" = "급여"
+"소분류" = ""
+"세부내용" = "월급"
+"고정여부" = "고정"
+
+# 플랫폼 키 — 결제대행 이름이 가맹점으로 찍히는 곳. 규칙 저장 불가·항상 '매번'(3-0 6)
+platform_keys = ["가짜페이", "가짜쇼핑"]
+
+# 실패하는 파일을 일부러 둘 때(예: 카카오뱅크 암호 원본). 경로(내역/ 기준)와 md5가 둘 다 같을 때만 무시
+# [[ignore_files]]
+# path = "2026-10-27/원본.xlsx"
+# md5 = "00000000000000000000000000000000"
+# reason = "암호 원본 — 푼 파일을 따로 넣음"
+
+# as_of(pipeline ACCOUNTS_START) 이전 구매분이 as_of 뒤에 청구된 금액(첫 회차에 1회 입력 — 3-0 8(c))
+# [[pre_asof_billing]]
+# account = "생활비"
+# card = "현대카드"
+# pay_month = "2026-09"
+# amount = 0
