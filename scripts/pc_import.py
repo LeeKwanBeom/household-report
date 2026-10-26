@@ -1449,7 +1449,7 @@ class Engine:
                 slack = max(slack, 1)     # 이체 손 행은 출금일·입금일 어느 쪽에도 적힌다
             amt = int(d.row["금액"])
             other = []
-            for rt in self.other_routes(d.route):
+            for rt in self.other_routes(d.route, d.row["결제수단"]):
                 other += [r for r in self.avail.get((rt, amt), []) if r.key not in self.consumed
                           and abs((r.date - d.rdate).days) <= slack]
             if other:
@@ -1464,13 +1464,17 @@ class Engine:
                 if r is not None:
                     self.in_question.add(r.key)
 
-    def other_routes(self, route):
+    def other_routes(self, route, pay=""):
+        """pay: 후보 행의 결제수단(규칙 override 포함)."""
         kind = route[0]
         out = []
         if kind == "card":
             card, gubun = route[1], route[2]
             out += [("card", c, gubun) for c in CARDS if c != card]
             out.append(("acct", self.card_src[card].account if card in self.card_src else "", gubun))
+            # 규칙이 결제수단을 바꾼 카드 행(구독 → 신한은행 귀속)은 그 통장의 비고 빈 손 행도 본다(검증 B2)
+            if pay and ("acct", pay, gubun) not in out:
+                out.append(("acct", pay, gubun))
         elif kind == "acct":
             acct, gubun = route[1], route[2]
             out += [("card", c, gubun) for c, s in self.card_src.items() if s.account == acct]

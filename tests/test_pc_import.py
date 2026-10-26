@@ -823,6 +823,22 @@ class PairTests(Base):
         self.assertIn("pair_future", kinds, out)
         self.assertEqual(read_bytes(os.path.join(w.run_dir(rid), f"초안_가계부_{rid}.csv")), w.csv())
 
+    def test_override_payment_card_row_vs_hand_row_without_memo(self):
+        """검증 B2: 규칙이 결제수단을 바꾼 카드 행(가상구독 → 신한은행)과 비고 빠진 손 행(신한은행) →
+        경로 다른 짝 '확인 필요' · 자동 추가 0(apply 뒤 새 행 0)."""
+        rows = BASE_ROWS + ['2026-10-20,지출,문화생활비,어플/멤버쉽,가상구독,"9,917",신한은행,고정,']
+        w = self.world(rows=rows)
+        w.put("h.csv", hyundai([("10-20", "10:00:00", "가상구독", 9917, "일시불", "10000031", "정상")]))
+        out, rid = self.ok_scan(w)
+        props = [p for p in w.proposals(rid) if p.get("상태") == "자동"]
+        self.assertEqual(props, [], out)
+        self.assertIn("pair_route", [i["종류"] for i in w.items(rid)], out)
+        self.assertEqual(read_bytes(os.path.join(w.run_dir(rid), f"초안_가계부_{rid}.csv")), w.csv())
+        before = w.csv()
+        rc, out = w.apply(rid, *ACK)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(w.new_lines(before), [], out)
+
     def test_csv_only_explained_not_asked_again(self):
         """완료 기준 6: 파일 기간 안인데 내역에 없는 CSV 행 → 답 '현금' → 다음 회차엔 묻지 않는다."""
         w = self.world()
