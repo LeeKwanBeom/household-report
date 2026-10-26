@@ -1931,6 +1931,30 @@ class ExposeMoreTests(unittest.TestCase):
         self.assertEqual(pc_run._ids_in("2026-10-01 · 20261001"), set())
         self.assertEqual(pc_run._ids_in("계좌 110-555-666666"), {"110555666666"})
 
+    def test_real_values_cover_hyundai_cells_and_small_amounts(self):
+        """검증 B1: 현대카드 꼴 날짜 셀('2026년 10월 09일')·100원 미만 금액(이자)도 (날짜, 금액) 대조에 든다 —
+        시각 뺀 꼴·월-일 꼴·현대카드 셀 꼴로 옮겨도 잡히고, 다른 날짜·금액은 통과."""
+        sys.path.insert(0, os.path.join(ROOT, "scripts"))
+        import pc_run
+        home = tempfile.mkdtemp(prefix="pcexpo-")
+        self.addCleanup(rmtree, home)
+        inbox = os.path.join(home, "uploads", "내역", "2026-10-27")
+        os.makedirs(inbox)
+        os.makedirs(os.path.join(home, "rules"))
+        with open(os.path.join(home, "rules", "계좌.toml"), "w", encoding="utf-8") as f:
+            f.write(FORMAT_CONFIG)
+        files = {"h.xls": html_card([("10-09", "13:47", "가상상점", 31_417, "0", "40000001", "승인")]),
+                 "kb.xlsx": kakao_like([("10-11", "09:00:00", "입금", "이자", "이자", 7)])}
+        for name, data in files.items():
+            with open(os.path.join(inbox, name), "wb") as f:
+                f.write(data)
+        v = pc_run.real_values(pc_run.Ctx(ROOT, home, False), None)
+        for line in ('ROW = ("2026-10-09", 31417)', "| 2026-10-09 13:47 | 31,417 |", '("10-09", 31417)',
+                     '"2026년 10월 09일","31,417"', "10월 9일 31,417원", 'ROW = ("2026-10-11", 7)'):
+            self.assertTrue(pc_run.blob_hits(line.encode("utf-8"), v), line)
+        for line in ('ROW = ("2026-10-09", 31418)', '"2026년 10월 10일","31,417"', 'ROW = ("2026-10-11", 8)'):
+            self.assertEqual(pc_run.blob_hits(line.encode("utf-8"), v), [], line)
+
 
 if __name__ == "__main__":
     unittest.main()

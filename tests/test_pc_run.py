@@ -529,6 +529,28 @@ class ScopeAndExposure(PcRunBase):
         rc, out, _ = self.build()
         self.assertEqual(rc, 0, out)
 
+    def test_hyundai_date_cell_pair_in_commit_blocks_build(self):
+        """검증 B1: 현대카드 꼴 날짜 셀('2026년 10월 09일')의 (날짜, 금액) 1쌍을 fixture에 넣은 커밋 → FAIL
+        (설정 없이 셀만 읽어도). 같은 꼴의 가짜 값은 통과."""
+        inbox = os.path.join(self.home, "uploads", "내역", "2026-10-27")
+        os.makedirs(inbox)
+        with open(os.path.join(inbox, "hyundaicard.xls"), "w", encoding="utf-8") as f:
+            f.write("<html><body><table><tr><td>승인일</td><td>승인시각</td><td>가맹점명</td><td>승인금액</td></tr>"
+                    "<tr><td>2026년 10월 09일</td><td>13:47</td><td>비밀상점 역삼</td><td>31,417</td></tr>"
+                    "</table></body></html>")
+        for text in ('ROW = ("2026-10-09", 31417)\n', "CELL = '\"2026년 10월 09일\",\"31,417\"'\n"):
+            with self.subTest(text=text):
+                base = git(self.repo, "rev-parse", "HEAD")
+                self.commit_in_clone("tests/test_x.py", text)
+                rc, out, _ = self.build()
+                self.assertEqual(rc, 1, out)
+                self.assertIn("날짜+금액", out)
+                git(self.repo, "reset", "-q", "--hard", base)
+        self.commit_in_clone("tests/test_x.py", 'ROW = ("2026-10-09", 31418)\nCELL = "2026년 10월 10일 31,417"\n')
+        self.write_csv(csv_variant(add=[EXTRA_ROW]))
+        rc, out, _ = self.build()
+        self.assertEqual(rc, 0, out)
+
     def test_data_paths_and_binaries_block_build(self):
         """xlsx·xls·sqlite·toml 경로는 내용과 상관없이 FAIL · 바이너리(zip·OLE·sqlite 머리)는 이름을 바꿔도 FAIL."""
         base = git(self.repo, "rev-parse", "HEAD")

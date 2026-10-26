@@ -346,6 +346,11 @@ _DATE_RX = re.compile(r"(?<!\d)(20\d{2})([-./]?)(\d{2})\2(\d{2})(?!\d)")
 _MD_RX = re.compile(r"(?<![\d\-./])(0[1-9]|1[0-2])([-./])(0[1-9]|[12]\d|3[01])(?![\d\-./])")
 _TIME_RX = re.compile(r"(?<![\d:])([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?(?![\d:])")
 _AMT_RX = re.compile(r"(?<![\d.])(?<!\d,)\d{1,3}(?:,\d{3})+(?![\d.]|,\d)|(?<![\d.])(?<!\d,)\d{3,}(?![\d.]|,\d)")
+# 현대카드 꼴 '2026년 10월 05일' · 연도 없는 '10월 5일' (검증 B1)
+_KDATE_RX = re.compile(r"(?<!\d)(20\d{2})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일")
+_KMD_RX = re.compile(r"(?<!\d)(\d{1,2})\s*월\s*(\d{1,2})\s*일")
+# 1~2자리 금액(이자 등) — 실 도장에 100원 미만 거래가 있을 때만 걸린다. 영문·밑줄 뒤 숫자(s4·M2)는 이름이다
+_SMALL_AMT_RX = re.compile(r"(?<![\w.])(?<!\d,)\d{1,2}(?![\d.]|,\d)")
 _ID_RX = re.compile(r"\d[\d\- ]{6,}\d")
 _FIELD_SPLIT = re.compile(r"[,\t|;\"'\[\]{}()=:]")
 
@@ -360,22 +365,39 @@ def _ids_in(text):
     return out
 
 
-def _stamps_in_text(text):
-    """한 줄의 (날짜[ 시각], 금액) 조합 + (월-일, 금액). 날짜·시각을 뺀 나머지에서 3자리 이상 숫자를 금액으로 본다.
-    연도 없는 'MM-DD'(시험 도우미 꼴)도 월-일 도장으로 본다. 시각은 한 자리 시('9:05')도 받는다."""
-    dates = []
-    for m in _DATE_RX.finditer(text):
+def _dates_in(text):
+    """줄 안의 날짜(ISO) — 'YYYY-MM-DD'·'YYYY.MM.DD'·'YYYYMMDD' · 현대카드 꼴 'YYYY년 M월 D일'."""
+    out = []
+    for y, mo, d in ([(m.group(1), m.group(3), m.group(4)) for m in _DATE_RX.finditer(text)]
+                     + [m.groups() for m in _KDATE_RX.finditer(text)]):
         try:
-            dates.append(date(int(m.group(1)), int(m.group(3)), int(m.group(4))).isoformat())
+            out.append(date(int(y), int(mo), int(d)).isoformat())
         except ValueError:
             pass
-    mds = [f"{m.group(1)}-{m.group(3)}" for m in _MD_RX.finditer(_DATE_RX.sub(" ", text))]
+    return out
+
+
+def _add_stamps(v, d, a, times=()):
+    """실값 집합에 (날짜[ 시각], 금액) · (날짜, 금액) · (월-일, 금액) — 시각을 뺀 꼴·연도 없는 꼴로 옮겨도 잡히게."""
+    v["stamps"] |= {(f"{d} {tm}", a) for tm in times} | {(d, a), ("MD " + d[5:], a)}
+
+
+def _stamps_in_text(text):
+    """한 줄의 (날짜[ 시각], 금액) 조합 + (월-일, 금액). 날짜·시각을 뺀 나머지에서 숫자를 금액으로 본다
+    (3자리 이상·쉼표 꼴 + 1~2자리). 연도 없는 'MM-DD'(시험 도우미 꼴)·'M월 D일'도 월-일 도장으로 본다.
+    시각은 한 자리 시('9:05')도 받는다."""
+    dates = _dates_in(text)
+    bare = _KDATE_RX.sub(" ", _DATE_RX.sub(" ", text))
+    mds = [f"{m.group(1)}-{m.group(3)}" for m in _MD_RX.finditer(bare)]
+    mds += [f"{int(m.group(1)):02d}-{int(m.group(2)):02d}" for m in _KMD_RX.finditer(bare)
+            if 1 <= int(m.group(1)) <= 12 and 1 <= int(m.group(2)) <= 31]
     mds += [d[5:] for d in dates]
     if not dates and not mds:
         return set()
     times = [f"{int(m.group(1)):02d}:{m.group(2)}" for m in _TIME_RX.finditer(text)]
-    rest = _TIME_RX.sub(" ", _MD_RX.sub(" ", _DATE_RX.sub(" ", text)))
+    rest = _TIME_RX.sub(" ", _KMD_RX.sub(" ", _MD_RX.sub(" ", bare)))
     amts = {int(x.replace(",", "")) for x in _AMT_RX.findall(rest)}
+    amts |= {int(x) for x in _SMALL_AMT_RX.findall(rest) if int(x) > 0}
     out = {(d, a) for d in dates for a in amts}
     out |= {(f"{d} {t}", a) for d in dates for t in times for a in amts}
     out |= {("MD " + md, a) for md in mds for a in amts}
@@ -397,19 +419,14 @@ def _row_values(cells, v):
                 amts.add(int(abs(val)))
         elif t == "s":
             s = str(val).strip()
-            for m in _DATE_RX.finditer(s):
-                try:
-                    dates.append(date(int(m.group(1)), int(m.group(3)), int(m.group(4))).isoformat())
-                except ValueError:
-                    pass
+            dates += _dates_in(s)
             times += [f"{int(m.group(1)):02d}:{m.group(2)}" for m in _TIME_RX.finditer(s)]
             if re.fullmatch(r"[-+(]?[\d,]+원?\)?", s) and len(re.sub(r"\D", "", s)) >= 3:
                 amts.add(int(re.sub(r"\D", "", s)))
             v["ids"] |= _ids_in(s)
     for d in dates:
         for a in amts:
-            # 시각을 뺀 꼴·연도 없는 꼴로 옮겨도 잡히게 (날짜, 금액) · (월-일, 금액)도 넣는다
-            v["stamps"] |= {(f"{d} {tm}", a) for tm in times} | {(d, a), ("MD " + d[5:], a)}
+            _add_stamps(v, d, a, times)
 
 
 def real_values(ctx, csv_src):
@@ -471,7 +488,7 @@ def real_values(ctx, csv_src):
                             v["words"].add(str(t["merchant"]).strip())
                         v["ids"] |= _ids_in(str(t.get("approval", "")))
                         tm = str(t.get("time") or "")[:5]
-                        v["stamps"].add((t["date"] + (f" {tm}" if tm else ""), abs(int(t.get("amount", 0)))))
+                        _add_stamps(v, t["date"], abs(int(t.get("amount", 0))), [tm] if tm else [])
                 finally:
                     con.close()
             elif in_inbox:
@@ -502,6 +519,10 @@ def real_values(ctx, csv_src):
                         hit = srcmod.identify(sheets, s)
                         if hit:
                             for t in srcmod.parse_sheet(sheets[hit[0]][1], hit[1], s, n):
+                                # 서명이 읽은 (날짜, 금액) — 셀 꼴('2026년 10월 05일'·100원 미만)과 상관없이 넣는다(검증 B1)
+                                if abs(int(t.amount)):
+                                    _add_stamps(v, t.date.isoformat(), abs(int(t.amount)),
+                                                [t.time[:5]] if t.time else [])
                                 # 통장 '내용'이 거래구분과 같은 줄(세이프박스 등)은 은행 메뉴 낱말이다
                                 if len(t.merchant.strip()) >= 3 and not (t.kind == "bank" and
                                                                          t.merchant.strip() == t.status.strip()):
