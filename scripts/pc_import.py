@@ -66,6 +66,9 @@ INFO_COLS = ["번호", "항목", "종류", "사유", "출처", "날짜", "금액
 
 ROW_OPTS = ["추가", "제외", "보류"]
 PAIR_OPTS = ["짝", "추가", "제외", "보류"]
+# 규칙 칸: 저장(다음부터 자동) · 매번(다음에도 묻고 이 답을 제안) · 이번만(규칙 0). 빈칸 = 종류의 기본
+RULE_OPTS = ["저장", "매번", "이번만"]
+RULE_VALUES = ("대분류", "소분류", "세부내용", "고정여부", "결제수단")
 KINDS = {
     # 종류: (사유, 처리 선택지, 규칙 저장 가능, 답 없으면 apply 막힘)
     "new_merchant": ("새 가맹점 — 규칙 없음", ROW_OPTS + ["할부"], True, False),
@@ -1753,6 +1756,8 @@ class Engine:
         act = a.get("처리", "")
         if act not in opts:
             return f"처리 '{act}'는 이 항목의 선택지 {opts}가 아니다"
+        if a.get("규칙", "") not in RULE_OPTS + [""]:
+            return f"규칙 '{a['규칙']}'는 {'·'.join(RULE_OPTS)} 또는 빈칸"
         if CARD_TRANSFER_ANSWER.fullmatch(act) and self.card_transfer_choice(it, act) is None:
             ok = ", ".join(f"카드대금({c})" for c in (it.extra.get("card_ok") or {})) or "없음"
             return f"'{act}'는 그 카드의 카드값 이체 설정([[card_transfer]] 통장·상대 패턴)에 맞는 출금에만(이 거래: {ok})"
@@ -2337,12 +2342,15 @@ def read_answers(path):
     return out
 
 
+def item_order(x):
+    """확인필요.xlsx 번호 순서 — 날짜·항목."""
+    return (x.tx.date.isoformat() if x.tx else (x.rec.date.isoformat() if x.rec and x.rec.date else ""), x.id)
+
+
 def item_rows(engine):
     R = engine.R
     out = []
-    for n, it in enumerate(sorted(R.items, key=lambda x: (x.tx.date.isoformat() if x.tx else
-                                                          (x.rec.date.isoformat() if x.rec and x.rec.date else ""),
-                                                          x.id)), start=1):
+    for n, it in enumerate(sorted(R.items, key=item_order), start=1):
         t, rec = it.tx, it.rec
         row = it.row or {}
         info = {
@@ -2363,6 +2371,8 @@ def item_rows(engine):
             ans["짝 CSV 행"] = it.cands[0].no
         if KINDS[it.kind][2]:
             ans["규칙"] = "저장"
+        elif it.kind == "ask_every":
+            ans["규칙"] = "매번"
         out.append((info, ans, it))
     return out
 
@@ -2383,7 +2393,7 @@ def write_items_xlsx(path, engine, inherited):
     lists = wb.create_sheet("목록")
     names = engine.doc.names
     columns = {"구분": ["수입", "지출", "이체"], "결제수단": ACCOUNTS, "고정여부": ["고정"], "비고": CARDS,
-               "규칙": ["저장", "이번만"], "새 이름": ["Y"], "대분류": names["대분류"], "소분류": names["소분류"]}
+               "규칙": RULE_OPTS, "새 이름": ["Y"], "대분류": names["대분류"], "소분류": names["소분류"]}
     refs = {}
     for j, (k, vals) in enumerate(columns.items(), start=1):
         lists.cell(row=1, column=j, value=k)
@@ -2722,6 +2732,8 @@ def cmd_answer(P, args):
     kind = hit[head.index("종류")].value
     if "처리" in sets and sets["처리"] not in KINDS[kind][1]:
         raise Stop(f"처리 '{sets['처리']}'는 {KINDS[kind][1]} 중 하나")
+    if "규칙" in sets and sets["규칙"].strip() not in RULE_OPTS + [""]:
+        raise Stop(f"규칙 '{sets['규칙']}'는 {'·'.join(RULE_OPTS)} 또는 빈칸")
     for k, v in sets.items():
         hit[head.index(k)].value = v
     tmp = path + ".tmp"
@@ -2778,7 +2790,10 @@ def cmd_apply(P, args):
 
 
 def rule_rows(eng, rid):
-    """'추가' 답 중 규칙 저장 → 분류규칙.csv에 붙일 줄. 카드사명·'카드대금'·계좌명이 든 답은 거부(3-0 5)."""
+    """'추가'·'할부' 답 → 분류규칙.csv에 붙일 줄. 규칙 칸 '저장'은 물음 자동, '매번'은 물음 매번, '이번만'은 줄 0.
+    '매번' 가맹점(ask_every)의 답은 규칙 칸이 '이번만'이 아니면 그 키의 마지막 줄과 다를 때만 한 줄(물음 매번) —
+    다음 회차 제안이 그 답을 따라가고, 같은 답을 매달 되풀이해도 줄이 늘지 않는다. 같은 회차에 같은 키 답이 여럿이면
+    날짜·항목 순서로 마지막 답이 마지막 줄이 된다. 카드사명·'카드대금'·계좌명이 든 답은 거부(3-0 5)."""
     if hasattr(eng, "_rule_rows"):
         return eng._rule_rows
     out, notes = [], []
@@ -2786,13 +2801,17 @@ def rule_rows(eng, rid):
     # (실물 리허설) 칸 전체가 같을 때만 거부한다.
     banned = set(CARDS) | set(pl.ACCOUNT_KEY) | {"카드대금"} | {a for a in ACCOUNTS if a != "생활비"}
     banned_eq = set(ACCOUNTS)
-    for it in eng.R.items:
+    last = {}            # 키 → 이번 회차에 붙인 마지막 줄 값
+    every_keys = set()   # 이번 회차 줄로 '매번'이 된 키
+    kept_note = set()
+    for it in sorted(eng.R.items, key=item_order):
         a = eng.answered.get(it.id)
         if not a or a["처리"] not in ("추가", "할부") or it.tx is None:
             continue
-        if not KINDS[it.kind][2] and it.kind not in ("raw_diff",):
+        if not KINDS[it.kind][2] and it.kind not in ("raw_diff", "ask_every"):
             continue
-        if a.get("규칙", "저장") == "이번만" or (it.kind != "raw_diff" and a.get("규칙") not in ("저장", "")):
+        ans_rule = a.get("규칙", "")
+        if ans_rule not in RULE_OPTS + [""] or ans_rule == "이번만":
             continue
         t = it.tx
         if t.kind == "bank" and t.direction == "in":
@@ -2811,21 +2830,39 @@ def rule_rows(eng, rid):
         pay = row["결제수단"] if (t.kind == "card" and s and row["결제수단"] != s.account) else ""
         old = eng.rules.lookup(key)
         vals = (row["대분류"], row["소분류"], row["세부내용"], row["고정여부"], pay)
-        mode = "자동"
-        if it.kind == "raw_diff" or (old and (old["mode"] == "매번" or tuple(old["values"][c] for c in (
-                "대분류", "소분류", "세부내용", "고정여부", "결제수단")) != vals or t.merchant.strip() not in old["raws"])):
+        prev = last.get(key) or (tuple(old["values"][c] for c in RULE_VALUES) if old else None)
+        was_every = key in every_keys or bool(old and old["mode"] == "매번")
+        if it.kind == "ask_every" and was_every:
+            mode = "매번"
+            if ans_rule == "저장" and key not in kept_note:
+                kept_note.add(key)
+                notes.append(f"'매번' 가맹점 — 저장 답도 매번으로 남음(자동으로 되돌리려면 분류규칙.csv 손 편집): 키 {key}")
+        elif it.kind == "ask_every":
+            # 할부 거래는 옛 키가 '자동'이어도(처음 보는 원문) ask_every로 묻는다 — raw_diff처럼 '매번'으로 승격
             mode = "매번"
             notes.append(f"'매번'으로 승격: 키 {key}")
-        same_new = [r for r in out if r["키"] == key]
-        if same_new and any((r["대분류"], r["소분류"], r["세부내용"], r["고정여부"], r["결제수단"]) != vals
-                            or r["원문"] != t.merchant.strip() for r in same_new):
-            mode = "매번"
-            for r in same_new:
-                r["물음"] = "매번"
-            notes.append(f"'매번'으로 승격(이번 답끼리 다름): 키 {key}")
+        else:
+            mode = "매번" if ans_rule == "매번" else "자동"
+            if it.kind == "raw_diff" or (old and (old["mode"] == "매번" or tuple(old["values"][c] for c in RULE_VALUES)
+                                                  != vals or t.merchant.strip() not in old["raws"])):
+                mode = "매번"
+                notes.append(f"'매번'으로 승격: 키 {key}")
+            same_new = [r for r in out if r["키"] == key]
+            if same_new and any(tuple(r[c] for c in RULE_VALUES) != vals or r["원문"] != t.merchant.strip()
+                                for r in same_new):
+                mode = "매번"
+                for r in same_new:
+                    r["물음"] = "매번"
+                notes.append(f"'매번'으로 승격(이번 답끼리 다름): 키 {key}")
+        # 이미 '매번'인 키에 마지막 줄과 같은 답 → 줄 0(물음·제안이 그대로다)
+        if was_every and prev == vals:
+            continue
         out.append({"키": key, "대분류": vals[0], "소분류": vals[1], "세부내용": vals[2], "고정여부": vals[3],
                     "결제수단": vals[4], "물음": mode, "원문": t.merchant.strip(),
                     "만든 날": eng.today.isoformat(), "근거 회차": rid})
+        last[key] = vals
+        if mode == "매번":
+            every_keys.add(key)
     eng._rule_rows = out
     eng.R.rule_notes = notes
     return out

@@ -2179,6 +2179,259 @@ class C123Tests(Base):
                 self.assertEqual(props[("2026-10-04", "20017")], "확인 필요", out)      # 앞선 구매 — 조용히 제외 0
                 self.assertEqual(props[("2026-10-21", "20017")], "확인 필요")
 
+# ============================================================
+# 규칙 칸 '매번'(이번 완료 기준 E1~E5 · 기존 12·13·14·20) — 합성 값만
+# ============================================================
+
+EVERY_RULES = RULES + "새가게,식비,외식,점심,,,매번,새가게,2026-10-01,20261001-000000\r\n"
+A_VALS = {"대분류": "식비", "소분류": "외식", "세부내용": "점심"}
+B_VALS = {"대분류": "식비", "소분류": "장보기", "세부내용": "마트"}
+
+
+class EveryTests(Base):
+    def rule_lines(self, w, key):
+        import csv as _csv
+        with open(os.path.join(w.rules, "분류규칙.csv"), encoding="utf-8-sig", newline="") as f:
+            return [r for r in _csv.DictReader(f) if r["키"] == key]
+
+    def rules_text(self, w):
+        with open(os.path.join(w.rules, "분류규칙.csv"), encoding="utf-8-sig") as f:
+            return f.read()
+
+    def one(self, w, rid, amount):
+        its = [i for i in w.items(rid) if i["금액"] == amount]
+        self.assertEqual(len(its), 1, its)
+        return its[0]
+
+    def vals(self, it):
+        return {c: it[c] for c in ("대분류", "소분류", "세부내용")}
+
+    def test_every_answer_asks_next_round_with_suggestion(self):
+        """E1: 새 가맹점 답 규칙 '매번' → 규칙 줄(물음 매번) 하나 → 다음 회차 ask_every · 제안 = 그 답 · 자동 행 0."""
+        w = self.world(rows=BASE_ROWS)
+        r1 = ("10-06", "08:00:00", "새가게", 6113, "일시불", "10000003", "정상")
+        w.put("h.csv", hyundai([r1]))
+        out, rid = self.ok_scan(w)
+        it = self.one(w, rid, 6113)
+        self.assertEqual((it["종류"], it["규칙"]), ("new_merchant", "저장"), out)
+        w.answer(rid, lambda d: d["금액"] == 6113, 처리="추가", 규칙="매번", **A_VALS)
+        before = w.csv()
+        rc, out = w.apply(rid)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(w.new_lines(before), ['2026-10-06,지출,식비,외식,점심,"6,113",생활비,,현대카드'])
+        self.assertEqual([(r["물음"], r["소분류"], r["원문"]) for r in self.rule_lines(w, "새가게")],
+                         [("매번", "외식", "새가게")])
+        # 다음 회차 파일은 기간이 겹치게 받는다(공백 0)
+        w.put("h2.csv", hyundai([r1, ("10-09", "08:00:00", "새가게", 7213, "일시불", "10000013", "정상")]),
+              folder="2026-10-28")
+        out, rid2 = self.ok_scan(w)
+        it = self.one(w, rid2, 7213)
+        self.assertEqual((it["종류"], it["규칙"], it["결제수단"], it["비고"]), ("ask_every", "매번", "생활비", "현대카드"),
+                         out)
+        self.assertEqual(self.vals(it), A_VALS)
+        self.assertEqual([p["상태"] for p in w.proposals(rid2) if p["금액"] == "7213"], ["확인 필요"])
+        before = w.csv()
+        rc, out = w.apply(rid2)                       # 답 0 → 보류 · 자동 행 0
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(w.new_lines(before), [])
+
+    def test_every_suggestion_follows_changed_answer(self):
+        """E2: ask_every 답이 마지막 줄과 다르면 줄 +1 → 셋째 회차 제안 = 새 답. 같으면 줄 +0 · '이번만'이면 줄 +0."""
+        w = self.world(rows=BASE_ROWS)
+        rows = [("10-06", "08:00:00", "새가게", 6113, "일시불", "10000003", "정상")]
+        w.put("h.csv", hyundai(rows))
+        out, rid = self.ok_scan(w)
+        w.answer(rid, lambda d: d["금액"] == 6113, 처리="추가", 규칙="매번", **A_VALS)
+        rc, out = w.apply(rid)
+        self.assertEqual(rc, 0, out)
+        # 둘째 회차: 제안 A → B로 답(규칙 칸은 기본 '매번' 그대로)
+        rows.append(("10-09", "08:00:00", "새가게", 7213, "일시불", "10000013", "정상"))
+        w.put("h2.csv", hyundai(rows), folder="2026-10-28")
+        out, rid2 = self.ok_scan(w)
+        self.assertEqual(self.vals(self.one(w, rid2, 7213)), A_VALS, out)
+        w.answer(rid2, lambda d: d["금액"] == 7213, 처리="추가", **B_VALS)
+        rc, out = w.apply(rid2)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual([(r["물음"], r["소분류"]) for r in self.rule_lines(w, "새가게")],
+                         [("매번", "외식"), ("매번", "장보기")])
+        # 셋째 회차: 제안 = B. 하나는 제안 그대로(같은 답 → 줄 +0), 하나는 다른 값을 '이번만'(줄 +0)
+        rows += [("10-11", "08:00:00", "새가게", 8313, "일시불", "10000023", "정상"),
+                 ("10-12", "08:00:00", "새가게", 9413, "일시불", "10000024", "정상")]
+        w.put("h3.csv", hyundai(rows), folder="2026-10-29")
+        out, rid3 = self.ok_scan(w)
+        self.assertEqual(self.vals(self.one(w, rid3, 8313)), B_VALS, out)
+        self.assertEqual(self.vals(self.one(w, rid3, 9413)), B_VALS)
+        w.answer(rid3, lambda d: d["금액"] == 8313, 처리="추가")
+        w.answer(rid3, lambda d: d["금액"] == 9413, 처리="추가", 규칙="이번만", 대분류="교통비", 소분류="대중교통",
+                 세부내용="버스")
+        before = w.csv()
+        rc, out = w.apply(rid3)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(w.new_lines(before), ['2026-10-11,지출,식비,장보기,마트,"8,313",생활비,,현대카드',
+                                               '2026-10-12,지출,교통비,대중교통,버스,"9,413",생활비,,현대카드'])
+        self.assertEqual(len(self.rule_lines(w, "새가게")), 2, out)
+        rows.append(("10-14", "08:00:00", "새가게", 5513, "일시불", "10000033", "정상"))
+        w.put("h4.csv", hyundai(rows), folder="2026-10-30")
+        out, rid4 = self.ok_scan(w)
+        it = self.one(w, rid4, 5513)
+        self.assertEqual((it["종류"], self.vals(it)), ("ask_every", B_VALS), out)
+
+    def test_every_same_round_last_answer_wins_and_save_stays_every(self):
+        """M3: 같은 회차 같은 키 답 둘 → 날짜·항목 순서로 마지막 답이 다음 제안. ask_every에 '저장' 답 → '매번'으로 남고 보고 한 줄."""
+        w = self.world(rows=BASE_ROWS, rules=EVERY_RULES)
+        w.put("h.csv", hyundai([("10-06", "08:00:00", "새가게", 6113, "일시불", "10000003", "정상"),
+                                ("10-09", "08:00:00", "새가게", 7213, "일시불", "10000013", "정상")]))
+        out, rid = self.ok_scan(w)
+        self.assertEqual({(i["종류"], i["규칙"]) for i in w.items(rid)}, {("ask_every", "매번")}, out)
+        w.answer(rid, lambda d: d["금액"] == 6113, 처리="추가", 규칙="저장", **B_VALS)   # 앞 날짜: B
+        w.answer(rid, lambda d: d["금액"] == 7213, 처리="추가", **A_VALS)               # 뒤 날짜: A(지난 줄과 같음)
+        rc, out = w.apply(rid)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("저장 답도 매번으로 남음", out)
+        self.assertEqual([(r["물음"], r["소분류"]) for r in self.rule_lines(w, "새가게")],
+                         [("매번", "외식"), ("매번", "장보기"), ("매번", "외식")])
+        w.put("h2.csv", hyundai([("10-12", "08:00:00", "새가게", 8313, "일시불", "10000023", "정상")]), folder="2026-10-28")
+        out, rid2 = self.ok_scan(w)
+        it = self.one(w, rid2, 8313)
+        self.assertEqual((it["종류"], self.vals(it)), ("ask_every", A_VALS), out)
+        self.assertEqual([p["상태"] for p in w.proposals(rid2) if p["금액"] == "8313"], ["확인 필요"])
+
+    def test_rule_column_values_checked(self):
+        """E3 · M1: 규칙 선택지 저장·매번·이번만 · answer --set 규칙=그밖 → 멈춤 · xlsx의 그 밖 값 → 답 오류(되묻기)로 apply 막힘."""
+        import openpyxl
+        w = self.world(rows=BASE_ROWS)
+        w.put("h.csv", hyundai([("10-06", "08:00:00", "새가게", 6113, "일시불", "10000003", "정상")]))
+        out, rid = self.ok_scan(w)
+        wb = openpyxl.load_workbook(os.path.join(w.run_dir(rid), "확인필요.xlsx"))
+        cols = {c[0].value: [x.value for x in c[1:] if x.value is not None] for c in wb["목록"].iter_cols()}
+        self.assertEqual(cols["규칙"], ["저장", "매번", "이번만"])
+        rc, out = w.run("answer", "--run", rid, "--item", "1", "--set", "처리=추가", "--set", "규칙=자동")
+        self.assertEqual(rc, 1, out)
+        self.assertEqual(w.items(rid)[0]["처리"], None)              # 멈추면 쓰기 0
+        rc, out = w.run("answer", "--run", rid, "--item", "1", "--set", "규칙=매번")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(w.items(rid)[0]["규칙"], "매번")
+        w.answer(rid, lambda d: d["금액"] == 6113, 처리="추가", 규칙="자동", **A_VALS)
+        before = w.csv()
+        rc, out = w.apply(rid)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("답 오류(되묻기)", out)
+        self.assertIn("규칙 '자동'", out)
+        self.assertEqual(w.csv(), before)
+        w.answer(rid, lambda d: d["금액"] == 6113, 규칙="이번만")
+        rc, out = w.apply(rid)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.rule_lines(w, "새가게"), [])
+
+    def test_every_answer_follows_refusals(self):
+        """E4: '매번' 답도 거부 목록(카드사명·카드대금·계좌명·플랫폼 키·지출 아님)을 따른다 — ask_every 답도 같다."""
+        w = self.world(rows=BASE_ROWS, rules=EVERY_RULES)
+        w.put("h.csv", hyundai([("10-06", "08:00:00", "다른가게", 6113, "일시불", "10000003", "정상"),
+                                ("10-07", "09:00:00", "가짜페이 결제", 7213, "일시불", "10000004", "정상"),
+                                ("10-08", "08:00:00", "세번째가게", 8313, "일시불", "10000005", "정상"),
+                                ("10-09", "08:00:00", "새가게", 9413, "일시불", "10000006", "정상"),
+                                ("10-11", "08:00:00", "네번째가게", 5513, "일시불", "10000007", "정상")]))
+        out, rid = self.ok_scan(w)
+        kinds = {i["금액"]: i["종류"] for i in w.items(rid)}
+        self.assertEqual(kinds, {6113: "new_merchant", 7213: "platform", 8313: "new_merchant", 9413: "ask_every",
+                                 5513: "new_merchant"}, out)
+        new = {"새 이름": "Y"}
+        w.answer(rid, lambda d: d["금액"] == 6113, 처리="추가", 규칙="매번", 대분류="식비", 소분류="외식",
+                 세부내용="현대카드 연회비", **new)                                              # 카드사명
+        w.answer(rid, lambda d: d["금액"] == 7213, 처리="추가", 규칙="매번", **A_VALS)          # 플랫폼 키
+        w.answer(rid, lambda d: d["금액"] == 8313, 처리="추가", 규칙="매번", 대분류="식비", 소분류="외식",
+                 세부내용="커플통장 정산", **new)                                                # 계좌명
+        w.answer(rid, lambda d: d["금액"] == 9413, 처리="추가", 대분류="식비", 소분류="외식",
+                 세부내용="신한카드 카드대금", **new)                                            # ask_every · 카드대금
+        w.answer(rid, lambda d: d["금액"] == 5513, 처리="추가", 규칙="매번", 구분="수입", **A_VALS)  # 지출 아님
+        rc, out = w.apply(rid)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(out.count("규칙 저장 거부"), 3, out)
+        text = self.rules_text(w)
+        for m in ("다른가게", "가짜페이", "세번째가게", "네번째가게"):
+            self.assertNotIn(m, text)
+        self.assertEqual(len(self.rule_lines(w, "새가게")), 1)
+        self.assertIn("규칙 0줄", out)
+
+    def test_every_answer_refused_for_deposit(self):
+        """E4 입금: 규칙 저장 가능 종류(손 행 짝 질문)의 입금 거래에 '매번' 답 → 규칙 0."""
+        w = self.world(rows=BASE_ROWS)
+        w.put("lv.csv", living([("10-04", "09:00:00", "입금", "아무개", 0, 3_123_457)]))
+        out, rid = self.ok_scan(w)
+        its = [i for i in w.items(rid) if i["금액"] == 3_123_457]
+        self.assertEqual(len(its), 1, out)
+        self.assertTrue(pc_import.KINDS[its[0]["종류"]][2], its[0]["종류"])
+        w.answer(rid, lambda d: d["금액"] == 3_123_457, 처리="추가", 규칙="매번", 대분류="급여", 세부내용="10월 급여")
+        rc, out = w.apply(rid, *ACK)
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("아무개", self.rules_text(w))
+
+    def test_installment_answer_rule_lines(self):
+        """E5 · M4: '할부' 답도 규칙 칸을 따른다 — 저장 → 다음 회차 자동 일정 · 매번 → 다음 회차 ask_every(제안 = 답)."""
+        w = self.world(rows=BASE_ROWS)
+        rows = [("10-18", "10:00:00", "가상폰가게", 900_000, "3개월", "10000041", "정상"),
+                ("10-19", "10:00:00", "가상패드가게", 600_013, "3개월", "10000042", "정상")]
+        w.put("h.csv", hyundai(rows))
+        out, rid = self.ok_scan(w)
+        self.assertEqual({i["종류"] for i in w.items(rid)}, {"new_merchant"}, out)
+        w.answer(rid, lambda d: d["금액"] == 900_000, 처리="할부", 대분류="식비", 소분류="외식", 세부내용="폰",
+                 **{"새 이름": "Y"})
+        w.answer(rid, lambda d: d["금액"] == 600_013, 처리="할부", 규칙="매번", 대분류="식비", 소분류="외식",
+                 세부내용="패드", **{"새 이름": "Y"})
+        rc, out = w.apply(rid)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual([r["물음"] for r in self.rule_lines(w, "가상폰가게")], ["자동"])
+        self.assertEqual([r["물음"] for r in self.rule_lines(w, "가상패드가게")], ["매번"])
+        rows += [("10-21", "10:00:00", "가상폰가게", 301_217, "3개월", "10000051", "정상"),
+                 ("10-21", "11:00:00", "가상패드가게", 330_013, "3개월", "10000052", "정상")]
+        w.put("h2.csv", hyundai(rows), folder="2026-10-28")       # 기간이 겹치게(공백 0)
+        out, rid2 = self.ok_scan(w)
+        props = {p["금액"]: p["상태"] for p in w.proposals(rid2)}
+        self.assertEqual(props["301217"], "제외", out)                   # 규칙 자동 → 할부 일정(행은 다음 달부터)
+        it = self.one(w, rid2, 330_013)
+        self.assertEqual((it["종류"], it["세부내용"]), ("ask_every", "패드"), out)
+        w.answer(rid2, lambda d: d["금액"] == 330_013, 처리="할부", **{"새 이름": "Y"})   # 제안 그대로 → 줄 +0
+        rc, out = w.apply(rid2)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(len(self.rule_lines(w, "가상패드가게")), 1, out)
+        self.assertEqual(w.ledger("SELECT count(*) FROM schedule"), [(4,)])
+
+    def test_installment_ask_every_on_auto_key_promotes(self):
+        """자체 검토 막음: 할부 거래는 옛 키가 '자동'이어도(처음 보는 원문) ask_every로 묻는다 — 제안 그대로 '매번'·'저장'
+        답이면 '매번'으로 승격되고(줄 0이 아님), 다음 회차 같은 키의 본 원문 거래도 확인 필요(자동 0)."""
+        for rule in ("매번", "저장"):
+            with self.subTest(rule=rule):
+                w = self.world(rows=BASE_ROWS)
+                rows = [("10-18", "10:00:00", "가상마트 3호점", 450_013, "3개월", "10000061", "정상")]
+                w.put("h.csv", hyundai(rows))
+                out, rid = self.ok_scan(w)
+                it = self.one(w, rid, 450_013)
+                self.assertEqual((it["종류"], it["규칙"]), ("ask_every", "매번"), out)
+                w.answer(rid, lambda d: d["금액"] == 450_013, 처리="할부", 규칙=rule, **{"새 이름": "Y"})
+                rc, out = w.apply(rid)
+                self.assertEqual(rc, 0, out)
+                self.assertIn("'매번'으로 승격", out)
+                self.assertNotIn("저장 답도 매번", out)
+                self.assertEqual([r["물음"] for r in self.rule_lines(w, "가상마트")], ["자동", "매번"])
+                rows.append(("10-21", "10:00:00", "가상마트 2호점", 31_013, "일시불", "10000062", "정상"))
+                w.put("h2.csv", hyundai(rows), folder="2026-10-28")
+                out, rid2 = self.ok_scan(w)
+                self.assertEqual([p["상태"] for p in w.proposals(rid2) if p["금액"] == "31013"], ["확인 필요"], out)
+                self.assertEqual(self.one(w, rid2, 31_013)["종류"], "ask_every")
+
+    def test_every_key_same_value_any_kind_adds_nothing(self):
+        """임의 결정: 이미 '매번'이 된 키에 마지막 줄과 같은 값이면 종류·규칙 칸과 상관없이 줄 0(같은 회차 '매번' 뒤 '저장')."""
+        w = self.world(rows=BASE_ROWS)
+        w.put("h.csv", hyundai([("10-06", "08:00:00", "새가게", 6113, "일시불", "10000003", "정상"),
+                                ("10-09", "08:00:00", "새가게", 7213, "일시불", "10000013", "정상")]))
+        out, rid = self.ok_scan(w)
+        w.answer(rid, lambda d: d["금액"] == 6113, 처리="추가", 규칙="매번", **A_VALS)
+        w.answer(rid, lambda d: d["금액"] == 7213, 처리="추가", 규칙="저장", **A_VALS)
+        rc, out = w.apply(rid)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual([r["물음"] for r in self.rule_lines(w, "새가게")], ["매번"])
+
+
 def read_report(w, rid):
     """회차 보고.md 줄 목록."""
     with open(os.path.join(w.run_dir(rid), "보고.md"), encoding="utf-8") as f:
