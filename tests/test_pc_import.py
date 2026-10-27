@@ -15,6 +15,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import sqlite3
 import stat
@@ -2430,6 +2431,83 @@ class EveryTests(Base):
         rc, out = w.apply(rid)
         self.assertEqual(rc, 0, out)
         self.assertEqual([r["물음"] for r in self.rule_lines(w, "새가게")], ["매번"])
+
+
+# ============================================================
+# E1 — 통장 밖 칸(세이프박스)은 칸 이름마다 한 번만 뺀다(첫 실사용 오류 E1 · 완료 기준 18)
+# ============================================================
+
+BOX_CFG = FORMAT_CONFIG + r'''
+[[internal]]
+account = "생활비"
+name = "세이프박스"
+field = "merchant"
+patterns = ['^세이프박스$']
+
+[[internal_balance]]
+account = "생활비"
+name = "세이프박스"
+date = "2026-10-01"
+amount = 200013
+'''
+
+TWO_BOX_CFG = BOX_CFG + r'''
+[[internal]]
+account = "생활비"
+name = "모임칸"
+field = "merchant"
+patterns = ['^모임칸$']
+'''
+
+BOX_MOVES = [("10-02", "10:00:00", "출금", "세이프박스", "세이프박스", -100_013),   # 거래구분·내용 두 줄 다 맞음
+             ("10-04", "10:00:00", "입금", "일반입금", "세이프박스", 30_013)]       # 내용 줄만 맞음
+
+
+def residual(out, acct="생활비"):
+    m = re.search(rf"잔액 {acct}: [^\n]* · 잔차 (-?[\d,]+)", out)
+    return int(m.group(1).replace(",", ""))
+
+
+class E1Tests(Base):
+    """같은 칸을 적요 칸마다 [[internal]] 여러 줄로 두면 칸 잔액·이동액이 줄마다 빠졌다(잔차가 칸 잔액만큼 어긋남)."""
+
+    EDGE = [("10-01", "09:00:00", "입금", "이자", "가상이자", 2_113),     # 두 판의 파일 시작·끝 날짜를 같게
+            ("10-06", "09:00:00", "입금", "이자", "가상이자", 3_117)]
+
+    def box_scan(self, w, config, moves, start):
+        with open(os.path.join(w.rules, "계좌.toml"), "w", encoding="utf-8") as f:
+            f.write(config)
+        w.put("카뱅_v.xlsx", kakao_like(sorted(self.EDGE + moves), start=start), folder="20261027")
+        out, rid = self.ok_scan(w)
+        return out, rid, [x for x in read_report(w, rid) if "칸 잔액" in x]
+
+    def test_same_box_two_lines_subtracts_once(self):
+        """세이프박스 두 줄(거래구분 · 내용) → 칸 잔액 항 한 줄 = −(시작 잔액 + 순이동) · 잔차는 칸 없는 판과 같다.
+        파일을 지운 다음 회차(원장 앵커 — 원장 거래를 설정 줄에 다시 맞춤)도 한 번만."""
+        w = self.world(config=FORMAT_CONFIG, rows=BASE_ROWS)
+        out0, _, lines0 = self.box_scan(w, FORMAT_CONFIG, [], 500_000)
+        self.assertEqual(lines0, ["  - 세이프박스 칸 잔액(−) — 시작 잔액 미입력(기준 차액에 남음): 0"])
+        out, rid, lines = self.box_scan(w, BOX_CFG, BOX_MOVES, 500_000 - 200_013)   # 칸에 든 돈은 파일 잔액 밖
+        props = {p["금액"]: p["상태"] for p in w.proposals(rid)}
+        self.assertEqual((props["100013"], props["30013"]), ("제외", "제외"))
+        self.assertEqual(lines, ["  - 세이프박스 칸 잔액(−): -270,013"])
+        self.assertEqual(residual(out), residual(out0), out)
+        rc, out = w.apply(rid, "--ack-balance", "생활비", "시험 기준 차액")
+        self.assertEqual(rc, 0, out)
+        shutil.rmtree(os.path.join(w.inbox, "20261027"))
+        out2, rid2 = self.ok_scan(w)
+        self.assertIn("잔액 생활비: 통과(기준 차액 그대로)", out2)
+        self.assertEqual([x for x in read_report(w, rid2) if "칸 잔액" in x], lines)
+
+    def test_two_boxes_count_own_moves(self):
+        """같은 계좌의 다른 칸(모임칸)은 제 이동만 — 시작 잔액이 없는 칸은 as_of 뒤 이동만 뺀다."""
+        w = self.world(config=FORMAT_CONFIG, rows=BASE_ROWS)
+        out0, _, _ = self.box_scan(w, FORMAT_CONFIG, [], 500_000)
+        out, rid, lines = self.box_scan(w, TWO_BOX_CFG, BOX_MOVES + [
+            ("10-05", "10:00:00", "출금", "일반출금", "모임칸", -7_013)], 500_000 - 200_013)
+        self.assertEqual(lines, ["  - 세이프박스 칸 잔액(−): -270,013",
+                                 "  - 모임칸 칸 잔액(−) — 시작 잔액 미입력(기준 차액에 남음): -7,013"])
+        self.assertEqual(residual(out), residual(out0), out)
 
 
 def read_report(w, rid):

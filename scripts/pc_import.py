@@ -2022,17 +2022,24 @@ class Engine:
                     pdd = self.pay_date(b["card"], (y, m))
                     if as_of < pdd <= E:
                         terms["as_of 이전 구매분 청구(−)"] -= b["amount"]
-            # 통장 밖 칸(세이프박스 등): 파일 잔액은 칸을 뺀 값, 리포트 잔고는 칸까지 합친 값이다
-            for ib in self.cfg["internal"]:
-                if ib["account"] != acct:
-                    continue
+            # 통장 밖 칸(세이프박스 등): 파일 잔액은 칸을 뺀 값, 리포트 잔고는 칸까지 합친 값이다. 같은 칸을 적요 칸마다
+            # 여러 줄로 둘 수 있어 칸 이름마다 한 번만 빼고, 이동은 그 칸 줄에 맞는 거래만 센다(E1 — 줄마다 빼면 두 배).
+            # 줄에 안 맞는 원장 거래(설정이 바뀜)는 칸이 하나면 그 칸, 여럿이면 어느 칸에도 넣지 않는다(잔차로 드러남)
+            boxes = list(dict.fromkeys(c["name"] for c in self.cfg["internal"] if c["account"] == acct))
+            box_of = {}
+            for t in txs:
+                d = R.disps.get(t.key)
+                if d and d.state == "internal" or self.led.state.get(t.key, {}).get("state") == "internal":
+                    hit = {c["name"] for c in self.cfg["internal"]
+                           if c["account"] == acct and self.match_pats(c["patterns"], t, c["field"])}
+                    box_of[t.key] = hit.pop() if len(hit) == 1 else boxes[0] if len(boxes) == 1 else None
+            for name in boxes:
                 base = next((b for b in self.cfg["internal_balance"]
-                             if b["account"] == acct and b["name"] == ib["name"]), None)
+                             if b["account"] == acct and b["name"] == name), None)
                 lo = base["date"] if base else as_of
                 moved = sum((t.amount if t.direction == "out" else -t.amount) for t in txs
-                            if lo < t.date <= E and (R.disps.get(t.key) and R.disps[t.key].state == "internal"
-                                                     or self.led.state.get(t.key, {}).get("state") == "internal"))
-                label = f"{ib['name']} 칸 잔액(−)" + ("" if base else " — 시작 잔액 미입력(기준 차액에 남음)")
+                            if lo < t.date <= E and box_of.get(t.key) == name)
+                label = f"{name} 칸 잔액(−)" + ("" if base else " — 시작 잔액 미입력(기준 차액에 남음)")
                 terms[label] -= moved + (base["amount"] if base else 0)
             for t in txs:
                 if not (as_of < t.date <= E) or t.date < self.start:
