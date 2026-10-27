@@ -549,6 +549,26 @@ def monthly_tx_tabs_and_panels():
         </div>""")
     return "".join(tabs), "".join(panels)
 
+_rs = bundle.get('real_spend') or {}
+_rs_rule = _rs.get('rule', {})
+
+def real_spend_note():
+    """06번 내여자 펼침 아래 참고 줄 — 실질 지출(정산 받은 데이트비 뺌 · 커플통장 이체 더함).
+    값·이름은 pipeline.py가 bundle['real_spend']·['couple_settlement']에 실어 보낸다(COUPLE_REAL_SPEND가 원본)."""
+    if not _rs_rule:
+        return ""
+    acct, src = esc(_rs_rule['account']), esc(_rs_rule['fund_from'])
+    since = _cs_md(_rs_rule['start'])
+    lines = [f"{esc(_rs_rule['target'][1])}: 내 카드·계좌로 낸 {won(_cs.get('target_total', 0))}원 중 "
+             f"{acct}에서 정산 받은 {won(_rs['settled_total'])}원은 지출에서 뺐어요({since}부터)",
+             f"{esc(_rs_rule['소분류'])}: {since}부터는 {src} → {acct} 이체 {won(_rs['transfer_total'])}원을 "
+             f"지출로 셌어요(비고 '{esc(_rs_rule['memo'])}'이면 그 달로)"]
+    if _rs.get('couple_paid_total'):
+        lines.append(f"{acct}에서 바로 낸 {won(_rs['couple_paid_total'])}원은 이체로 이미 셌으니 지출에서 뺐어요")
+    if _rs.get('pending'):
+        lines.append(f"다음 달 몫 이체 {won(sum(p['금액'] for p in _rs['pending']))}원은 그 달에 셀게요")
+    return '<div class="rs-notes muted">' + "".join(f"<p>{ln}</p>" for ln in lines) + '</div>'
+
 def category_detail_accordions():
     header = """
     <div class="cd-row cd-header">
@@ -569,6 +589,7 @@ def category_detail_accordions():
             <td class="num muted">{s['건수']}건</td>
             <td class="num">{won(s['합계'])}원</td>
           </tr>""" for s in subs)
+        note = real_spend_note() if name == _rs_rule.get('대분류') else ""
         blocks.append(f"""
         <details class="detail-item">
           <summary class="cd-row cd-summary">
@@ -580,7 +601,7 @@ def category_detail_accordions():
           </summary>
           <table class="sub-table">
             <tbody>{sub_rows}</tbody>
-          </table>
+          </table>{note}
         </details>""")
     return "".join(blocks)
 
@@ -920,6 +941,8 @@ html = f"""<!DOCTYPE html>
   .detail-item[open] summary::before {{ content: '–'; }}
   .sub-table {{ margin: 0 0 16px 24px; width: calc(100% - 24px); }}
   .sub-table td {{ font-size: 14px; padding: 6px 10px; }}
+  .rs-notes {{ margin: -6px 0 16px 34px; font-size: 12.5px; line-height: 1.55; word-break: keep-all; overflow-wrap: anywhere; }}
+  .rs-notes p {{ margin: 0 0 4px; }}
 
   /* ---------- Category + detail combined accordion ---------- */
   .cd-row {{

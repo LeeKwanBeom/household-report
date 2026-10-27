@@ -7,6 +7,7 @@
 모든 비즈니스 규칙이 이 파일에 명시되어 있습니다.
 규칙이 바뀌면 아래 RULES 섹션만 수정하세요.
 """
+import re
 import sys
 import json
 import pandas as pd
@@ -194,6 +195,26 @@ COUPLE_SETTLEMENT = {
     "memo": "데이트비 정산",   # 대화의 이체 행 예시에 적는 세부내용(계산에는 쓰지 않는다)
 }
 
+# 내여자 실질 지출 (2026-10-27 사용자 결정)
+#
+# "실질적으로 지출된 것은 커플통장으로 이체한 것과 개인 결제뿐 — 정산 받은 것은 돈을 쓴 게 아니다."
+# 시작일은 COUPLE_SETTLEMENT["start"](값을 두 번 적지 않는다). 그날부터 지출을 모으는 화면·숫자
+# (KPI·월별 추이·대분류·히트맵·소분류·고정/변동·TOP15·전월 대비·예상 고정지출·목표 대비)는 실질 지출로 센다.
+#   실질 지출 = 지출 행 − 정산 받은 데이트비 몫 − 커플통장에서 바로 낸 지출 + 셈할 커플통장 이체
+# - 정산 받은 몫: 02번 정산이 오래된 대상부터 지운 몫(_settle_clear 한 곳). 걸친 행은 지워진 몫만 빠지고,
+#   정산 전인 대상은 지출 그대로다. 빠지는 달 = 대상 행의 달. 받음이 더 커도 대상 합까지만 빠진다.
+# - 커플통장 이체: 구분 이체 · 결제수단 fund_from · 소분류 = COUPLE_SETTLEMENT["account"].
+#   귀속 달 = 비고가 'N월분'이면 그 행 날짜에서 가장 가까운 N월(12/31 '1월분' → 다음 해 1월), 아니면 날짜의 달.
+#   귀속 달이 시작일의 달 이상인 것만 센다. 지출로 셀 때 (대분류, 소분류) = as_expense, 세부내용·고정여부는 그 행 값.
+# - 커플통장에서 바로 낸 지출(결제수단 = 커플통장)은 그 돈을 넣을 때 이체로 이미 셌으니 시작일부터 뺀다.
+# CSV 행은 그대로다 — 계좌 잔고·카드 실적·월별 전체 내역·02번 정산·매달 이체 검사·신한은행 고정지출·
+# 종료 추정·경고는 원래 행으로 본다. 화면·대화 문구는 bundle["real_spend"]["rule"]에서 읽는다.
+COUPLE_REAL_SPEND = {
+    "fund_from": "생활비",                 # 커플통장으로 보내는 계좌(셈할 이체 행의 결제수단)
+    "as_expense": ("내여자", "커플통장"),    # 셈한 이체를 지출로 셀 때 (대분류, 소분류)
+    "month_memo": r"(\d{1,2})\s*월분",      # 귀속 달 비고 꼴 — 비고 전체(앞뒤 공백 무시)가 이 꼴일 때만
+}
+
 
 # ============================================================
 # CSV 로딩 — 견고한 파싱
@@ -364,12 +385,13 @@ def _md(ts):
     return f"{ts.month}/{ts.day}"
 
 
-def couple_settlement(df):
-    """커플통장 정산(COUPLE_SETTLEMENT) → bundle["couple_settlement"].
+def _settle_clear(df):
+    """커플통장 정산의 대상·받음을 고르고, 받음 합(+ 환불)을 오래된 대상부터 지운다.
 
-    금액은 행마다 원 단위 정수로 바꿔 더한다 — 날짜별 소계의 합이 받을 금액과 정확히 같아야 한다(validate).
-    음수 금액(환불)은 대상 합을 줄이고, 남은 항목을 고를 때는 받음과 같이 오래된 대상부터 지운다.
-    그래서 남은 항목의 합은 언제나 max(0, 대상 합 − 받음 합)이다.
+    02번 정산(couple_settlement)과 실질 지출(couple_real_spend)이 이 한 곳의 결과를 같이 쓴다 — 계산을 두 벌 두지 않는다.
+    금액은 행마다 원 단위 정수. used[i] = 대상 행 i에서 지워진 몫(0 이하 행은 0).
+    음수 금액(환불)은 대상 합을 줄이고, 받음과 같이 '지울 몫'이 되어 오래된 대상부터 지운다.
+    그래서 남은 몫의 합은 언제나 max(0, 대상 합 − 받음 합)이다.
     """
     cs = COUPLE_SETTLEMENT
     main_cat, sub_cat = cs["target"]
@@ -382,23 +404,38 @@ def couple_settlement(df):
               & (src["소분류"] == dest)].sort_values("날짜", kind="stable")
 
     amounts = [int(round(float(a))) for a in tgt["금액"]]
-    target_total = sum(amounts)
     received = [(r["날짜"], int(round(float(r["금액"])))) for _, r in rec.iterrows()]
     received_total = sum(a for _, a in received)
     refund_total = -sum(a for a in amounts if a < 0)
+
+    credit = max(received_total + refund_total, 0)
+    used = []
+    for a in amounts:
+        u = min(a, credit) if a > 0 else 0
+        credit -= u
+        used.append(u)
+    return {"tgt": tgt, "amounts": amounts, "used": used, "received": received,
+            "received_total": received_total, "refund_total": refund_total}
+
+
+def couple_settlement(df, clear=None):
+    """커플통장 정산(COUPLE_SETTLEMENT) → bundle["couple_settlement"].
+
+    대상·받음·지우기는 _settle_clear 한 곳(clear를 넘기면 그 결과를 쓴다 — 실질 지출과 같은 계산).
+    날짜별 소계의 합이 받을 금액과 정확히 같아야 한다(validate).
+    """
+    cs = COUPLE_SETTLEMENT
+    main_cat, sub_cat = cs["target"]
+    acct, dest = cs["account"], cs["receive_to"]
+    clear = clear if clear is not None else _settle_clear(df)
+    tgt, amounts, received = clear["tgt"], clear["amounts"], clear["received"]
+    target_total = sum(amounts)
+    received_total, refund_total = clear["received_total"], clear["refund_total"]
     owed = max(0, target_total - received_total)
     over = max(0, received_total - target_total)
 
-    # 받음 합(+ 환불)을 오래된 대상부터 지운다. 걸친 행은 남은 몫만 남긴다.
-    credit = max(received_total + refund_total, 0)
-    left = []
-    for (_, r), a in zip(tgt.iterrows(), amounts):
-        if a <= 0:
-            continue
-        used = min(a, credit)
-        credit -= used
-        if a > used:
-            left.append((r, a - used, a))
+    # 지워지고 남은 몫. 걸친 행은 남은 몫만 남긴다.
+    left = [(r, a - u, a) for (_, r), a, u in zip(tgt.iterrows(), amounts, clear["used"]) if a > u]
 
     days = {}
     for r, rest, orig in left:
@@ -450,12 +487,111 @@ def couple_settlement(df):
     }
 
 
+def _memo_month(date, memo):
+    """이체 행 비고 'N월분' → 귀속 달 'YYYY-MM'. 그 행 날짜에서 가장 가까운 N월이다(해 넘김 — 12/31 '1월분'은
+    다음 해 1월). 앞뒤 거리가 같으면(6개월) 뒤 달 — 선이체 관례. 그 꼴이 아니면(다른 비고·빈칸) None."""
+    m = re.fullmatch(COUPLE_REAL_SPEND["month_memo"], str(memo).strip())
+    if not m or not 1 <= int(m.group(1)) <= 12:
+        return None
+    here = date.year * 12 + date.month - 1
+    cands = [y * 12 + int(m.group(1)) - 1 for y in (date.year - 1, date.year, date.year + 1)]
+    best = min(cands, key=lambda c: (abs(c - here), -c))
+    return f"{best // 12}-{best % 12 + 1:02d}"
+
+
+def couple_real_spend(df, exp, months, clear):
+    """내여자 실질 지출(COUPLE_REAL_SPEND) → (실질 지출 행, bundle["real_spend"]).
+
+    exp = 원래 지출 행(구분 지출). 돌려주는 행은 거기서
+    - 정산 대상 행의 금액을 _settle_clear가 지운 몫만큼 줄이고(0이 된 행은 뺀다 — 환불 행은 지울 몫에 들어갔으니 행째 뺀다),
+    - 시작일부터 커플통장에서 바로 낸 지출 행을 빼고,
+    - 셈할 커플통장 이체를 as_expense 지출 행으로 더한 것이다(날짜는 그대로, 비고로 다른 달에 귀속되면 그 달 1일).
+    귀속 달이 아직 리포트 달(months)에 없는 이체(다음 달 몫 선이체)는 그 달 행이 생길 때까지 세지 않고 pending에 둔다.
+    금액 합은 행마다 원 단위 정수 — validate가 'KPI = 원래 − 정산 받은 몫 − 커플통장 결제 + 이체'를 달마다 본다.
+    """
+    cs, rs = COUPLE_SETTLEMENT, COUPLE_REAL_SPEND
+    acct = cs["account"]
+    as_main, as_sub = rs["as_expense"]
+    start = pd.Timestamp(cs["start"])
+    start_m = start.strftime("%Y-%m")
+    idx = {m: i for i, m in enumerate(months)}
+
+    def by_month(pairs):
+        out = [0] * len(months)
+        for m, a in pairs:
+            out[idx[m]] += a
+        return out
+
+    real = exp.copy()
+    drop = []
+
+    # 정산 받은 몫 — 02번 정산과 같은 지우기 결과
+    settled = []
+    for (i, r), a, u in zip(clear["tgt"].iterrows(), clear["amounts"], clear["used"]):
+        d = u if a > 0 else a
+        if d == 0:
+            continue
+        settled.append((r["월"], d))
+        real.loc[i, "금액"] = real.loc[i, "금액"] - d
+        if real.loc[i, "금액"] == 0:
+            drop.append(i)
+
+    # 커플통장에서 바로 낸 지출 — 넣을 때 이체로 셌다
+    paid_rows = exp[(exp["날짜"] >= start) & (exp["결제수단"] == acct)]
+    paid = [(r["월"], int(round(float(r["금액"])))) for _, r in paid_rows.iterrows()]
+    drop += list(paid_rows.index)
+
+    # 셈할 커플통장 이체
+    tr = df[(df["구분"] == "이체") & (df["결제수단"] == rs["fund_from"]) & (df["소분류"] == acct)]
+    add, counted, pending = [], [], []
+    for _, r in tr.sort_values("날짜", kind="stable").iterrows():
+        home = _memo_month(r["날짜"], r["비고"]) or r["월"]
+        if home < start_m:
+            continue
+        a = int(round(float(r["금액"])))
+        if home not in idx:
+            pending.append({"날짜": r["날짜"].strftime("%Y-%m-%d"), "금액": a, "귀속": home})
+            continue
+        row = {c: r[c] for c in exp.columns if c in r.index}
+        row.update({"날짜": r["날짜"] if home == r["월"] else pd.Timestamp(home + "-01"),
+                    "구분": "지출", "대분류": as_main, "소분류": as_sub, "월": home})
+        add.append(row)
+        counted.append((home, a))
+
+    real = real.drop(index=drop)
+    if add:
+        real = pd.concat([real, pd.DataFrame(add, columns=exp.columns)], ignore_index=True)
+
+    orig_by = [round(v) for v in exp.groupby("월")["금액"].sum().reindex(months, fill_value=0)]
+    info = {
+        "rule": {"start": cs["start"], "account": acct, "fund_from": rs["fund_from"],
+                 "대분류": as_main, "소분류": as_sub, "target": list(cs["target"]), "memo": "N월분"},
+        "original_total": round(exp["금액"].sum()), "original_by_month": orig_by,
+        "settled_total": sum(d for _, d in settled), "settled_by_month": by_month(settled),
+        "couple_paid_total": sum(a for _, a in paid), "couple_paid_count": len(paid),
+        "couple_paid_by_month": by_month(paid),
+        "transfer_total": sum(a for _, a in counted), "transfer_count": len(counted),
+        "transfer_by_month": by_month(counted),
+        "pending": pending,
+    }
+    # 대화 한 줄(pipeline 요약이 그대로 찍는다 — 문구는 여기 한 곳에서만 만든다)
+    talk = (f"실질 지출: 정산 받은 {cs['target'][1]} {info['settled_total']:,}원 뺌 · "
+            f"{acct} 이체 {info['transfer_total']:,}원 더함")
+    if paid:
+        talk += f" · {acct}에서 바로 낸 {info['couple_paid_total']:,}원 뺌"
+    if pending:
+        talk += (f" · 다음 달 몫 {sum(p['금액'] for p in pending):,}원"
+                 f"({', '.join(sorted({p['귀속'] for p in pending}))})은 그 달에 셈")
+    info["talk"] = talk + f" ({cs['start']}부터)"
+    return real, info
+
+
 def build_bundle(df):
     # load_csv가 남긴 로딩 단계 통지 (필터링 전에 먼저 꺼낸다 — attrs는 연산을 거치며 사라질 수 있다)
     load_notices = dict(df.attrs.get("load_notices", {}))
 
     core = df[df["구분"].isin(["수입", "지출"])].copy()  # 이체는 수입/지출 집계 제외
-    exp = core[core["구분"] == "지출"].copy()
+    exp_rows = core[core["구분"] == "지출"].copy()       # 원래 지출 행 — 지출 집계는 아래 실질 지출(exp)로
     inc = core[core["구분"] == "수입"].copy()
 
     if len(core) == 0:
@@ -472,6 +608,12 @@ def build_bundle(df):
         month_labels.append(f"{mo}월" if y == latest_year else f"{y}.{mo}월")
     N = len(months)
 
+    # ---- 실질 지출 (COUPLE_REAL_SPEND) ----
+    # 지출을 모으는 화면·숫자는 모두 exp(실질 지출 행)에서 나온다. 02번 정산과 같은 지우기 결과(clear)를 쓴다.
+    # 원래 행 그대로 보는 것(계좌 잔고·카드 실적·월별 전체 내역·이체 검사·신한은행·진단)은 df·core를 쓴다.
+    clear = _settle_clear(df)
+    exp, real_spend = couple_real_spend(df, exp_rows, months, clear)
+
     total_income = inc["금액"].sum()
     total_expense = exp["금액"].sum()
 
@@ -479,7 +621,7 @@ def build_bundle(df):
     piv = core.pivot_table(index="월", columns="구분", values="금액",
                            aggfunc="sum", fill_value=0).reindex(months, fill_value=0)
     mi = [round(v) for v in piv.get("수입", pd.Series([0] * N, index=months))]
-    me = [round(v) for v in piv.get("지출", pd.Series([0] * N, index=months))]
+    me = [round(v) for v in exp.groupby("월")["금액"].sum().reindex(months, fill_value=0)]
     mn = [i - e for i, e in zip(mi, me)]
     savings_rate_series = [round(n / i * 100, 1) if i else 0 for n, i in zip(mn, mi)]
 
@@ -583,9 +725,8 @@ def build_bundle(df):
     last_completed = (pd.to_datetime(completed_months[-1] + "-01")
                       if has_completed else pd.to_datetime(months[-1] + "-01"))
 
-    fixed_rows = core[(core["구분"] == "지출") &
-                      (core["월"].isin(completed_months)) &
-                      (core["고정여부"] == "고정")].copy()
+    fixed_rows = exp[(exp["월"].isin(completed_months)) &
+                     (exp["고정여부"] == "고정")].copy()
 
     non_app = fixed_rows[fixed_rows["소분류"] != "어플/멤버쉽"].copy()
     non_app["키"] = non_app["대분류"] + " / " + non_app["소분류"]
@@ -749,7 +890,7 @@ def build_bundle(df):
     days_in_month = pd.Period(latest_month).days_in_month
     elapsed_ratio = latest_date.day / days_in_month
 
-    this_month_exp = core[(core["월"] == latest_month) & (core["구분"] == "지출")]
+    this_month_exp = core[(core["월"] == latest_month) & (core["구분"] == "지출")]   # 원래 행(카드 실적)
     card_cards = []
     for card, tgt in CARD_TARGETS.items():
         spent = round(this_month_exp[this_month_exp["비고"] == card]["금액"].sum())
@@ -789,8 +930,7 @@ def build_bundle(df):
 
     fvt_months = []
     for m in [x for x in months if x >= compare_start]:
-        actual = round(core[(core["월"] == m) & (core["구분"] == "지출") &
-                            (core["고정여부"] == "고정")]["금액"].sum())
+        actual = round(exp[(exp["월"] == m) & (exp["고정여부"] == "고정")]["금액"].sum())
         is_current = (m == latest_month)
         fvt_months.append({"월": m, "실제": actual, "목표": projection_total,
                            "차이": actual - projection_total, "진행중": is_current})
@@ -853,7 +993,8 @@ def build_bundle(df):
                        "items": projection_items, "excluded": excluded_items},
         "accounts": {"list": accounts_list,
                      "as_of_range": sorted({a["as_of"] for a in accounts_list})},
-        "couple_settlement": couple_settlement(df),
+        "couple_settlement": couple_settlement(df, clear),
+        "real_spend": real_spend,
         "shinhan_fixed": shinhan_fixed,
         "shinhan_fixed_total": sum(x["예상금액"] for x in shinhan_fixed),
         "shinhan_month": sh_month,
@@ -927,6 +1068,34 @@ def validate(bundle):
             if (sum(i["금액"] for i in d["items"]) != d["소계"]
                     or sum(i["건수"] for i in d["items"]) != d["건수"]):
                 errors.append(f"{label} {d['날짜']} 항목 합이 그날 소계·건수와 다릅니다")
+
+    # 실질 지출: KPI 총지출 = 원래 지출 합 − 정산 받은 몫 − 커플통장에서 바로 낸 지출 + 셈한 커플통장 이체(달마다도).
+    # 위 '월별 추이 합 = 대분류 합 = … = KPI' 검사는 이미 실질 값끼리 맞는지를 본다.
+    rs = bundle.get("real_spend")
+    if rs is not None:
+        acct = rs["rule"]["account"]
+        parts = ("original", "settled", "couple_paid", "transfer")
+        want = rs["original_total"] - rs["settled_total"] - rs["couple_paid_total"] + rs["transfer_total"]
+        if kpi_exp != want:
+            errors.append(f"실질 지출: KPI 총지출({kpi_exp:,}) != 원래 지출 합 − 정산 받은 몫 − "
+                          f"{acct}에서 바로 낸 지출 + {acct} 이체({want:,})")
+        for p in parts:
+            if sum(rs[f"{p}_by_month"]) != rs[f"{p}_total"]:
+                errors.append(f"실질 지출: {p} 달별 합({sum(rs[f'{p}_by_month']):,}) != 합계({rs[f'{p}_total']:,})")
+        labels, me = bundle["monthly"]["labels"], bundle["monthly"]["expense"]
+        if any(len(rs[f"{p}_by_month"]) != len(labels) for p in parts):
+            errors.append("실질 지출: 달별 목록 길이가 월별 추이와 다릅니다")
+        else:
+            for i, lab in enumerate(labels):
+                w = (rs["original_by_month"][i] - rs["settled_by_month"][i]
+                     - rs["couple_paid_by_month"][i] + rs["transfer_by_month"][i])
+                if me[i] != w:
+                    errors.append(f"실질 지출: {lab} 월별 지출({me[i]:,}) != 원래 − 정산 받은 몫 − "
+                                  f"{acct}에서 바로 낸 지출 + {acct} 이체({w:,})")
+        # 정산 받은 몫 = 02번 정산이 지운 몫 = 대상 합 − 받을 금액(받음이 더 커도 대상 합까지만)
+        if cs is not None and rs["settled_total"] != cs["target_total"] - cs["owed"]:
+            errors.append(f"실질 지출: 정산 받은 몫({rs['settled_total']:,}) != "
+                          f"{cs['rule']['account']} 정산 대상 합 − 받을 금액({cs['target_total'] - cs['owed']:,})")
 
     return errors
 
@@ -1084,6 +1253,7 @@ def main():
     k = bundle["kpi"]
     print(f"\n  총수입 {k['total_income']:,}원 / 총지출 {k['total_expense']:,}원 "
           f"/ 순잉여 {k['net']:,}원 (저축률 {k['savings_rate']}%)")
+    print(f"  {bundle['real_spend']['talk']}")
     for a in bundle["accounts"]["list"]:
         delta = a["current_balance"] - a["start_balance"]
         sign = "+" if delta > 0 else ""

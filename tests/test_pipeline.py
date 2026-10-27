@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
 import pipeline  # noqa: E402
 from pipeline import (  # noqa: E402
-    ACCOUNTS_START, ACCOUNT_KEY, COUPLE_SETTLEMENT, ENDED_FIXED_ITEMS, EXPECTED_COLS,
+    ACCOUNTS_START, ACCOUNT_KEY, COUPLE_REAL_SPEND, COUPLE_SETTLEMENT, ENDED_FIXED_ITEMS, EXPECTED_COLS,
     EXPECTED_MONTHLY_TRANSFERS, HIDDEN_ACCOUNTS, MANUALLY_EXCLUDED_FIXED_ITEMS,
     NO_CORE_ROWS_MSG, SUBSCRIPTION_ALIASES, build_bundle, fixed_app_name, load_csv,
     screen_warnings_for, today_kst, validate, warnings_for,
@@ -772,6 +772,307 @@ class CoupleSettlementOutput(unittest.TestCase):
         self.assertIn("더 받음 1,128원", self._section(html2, "s-couple"))
         self.assertIn("마지막 정산 3/3 10,009원", self._section(html2, "s-couple"))
         self.assertNotIn("더 받음", self._section(html2, "s13"))
+
+
+def xfer(df, 날짜, 금액, 비고="", 결제수단="생활비", 소분류="커플통장", 세부내용="합성 커플 이체"):
+    return add_row(df, 날짜=날짜, 구분="이체", 대분류="이체", 소분류=소분류, 세부내용=세부내용,
+                   금액=금액, 결제수단=결제수단, 고정여부="고정", 비고=비고)
+
+
+def other(df, 날짜, 금액, 세부내용="합성 장보기"):
+    return add_row(df, 날짜=날짜, 구분="지출", 대분류="식비", 소분류="장보기", 세부내용=세부내용,
+                   금액=금액, 결제수단="생활비")
+
+
+def month_exp(b, m):
+    return b["monthly"]["expense"][b["months_included"].index(m)]
+
+
+def by_month(b, key, m):
+    return b["real_spend"][key][b["months_included"].index(m)]
+
+
+def subs(b, main_cat):
+    return {s["소분류"]: (s["합계"], s["건수"]) for s in b["detail"].get(main_cat, [])}
+
+
+class CoupleRealSpend(unittest.TestCase):
+    """내여자 실질 지출(COUPLE_REAL_SPEND) — 정산 받은 몫 빼기·커플통장 이체 더하기·'N월분' 귀속(K4) ·
+    지출 집계가 실질 값·validate 정합(K3) (2026-10-27 커플실지출 기록 '정한 것' 1~5).
+    합성 값만 — 2027·2028년 날짜(실 가계부와 겹치지 않게), 시작일 경계는 상수를 patch한다."""
+
+    def _b(self, df, today=SETTLE_TODAY):
+        _, b = run_rows(df, today=today)
+        self.assertEqual(validate(b), [])
+        return b
+
+    def test_fully_received_removes_targets(self):
+        """다 받음 → 대상 전액이 지출에서 빠진다(행째 — 건수·TOP15에도 없다)."""
+        df = spend(fixture_rows(), "2027-03-02", "60,001", 세부내용="합성 큰 데이트")
+        df = spend(df, "2027-03-03", "5,005", 세부내용="합성 작은 데이트")
+        df = other(df, "2027-03-04", "3,303")
+        b = self._b(settle(df, "2027-03-09", "65,006"))
+        self.assertEqual(month_exp(b, "2027-03"), 3_303)
+        self.assertEqual(by_month(b, "settled_by_month", "2027-03"), 65_006)
+        self.assertEqual(b["real_spend"]["settled_total"], 65_006)
+        self.assertNotIn("데이트비용", subs(b, "내여자"))
+        self.assertFalse(any(t["세부내용"].startswith("합성") and t["대분류"] == "내여자" for t in b["top_expenses"]))
+        # 정산 전이면 그대로 지출(같은 행, 받음만 없음)
+        b0 = self._b(df)
+        self.assertEqual(month_exp(b0, "2027-03"), 3_303 + 60_001 + 5_005)
+        self.assertEqual(b0["real_spend"]["settled_total"], 0)
+        self.assertEqual(subs(b0, "내여자")["데이트비용"], (65_006, 2))
+        self.assertIn(60_001, [t["금액"] for t in b0["top_expenses"]])
+
+    def test_partial_clears_oldest_first_and_keeps_rest(self):
+        """일부 받음 → 오래된 것부터 지우고, 걸친 행은 지워진 몫만 빠진다. 빠지는 달 = 대상 행의 달."""
+        df = spend(fixture_rows(), "2027-03-02", "10,001", 세부내용="합성 가")
+        df = spend(df, "2027-03-03", "70,003", 세부내용="합성 나")
+        df = spend(df, "2027-04-01", "7,007", 세부내용="합성 다")
+        b = self._b(settle(df, "2027-04-02", "40,002"))
+        self.assertEqual((month_exp(b, "2027-03"), month_exp(b, "2027-04")), (40_002, 7_007))
+        self.assertEqual((by_month(b, "settled_by_month", "2027-03"), by_month(b, "settled_by_month", "2027-04")),
+                         (40_002, 0))
+        self.assertEqual(subs(b, "내여자")["데이트비용"], (47_009, 2))
+        self.assertEqual(b["couple_settlement"]["owed"], 47_009)     # 남은 지출 = 02번 받을 금액
+        self.assertIn(("합성 나", 40_002), [(t["세부내용"], t["금액"]) for t in b["top_expenses"]])
+
+    def test_over_received_only_up_to_target(self):
+        """더 받음 → 대상 합까지만 빠진다(음수 지출 없음). 개인 결제·선물은 그대로다."""
+        df = spend(fixture_rows(), "2027-03-02", "8,881")
+        df = spend(df, "2027-03-02", "9,991", 소분류="개인 결제")
+        df = spend(df, "2027-03-03", "8,883", 소분류="선물")
+        b = self._b(settle(df, "2027-03-05", "30,007"))
+        self.assertEqual(b["real_spend"]["settled_total"], 8_881)
+        self.assertEqual(b["couple_settlement"]["over"], 30_007 - 8_881)
+        self.assertEqual(month_exp(b, "2027-03"), 9_991 + 8_883)
+        self.assertEqual({k: v for k, v in subs(b, "내여자").items() if k in ("개인 결제", "선물")},
+                         {"개인 결제": (9_991, 1), "선물": (8_883, 1)})
+        self.assertTrue(all(v >= 0 for v in b["monthly"]["expense"]))
+
+    def test_refund_is_not_subtracted_twice(self):
+        """환불(음수 대상)은 02번처럼 지울 몫에 들어가 행째 빠진다 — 정산 받은 몫 합 = 받음, 남은 지출 = 받을 금액."""
+        df = spend(fixture_rows(), "2027-03-02", "10,001", 세부내용="합성 가")
+        df = spend(df, "2027-03-03", "6,006", 세부내용="합성 나")
+        df = spend(df, "2027-03-04", "-3,001", 세부내용="합성 환불")
+        b = self._b(settle(df, "2027-03-05", "4,000"))
+        self.assertEqual(b["real_spend"]["settled_total"], 4_000)
+        self.assertEqual(month_exp(b, "2027-03"), 13_006 - 4_000)
+        self.assertEqual(month_exp(b, "2027-03"), b["couple_settlement"]["owed"])
+        self.assertEqual(subs(b, "내여자")["데이트비용"], (9_006, 2))
+
+    def test_before_start_is_unchanged(self):
+        """시작일 전 데이트비·이체·커플통장 결제는 원래 행 그대로(정산·이체 셈 없음)."""
+        with mock.patch.dict(pipeline.COUPLE_SETTLEMENT, {"start": "2027-04-01"}):
+            df = spend(fixture_rows(), "2027-03-30", "4,447")
+            df = spend(df, "2027-03-30", "2,221", 결제수단="커플통장")
+            df = xfer(df, "2027-03-15", "3,331")
+            df = settle(df, "2027-03-31", "4,447")
+            df = spend(df, "2027-04-02", "5,553")
+            b = self._b(settle(df, "2027-04-03", "5,553"))
+        rs = b["real_spend"]
+        self.assertEqual((month_exp(b, "2027-03"), month_exp(b, "2027-04")), (4_447 + 2_221, 0))
+        self.assertEqual((rs["settled_total"], rs["transfer_total"], rs["couple_paid_total"]), (5_553, 0, 0))
+        # fixture(2026년)의 커플통장 이체·커플통장 결제도 시작일 전이라 원래 값 그대로
+        n = b["months_included"].index("2027-03")
+        self.assertEqual(b["monthly"]["expense"][:n], rs["original_by_month"][:n])
+
+    def test_transfer_counted_in_memo_month(self):
+        """'N월분' → 그 달(시작일 전 날짜라도 귀속이 시작 달이면 센다) · 비고 없음·다른 비고 → 날짜의 달."""
+        with mock.patch.dict(pipeline.COUPLE_SETTLEMENT, {"start": "2027-04-01"}):
+            df = other(fixture_rows(), "2027-03-02", "1,111")
+            df = other(df, "2027-04-02", "2,227")
+            df = xfer(df, "2027-03-30", "40,001", 비고="4월분")
+            df = xfer(df, "2027-03-15", "10,003")
+            df = xfer(df, "2027-04-10", "10,007", 비고="합성 메모")
+            df = xfer(df, "2027-04-20", "10,009")
+            b = self._b(df)
+        self.assertEqual(month_exp(b, "2027-03"), 1_111)
+        self.assertEqual(month_exp(b, "2027-04"), 2_227 + 40_001 + 10_007 + 10_009)
+        self.assertEqual((b["real_spend"]["transfer_total"], b["real_spend"]["transfer_count"]), (60_017, 3))
+        as_main, as_sub = COUPLE_REAL_SPEND["as_expense"]
+        self.assertEqual(subs(b, as_main)[as_sub], (60_017, 3))
+        # 귀속된 이체는 그 달 1일 행이라 전월 대비(1~20일로 자름)에도 4월로 들어간다
+        mom = {x["대분류"]: x for x in b["month_over_month"]["items"]}
+        self.assertEqual(b["month_over_month"]["same_day_cutoff"], 20)
+        self.assertEqual(mom[as_main]["당월"], 60_017)
+
+    def test_memo_month_wraps_year(self):
+        """12/31 '1월분' → 다음 해 1월."""
+        df = other(fixture_rows(), "2027-12-02", "1,111")
+        df = other(df, "2028-01-05", "2,227")
+        b = self._b(xfer(df, "2027-12-31", "30,011", 비고="1월분"), today="2028-12-31")
+        self.assertEqual((month_exp(b, "2027-12"), month_exp(b, "2028-01")), (1_111, 2_227 + 30_011))
+        self.assertEqual(by_month(b, "transfer_by_month", "2028-01"), 30_011)
+
+    def test_memo_month_rule(self):
+        mm = pipeline._memo_month
+        ts = pd.Timestamp
+        self.assertEqual(mm(ts("2027-08-29"), "9월분"), "2027-09")
+        self.assertEqual(mm(ts("2027-12-31"), "1월분"), "2028-01")
+        self.assertEqual(mm(ts("2027-01-02"), "12월분"), "2026-12")
+        self.assertEqual(mm(ts("2027-03-15"), "9월분"), "2027-09")      # 앞뒤 6개월 → 뒤(선이체)
+        self.assertEqual(mm(ts("2027-03-15"), " 04월분 "), "2027-04")
+        for memo in ("", "13월분", "0월분", "4월분 이체", "합성 메모", "현대카드"):
+            self.assertIsNone(mm(ts("2027-03-15"), memo), memo)
+
+    def test_next_month_share_waits_for_its_month(self):
+        """귀속 달이 아직 리포트에 없으면(다음 달 몫 선이체) 세지 않고 대화로 알린다 — 그 달 행이 생기면 센다."""
+        df = other(fixture_rows(), "2027-03-02", "1,111")
+        df = xfer(df, "2027-03-31", "40,001", 비고="4월분")
+        b = self._b(df)
+        rs = b["real_spend"]
+        self.assertEqual(rs["pending"], [{"날짜": "2027-03-31", "금액": 40_001, "귀속": "2027-04"}])
+        self.assertEqual(month_exp(b, "2027-03"), 1_111)
+        self.assertIn("다음 달 몫 40,001원(2027-04)은 그 달에 셈", rs["talk"])
+        b2 = self._b(other(df, "2027-04-02", "2,227"))
+        self.assertEqual((b2["real_spend"]["pending"], month_exp(b2, "2027-04")), ([], 2_227 + 40_001))
+
+    def test_other_transfers_unchanged(self):
+        """신한은행·주식잔고·적금·커플통장→생활비(정산 대상 없음)·다른 계좌→커플통장 이체는 지출에 안 든다."""
+        base = other(fixture_rows(), "2027-03-02", "1,111")
+        df = xfer(base, "2027-03-03", "7,001", 소분류="신한은행")
+        df = xfer(df, "2027-03-03", "7,003", 소분류="주식잔고")
+        df = xfer(df, "2027-03-03", "7,005", 소분류="청년미래적금")
+        df = settle(df, "2027-03-04", "7,007")
+        df = xfer(df, "2027-03-04", "7,009", 결제수단="신한은행")
+        b0, b = self._b(base), self._b(df)
+        self.assertEqual(b["monthly"]["expense"], b0["monthly"]["expense"])
+        self.assertEqual(b["kpi"]["total_expense"], b0["kpi"]["total_expense"])
+        self.assertEqual((b["real_spend"]["transfer_total"], b["real_spend"]["settled_total"]),
+                         (b0["real_spend"]["transfer_total"], 0))
+
+    def test_paid_from_couple_account_after_start_not_counted_twice(self):
+        """시작일부터 커플통장에서 바로 낸 지출은 뺀다 — 그 돈은 커플통장에 넣을 때 이체로 셌다(임의 결정)."""
+        df = other(fixture_rows(), "2027-03-02", "1,111")
+        b0 = self._b(df)
+        b = self._b(spend(df, "2027-03-03", "6,661", 결제수단="커플통장"))
+        self.assertEqual(month_exp(b, "2027-03"), 1_111)
+        self.assertEqual(b["real_spend"]["couple_paid_total"] - b0["real_spend"]["couple_paid_total"], 6_661)
+        self.assertIn(f"커플통장에서 바로 낸 {b['real_spend']['couple_paid_total']:,}원 뺌", b["real_spend"]["talk"])
+
+    def test_aggregates_use_real_spend(self):
+        """KPI·월별·대분류·히트맵·고정/변동·목표 대비·예상 고정지출이 같은 실질 지출에서 나온다(K3)."""
+        df = other(fixture_rows(), "2027-03-02", "1,111")
+        df = spend(df, "2027-03-02", "20,003")
+        df = xfer(df, "2027-03-05", "40,001")
+        df = settle(df, "2027-03-06", "20,003")
+        df = other(df, "2027-04-02", "2,227")
+        b = self._b(df)
+        n = b["months_included"].index("2027-03")
+        self.assertEqual(month_exp(b, "2027-03"), 1_111 + 40_001)
+        cats = b["heatmap"]["categories"]
+        self.assertEqual(b["heatmap"]["matrix"][cats.index("내여자")][n],
+                         by_month(b, "transfer_by_month", "2027-03"))
+        fv = {x["대분류"]: x for x in b["fixed_variable"]}
+        self.assertEqual(fv["내여자"]["고정"], b["real_spend"]["transfer_total"])   # 이체 행의 고정여부 그대로
+        fvt = {x["월"]: x["실제"] for x in b["fixed_vs_target"]["months"]}
+        self.assertEqual(fvt["2027-03"], 40_001)
+        self.assertIn("내여자 / 커플통장", [p["항목"] for p in b["projection"]["items"]])
+        # 월별 전체 내역은 원래 행 그대로(이체는 이체, 정산 받은 데이트비도 원래 금액)
+        tx = b["monthly_tx"]["2027-03"]
+        self.assertIn(("이체", "커플통장", 40_001), [(t["구분"], t["소분류"], t["금액"]) for t in tx])
+        self.assertIn(("지출", "데이트비용", 20_003), [(t["구분"], t["소분류"], t["금액"]) for t in tx])
+
+    def test_real_spend_does_not_touch_balances_cards_or_warnings(self):
+        """계좌 잔고·카드 실적·월별 전체 내역·02번 정산·경고는 실질 지출 규칙이 있어도 없어도 같다(K2 축소판)."""
+        df = spend(fixture_rows(), "2027-03-21", "13,013")
+        df = add_row(df, 날짜="2027-03-22", 구분="지출", 대분류="내여자", 소분류="데이트비용", 세부내용="합성 카드 데이트",
+                     금액="7,007", 결제수단="생활비", 비고="현대카드")
+        df = settle(df, "2027-03-23", "15,000")
+        df = xfer(df, "2027-03-24", "100,003")
+        _, b = run_rows(df, today=SETTLE_TODAY)
+        self.assertEqual(validate(b), [])
+        with mock.patch.object(pipeline, "couple_real_spend", lambda df_, exp, months, clear: (exp, {
+                "rule": {"account": "커플통장"}, "original_total": 0, "settled_total": 0, "couple_paid_total": 0,
+                "transfer_total": 0, "talk": ""})):
+            _, b_old = run_rows(df, today=SETTLE_TODAY)
+        for key in ("accounts", "card_performance", "card_category_detail", "monthly_tx", "couple_settlement",
+                    "diagnostics", "shinhan_fixed", "shinhan_unmatched"):
+            self.assertEqual(b[key], b_old[key], key)
+        self.assertEqual(warnings_for(b), warnings_for(b_old))
+        self.assertNotEqual(b["kpi"]["total_expense"], b_old["kpi"]["total_expense"])
+
+    def test_validate_catches_real_spend_mismatch(self):
+        """KPI ≠ 원래 − 정산 받은 몫 − 커플통장 결제 + 이체 · 달별 합 · 달마다 · 02번과 다른 정산 몫이면 [실패](K3)."""
+        df = spend(fixture_rows(), "2027-03-02", "10,001")
+        df = xfer(df, "2027-03-05", "40,001")
+        b = self._b(settle(df, "2027-03-06", "4,000"))
+        n = b["months_included"].index("2027-03")
+
+        def kpi(rs):
+            rs["transfer_total"] += 1
+
+        def month_shift(rs):
+            rs["transfer_by_month"][n] -= 1
+            rs["transfer_by_month"][0] += 1
+
+        def settle_vs_02(rs):
+            for k in ("settled_total", "original_total"):
+                rs[k] += 1
+            rs["settled_by_month"][n] += 1
+            rs["original_by_month"][n] += 1
+
+        def by_month_sum(rs):
+            rs["settled_by_month"][n] += 1
+            rs["original_by_month"][n] += 1
+
+        muts = {"KPI 총지출": kpi, "월별 지출": month_shift, "정산 대상 합 − 받을 금액": settle_vs_02,
+                "settled 달별 합": by_month_sum, "길이": lambda rs: rs["settled_by_month"].pop()}
+        for label, mut in muts.items():
+            bb = copy.deepcopy(b)
+            mut(bb["real_spend"])
+            errs = validate(bb)
+            self.assertTrue(any(e.startswith("실질 지출") and label in e for e in errs), f"{label}: {errs}")
+
+
+class CoupleRealSpendOutput(unittest.TestCase):
+    """pipeline 끝 요약의 실질 지출 줄(K6) · 06번 내여자 펼침 아래 참고 줄 · 섹션 15개 번호 그대로(K5)."""
+
+    _report = CoupleSettlementOutput._report
+    _section = staticmethod(CoupleSettlementOutput._section)
+
+    def test_main_prints_real_spend_line_under_kpi(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, tmp, True)
+        df = settle(spend(fixture_rows(), "2027-03-02", "10,001"), "2027-03-03", "10,001")
+        df.to_csv(os.path.join(tmp, "in.csv"), index=False, encoding="utf-8-sig")
+        out, cwd = io.StringIO(), os.getcwd()
+        try:
+            os.chdir(tmp)
+            with mock.patch.object(pipeline, "_now_utc", return_value=pd.Timestamp("2027-12-31", tz="UTC")), \
+                    mock.patch.object(sys, "argv", ["pipeline.py", "in.csv"]), redirect_stdout(out):
+                pipeline.main()
+            with open(os.path.join(tmp, "data_bundle.json"), encoding="utf-8") as f:
+                b = json.load(f)
+        finally:
+            os.chdir(cwd)
+        lines = out.getvalue().splitlines()
+        k = next(i for i, ln in enumerate(lines) if ln.startswith("  총수입 "))
+        self.assertIn(f"총지출 {b['kpi']['total_expense']:,}원", lines[k])
+        # fixture: 9/1 커플통장 이체 400,000 셈 · 9/20 커플통장에서 바로 낸 20,000 뺌
+        self.assertEqual(lines[k + 1], "  실질 지출: 정산 받은 데이트비용 10,001원 뺌 · 커플통장 이체 400,000원 더함 · "
+                                       "커플통장에서 바로 낸 20,000원 뺌 (2026-09-01부터)")
+        self.assertTrue(lines[k + 2].startswith("  생활비 통장:"))
+
+    def test_note_under_couple_category(self):
+        df = spend(fixture_rows(), "2027-03-02", "10,001")
+        df = spend(df, "2027-03-03", "5,005")
+        df = settle(df, "2027-03-04", "12,000")
+        html = self._report(df)
+        ids = re.findall(r'<section id="([^"]+)"', html)
+        self.assertEqual(len(ids), 15)
+        self.assertEqual(re.findall(r'<span class="section-num">(\d+)</span>', html), [f"{i:02d}" for i in range(1, 16)])
+        sec = self._section(html, "s6")
+        blocks = re.findall(r'<details class="detail-item">(.*?)</details>', sec, re.S)
+        mine = [blk for blk in blocks if '<span class="cd-name name">내여자</span>' in blk]
+        self.assertEqual(len(mine), 1)
+        self.assertIn("데이트비용: 내 카드·계좌로 낸 15,006원 중 커플통장에서 정산 받은 12,000원은 지출에서 뺐어요(9/1부터)",
+                      mine[0])
+        self.assertIn("커플통장: 9/1부터는 생활비 → 커플통장 이체 400,000원을 지출로 셌어요(비고 'N월분'이면 그 달로)",
+                      mine[0])
+        self.assertIn("커플통장에서 바로 낸 20,000원은 이체로 이미 셌으니 지출에서 뺐어요", mine[0])
+        self.assertEqual(sum("rs-notes" in blk for blk in blocks), 1)
 
 
 class DeployChecks(unittest.TestCase):
