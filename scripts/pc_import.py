@@ -77,7 +77,11 @@ KINDS = {
     "foreign": ("해외 결제 — 원화 청구 확정액?", ROW_OPTS, False, False),
     "dup_weak": ("같은 날 같은 금액 n건 — 실제 n건?", ROW_OPTS, True, False),
     "memo_conflict": ("적요가 카드대금·이체 패턴 둘 이상에 걸림", ROW_OPTS, False, False),
-    "transfer_unknown": ("이체 상대 모름(본인 이름 등 둘 이상 계좌에 걸림)", ROW_OPTS, False, False),
+    # 카드대금(카드명): 카드값을 카드결제 계좌(자동화 밖)로 옮긴 이체 — 행 0, 원장 '카드대금 이체'([[card_transfer]] 패턴만)
+    "transfer_unknown": ("이체 상대 모름(본인 이름 등 둘 이상 계좌에 걸림)",
+                         ROW_OPTS + [f"카드대금({c})" for c in CARDS], False, False),
+    "transfer_fill": ("이체 — 같은 날 같은 금액 자동 수입이 없다(귀속 구독·보험값 채움?)", ["제외", "이체", "보류"],
+                      False, False),
     "transfer_noin": ("이체 — 입금 쪽 내역 없음(상대 파일이 그 날짜를 덮는데)", ROW_OPTS, False, False),
     "transfer_noout": ("입금 — 출금 계좌?(파일이 있는 계좌에서 온 이체)", ROW_OPTS, False, False),
     "transfer_conflict": ("이체 짝 충돌(기다리는 이체와 상대·금액이 어긋남)", ROW_OPTS, False, False),
@@ -489,7 +493,8 @@ CREATE TABLE IF NOT EXISTS runs(run TEXT PRIMARY KEY, applied TEXT, csv_before T
 """
 
 DONE_STATES = {"written", "paired", "suppressed", "cancel_done", "card_payment", "transfer_pair", "excluded",
-               "inst_pair", "sched", "kept_missing", "points_full", "internal", "cancel_kept"}
+               "inst_pair", "sched", "kept_missing", "points_full", "internal", "cancel_kept", "card_transfer"}
+CARD_TRANSFER_ANSWER = re.compile(r"카드대금\((.+)\)")
 LINK_STATES = {"written", "paired", "kept_missing"}
 
 
@@ -567,6 +572,7 @@ class Disp:
     transfer: tuple = None        # (출금 계좌, 입금 계좌)
     rule_key: str = ""
     wait_fill: str = ""           # 원장의 기다리는 이체를 채울 쪽(in_key/out_key)
+    follows: str = ""             # 이체 입금 쪽 — 처리가 짝(출금 쪽) 질문의 답을 따른다(C2)
 
 
 class Result:
@@ -947,6 +953,10 @@ class Engine:
                 self.ask(t, "gone_row", note=f"CSV 행 키 {st['csv_key']}")
                 continue
             self.disp(t, "끝남", f"원장: {st['state']}", state=st["state"], csv_key=st.get("csv_key", ""))
+            if st["state"] == "card_transfer" and st["extra"].get("card") in self.card_src:
+                # 지난 회차에 '카드대금'으로 답한 이체 — 매 회차 관측된 카드대금으로 다시 쓴다(결제됨 판정·잔액 항)
+                ym = tuple(int(x) for x in st["extra"]["pay_month"].split("-"))
+                self.cardpays.append((t, st["extra"]["card"], "transfer", ym))
         for t in self.vanished:
             st = self.led.state.get(t.key) or {"state": "", "csv_key": ""}
             if st["state"] in ("written", "paired"):
@@ -1043,7 +1053,7 @@ class Engine:
                 self.ask(t, "memo_conflict", row=row, route=self.route_of_row(row), note="카드사 입금")
                 return
             self.disp(t, "제외", f"카드대금({cps[0]['card']})", state="card_payment")
-            self.cardpays.append((t, cps[0]["card"]))
+            self.cardpays.append((t, cps[0]["card"], "direct", None))
             return
         cps_tr = {c["counterpart"] for c in trs}
         # 계좌마다 유일한 이체 규칙이 하나로 풀리면 그것이 본인 이름 같은 모호 패턴보다 먼저다
@@ -1056,7 +1066,17 @@ class Engine:
             dflt = amb[0]["default"] if amb else cands[0]
             src, dst = (t.account, dflt) if t.direction == "out" else (dflt, t.account)
             row = self.transfer_row(src, dst, t.date, t.amount)
-            self.ask(t, "transfer_unknown", row=row, route=self.route_of_row(row), note="후보 " + "/".join(cands))
+            card_ok, inwin = self.card_windows(t)
+            note = "후보 " + "/".join(cands)
+            if inwin:
+                # 카드값 이체 창 안(C1) — 제안만 카드대금(답 없이 자동으로 카드대금으로 만들지 않는다)
+                tot = [(c, ym, pd_) + self.cycle_total(c, ym) for c, ym, pd_ in inwin]
+                pick = min(tot, key=lambda x: (abs(t.amount - x[3]), x[2]))[0]
+                note = (f"제안 카드대금({pick}) — 카드값 이체 창 · 후보 " + " / ".join(
+                    f"{c} 결제일 {pd_} 직전 주기 {lo}~{hi} 합계 {total:,}({basis})"
+                    for c, ym, pd_, total, basis, (lo, hi) in tot) + " · 그 밖 후보 " + "/".join(cands))
+            self.ask(t, "transfer_unknown", row=row, route=self.route_of_row(row), note=note,
+                     card_ok={c: "%d-%02d" % ym for c, ym in card_ok.items()})
             return
         if t.direction == "in":
             inc = [c for c in cfg["income"] if c["account"] == t.account and mp(c["patterns"], t, c["field"])]
@@ -1070,6 +1090,80 @@ class Engine:
                      note="수입 규칙 둘 이상" if inc else "")
             return
         self.classify_merchant(t, t.amount, lambda tt, v, a: self.bank_row(tt, "지출", v))
+
+    # ---- 카드값 이체 창(C1) ----
+    def card_windows(self, t):
+        """[[card_transfer]] 패턴에 맞는 출금 → ({카드: 결제월}, [(카드, 결제월, 결제일) — 창 안]).
+        창 = 결제일 −days_before ~ 결제일. 창 밖이면 다음 결제일의 달(답으로만 카드대금)."""
+        ok, inwin = {}, []
+        if t.kind != "bank" or t.direction != "out":
+            return ok, inwin
+        for c in self.cfg["card_transfer"]:
+            card = c["card"]
+            if c["account"] != t.account or card not in self.card_src or \
+                    not self.match_pats(c["patterns"], t, c["field"]):
+                continue
+            months = [add_months(t.date.year, t.date.month, k) for k in (0, 1)]
+            hit = next((ym for ym in months
+                        if self.pay_date(card, ym) - dt.timedelta(days=c["days_before"]) <= t.date
+                        <= self.pay_date(card, ym)), None)
+            if hit is not None:
+                inwin.append((card, hit, self.pay_date(card, hit)))
+            ok[card] = hit or next(ym for ym in months if self.pay_date(card, ym) >= t.date)
+        return ok, inwin
+
+    def cycle_total(self, card, ym):
+        """결제월 ym에 청구되는 이용기간의 합계(제안 근거) — 카드 파일이 이용기간을 다 덮으면 파일(일시불 − 취소),
+        아니면 CSV의 그 카드 지출 행. → (합계, 근거, (시작, 끝))"""
+        lo, hi = self.cycle_span(card, ym)
+        s = self.card_src[card]
+        if all(self.covers(s.id, lo + dt.timedelta(days=i)) for i in range((hi - lo).days + 1)):
+            pool = dict(self.R.union)
+            pool.update(self.R.cur)
+            txs = [x for x in pool.values() if x.source == s.id and lo <= x.date <= hi and "#" not in x.key]
+            total = sum(self.amount_after_points(x) for x in txs if not x.cancel
+                        and not (s.installment_mode == "total" and x.inst_months >= 2))
+            total += sum(-abs(x.amount) for x in txs if x.cancel and x.amount < 0)
+            return total, "카드 파일", (lo, hi)
+        total = sum(r.amount for r in self.doc.recs
+                    if r.route == ("card", card, "지출") and r.date and r.amount is not None and lo <= r.date <= hi)
+        return total, "CSV", (lo, hi)
+
+    def card_transfer_choice(self, it, act):
+        """'카드대금(카드명)' 답 → (카드, 결제월) — 그 거래가 그 카드의 [[card_transfer]] 패턴에 맞을 때만, 아니면 None."""
+        m = CARD_TRANSFER_ANSWER.fullmatch(act or "")
+        if it.kind != "transfer_unknown" or not m or it.tx is None:
+            return None
+        ym = (it.extra.get("card_ok") or {}).get(m.group(1))
+        return (m.group(1), tuple(int(x) for x in ym.split("-"))) if ym else None
+
+    def auto_income(self, x):
+        """[[income]] 규칙 하나로 자동 수입이 되는 입금인가(classify_bank와 같은 판정 순서)."""
+        if x.kind != "bank" or x.direction != "in":
+            return False
+        mp, cfg = self.match_pats, self.cfg
+        for key in ("card_payment", "internal", "transfer", "transfer_ambiguous"):
+            if any(c["account"] == x.account and c.get("direction", "both") in ("both", x.direction)
+                   and mp(c["patterns"], x, c["field"]) for c in cfg[key]):
+                return False
+        return len([c for c in cfg["income"] if c["account"] == x.account and mp(c["patterns"], x, c["field"])]) == 1
+
+    def gated(self, src, dst):
+        return self.cfg["transfer_pair"].get((src, dst), {}).get("auto_only_with_income", False)
+
+    def fill_note(self, o, src, dst):
+        """C2 질문 사유: 같은 금액의 src 귀속 카드 행(CSV · 이번 제안, 직전 40일)."""
+        lo = o.date - dt.timedelta(days=40)
+        hits = [f"CSV {r.no}행({r.date} {r.v['비고']})" for r in self.doc.recs
+                if r.date and lo <= r.date <= o.date and r.amount == o.amount and r.v.get("구분") == "지출"
+                and r.v.get("결제수단") == src and r.v.get("비고") in CARDS]
+        for d in self.R.disps.values():
+            r = d.row
+            if d.status in ("자동", "확인 필요") and r and d.tx.kind == "card" and r["구분"] == "지출" \
+                    and int(r["금액"]) == o.amount and r["결제수단"] == src and r["비고"] in CARDS \
+                    and lo <= dt.date.fromisoformat(r["날짜"]) <= o.date:
+                hits.append(f"제안({r['날짜']} {r['비고']})")
+        return f"{src}→{dst} · 제안 제외" + (" · 같은 금액 귀속 카드 행: " + ", ".join(hits) if hits else "")
 
     # ---- 이체(3-0 5) ----
     def match_transfers(self):
@@ -1088,6 +1182,16 @@ class Engine:
                     pairs.append((abs((o.date - i.date).days), o.date, ti, tj))
         pairs.sort()
         done_o, done_i = set(), set()
+        # auto_only_with_income 쌍(C2): 출금 계좌에 같은 날·같은 금액 자동 수입이 있을 때만 자동 이체 행(수입 하나에 이체 하나)
+        self.income_used = set()
+        incomes = sorted((x for x in R.cur.values() if self.auto_income(x)), key=lambda x: (x.date, x.key))
+
+        def take_income(o):
+            hit = next((x for x in incomes if x.account == o.account and x.date == o.date and x.amount == o.amount
+                        and x.key not in self.income_used), None)
+            if hit is not None:
+                self.income_used.add(hit.key)
+            return hit
         for _, _, ti, tj in pairs:
             if ti in done_o or tj in done_i:
                 continue
@@ -1096,8 +1200,16 @@ class Engine:
             o, dst = outs[ti]
             i, src = ins[tj]
             row = self.transfer_row(o.account, dst, o.date, o.amount)
-            self.disp(o, "자동", f"이체 {o.account}→{dst}(양쪽 내역)", state="written", row=row,
-                      route=self.route_of_row(row), rdate=o.date, partner=i.key, transfer=(o.account, dst))
+            if self.gated(o.account, dst) and take_income(o) is None:
+                self.ask(o, "transfer_fill", row=row, route=self.route_of_row(row), note=self.fill_note(o, o.account, dst),
+                         dkw={"transfer": (o.account, dst), "partner": i.key})
+                self.disp(i, "제외", f"이체 짝(입금 쪽 — 출금 쪽 {o.date} 질문의 답을 따른다)", state="held",
+                          partner=o.key, transfer=(o.account, dst), follows=o.key)
+                continue
+            self.disp(o, "자동", f"이체 {o.account}→{dst}(양쪽 내역" + (" · 같은 날 같은 금액 자동 수입)"
+                                                                     if self.gated(o.account, dst) else ")"),
+                      state="written", row=row, route=self.route_of_row(row), rdate=o.date, partner=i.key,
+                      transfer=(o.account, dst))
             self.disp(i, "제외", f"이체 짝(입금 쪽 — 행은 출금 쪽 {o.date})", state="transfer_pair",
                       partner=o.key, transfer=(o.account, dst))
         # 2) 남은 입금 × 원장의 기다리는 출금 · 3) 남은 출금 × 원장의 기다리는 입금
@@ -1138,6 +1250,9 @@ class Engine:
             elif dst in self.bank_src and self.account_covers(dst, o.date) and \
                     self.account_covers(dst, o.date + dt.timedelta(days=1)):
                 self.ask(o, "transfer_noin", row=row, route=route, dkw={"transfer": (o.account, dst)})
+            elif self.gated(o.account, dst) and take_income(o) is None:
+                self.ask(o, "transfer_fill", row=row, route=route, note=self.fill_note(o, o.account, dst),
+                         dkw={"transfer": (o.account, dst)})
             else:
                 why = "제외 계좌" if dst not in self.bank_src else "상대 파일이 그 날짜를 안 덮음 — 원장에 기다림"
                 self.disp(o, "자동", f"이체 {o.account}→{dst}(출금 쪽만 · {why})", state="written", row=row,
@@ -1180,20 +1295,27 @@ class Engine:
                 else:
                     self.disp(c, "제외", "취소된 거래(상태 취소 — 원거래와 한 행)", state="cancel_done")
                 continue
-            origs = []
+            origs, late = [], []
             if c.approval:
-                origs = [o for o in pool if o.source == c.source and o.approval == c.approval and not o.cancel
-                         and o.key not in used]
+                same = [o for o in pool if o.source == c.source and o.approval == c.approval and not o.cancel
+                        and o.key not in used]
+                origs = [o for o in same if self.not_after(o, c)]
+                late = [o for o in same if not self.not_after(o, c)]
+            if not origs and not late:
+                # 승인번호가 없거나 원거래와 다른 출처(실물 신한카드) — 같은 가맹점·같은 금액·취소 시각 이전
+                same = [o for o in pool if o.source == c.source and not o.cancel and o.key not in used
+                        and normalize_merchant(o.merchant) == normalize_merchant(c.merchant)
+                        and o.amount == abs(c.amount) and o.date <= c.date]
+                origs = [o for o in same if self.not_after(o, c)]
+                late = [o for o in same if not self.not_after(o, c)]
+            # 취소 시각 뒤의 같은 승인번호·같은 날 같은 가맹점·금액 거래(C3)는 원거래가 아니다 — 그런 거래가 있으면
+            # 남은 후보 하나로 자동 짝짓지 않고 묻는다(재결제가 있으면 원거래를 가를 수 없다)
+            late_note = f" · 취소 시각 뒤 같은 거래 {len(late)}건은 원거래 아님(재결제?)" if late else ""
             if not origs:
-                # 승인번호가 없거나 원거래와 다른 출처(실물 신한카드) — 같은 가맹점·같은 금액·이전 날짜
-                origs = [o for o in pool if o.source == c.source and not o.cancel and o.key not in used
-                         and normalize_merchant(o.merchant) == normalize_merchant(c.merchant)
-                         and o.amount == abs(c.amount) and o.date <= c.date]
-            if not origs:
-                self.ask(c, "cancel_orphan")
+                self.ask(c, "cancel_orphan", note=late_note[3:])
                 continue
-            if len(origs) > 1:
-                self.ask(c, "cancel_ambiguous", note=f"후보 {len(origs)}건")
+            if len(origs) > 1 or late:
+                self.ask(c, "cancel_ambiguous", note=f"후보 {len(origs)}건" + late_note)
                 continue
             o = origs[0]
             used.add(o.key)
@@ -1222,6 +1344,14 @@ class Engine:
             if o.key in R.cur:
                 self.disp(o, "제외", "취소된 원거래(취소 행과 짝)", state="cancel_done", partner=c.key)
             self.disp(c, "제외", "취소(원거래와 짝 — 둘 다 넣지 않음)", state="cancel_done", partner=o.key)
+
+    @staticmethod
+    def not_after(o, c):
+        """원거래 후보 o가 취소 c보다 나중이 아닌가(C3) — 둘 다 시각이 있으면 날짜+시각, 아니면 날짜만.
+        같은 시각은 원거래가 될 수 있다(분 단위 표기에서 바로 취소한 꼴)."""
+        if o.time and c.time:
+            return (o.date, o.time) <= (c.date, c.time)
+        return o.date <= c.date
 
     def find_hand(self, t, amount):
         """원거래·할부 총액과 같은 경로·금액·±D의 손 행(아직 원장에 묶이지 않은 것)."""
@@ -1388,7 +1518,8 @@ class Engine:
                  and (d.item is None or d.item.kind in ("new_merchant", "ask_every", "platform", "raw_diff",
                                                          "empty_merchant", "income", "foreign", "dup_weak",
                                                          "transfer_unknown", "transfer_noin", "transfer_noout",
-                                                         "transfer_conflict", "memo_conflict", "inst_mode"))]
+                                                         "transfer_conflict", "transfer_fill", "memo_conflict",
+                                                         "inst_mode"))]
         groups = defaultdict(list)
         for d in cands:
             groups[(d.route, int(d.row["금액"]))].append(d)
@@ -1541,12 +1672,19 @@ class Engine:
             if "#" in k:
                 sched_by_month[(t.card, (t.date.year, t.date.month))] += t.amount
         seen_months = defaultdict(set)
-        for t, card in self.cardpays:
+        # '카드대금(카드명)'으로 답한 이체(C1) — 이번 회차의 관측된 카드대금(답 검증과 같은 조건 — card_transfer_choice)
+        self.ct_answer = {}
+        for it in R.items:
+            ch = self.card_transfer_choice(it, self.answers.get(it.id, {}).get("처리", ""))
+            if ch is not None:
+                self.ct_answer[it.tx.key] = ch
+                self.cardpays.append((it.tx, ch[0], "transfer", ch[1]))
+        for t, card, via, ym in self.cardpays:
             s = self.card_src.get(card)
             if s is None:
                 continue
-            best = min((add_months(t.date.year, t.date.month, k) for k in (-1, 0, 1)),
-                       key=lambda ym: abs((self.pay_date(card, ym) - t.date).days))
+            best = ym or min((add_months(t.date.year, t.date.month, k) for k in (-1, 0, 1)),
+                             key=lambda m: abs((self.pay_date(card, m) - t.date).days))
             seen_months[card].add(best)
             lo, hi = self.cycle_span(card, best)
             covered = all(self.covers(s.id, lo + dt.timedelta(days=i))
@@ -1562,8 +1700,10 @@ class Engine:
             chk = {"card": card, "pay_month": f"{best[0]}-{best[1]:02d}", "date": t.date.isoformat(),
                    "paid": t.amount, "expected": expected, "diff": t.amount - expected, "covered": covered,
                    "span": (lo.isoformat(), hi.isoformat()), "spend": spend, "cancel": cancel, "inst": inst,
-                   "edge": edge, "points": sum(x.points or 0 for x in rows), "key": t.key}
-            chk["ok"] = covered and chk["diff"] == 0
+                   "edge": edge, "points": sum(x.points or 0 for x in rows), "key": t.key, "via": via,
+                   "account": t.account}
+            # 카드결제 계좌 경유(C1): 옮긴 금액 ≠ 청구액이 정상이다 — 차이는 잔액 대조 '카드결제 계좌에 남은 돈' 항으로
+            chk["ok"] = True if via == "transfer" else (covered and chk["diff"] == 0)
             R.card_checks.append(chk)
         # 카드 행이 있는 달인데 그 청구의 카드대금이 (청구 계좌 파일이 결제일을 덮는데) 없다
         for card, s in self.card_src.items():
@@ -1613,12 +1753,17 @@ class Engine:
         act = a.get("처리", "")
         if act not in opts:
             return f"처리 '{act}'는 이 항목의 선택지 {opts}가 아니다"
-        if act in ("추가", "할부"):
+        if CARD_TRANSFER_ANSWER.fullmatch(act) and self.card_transfer_choice(it, act) is None:
+            ok = ", ".join(f"카드대금({c})" for c in (it.extra.get("card_ok") or {})) or "없음"
+            return f"'{act}'는 그 카드의 카드값 이체 설정([[card_transfer]] 통장·상대 패턴)에 맞는 출금에만(이 거래: {ok})"
+        if act in ("추가", "할부", "이체"):
             row = self.answer_row(it, a)
             if row is None:
                 return "추가할 행의 날짜·금액을 정할 수 없다"
             if row["구분"] not in ("수입", "지출", "이체"):
                 return "구분은 수입/지출/이체"
+            if act == "이체" and row["구분"] != "이체":
+                return "'이체' 답의 구분은 이체"
             new_ok = a.get("새 이름", "").upper() in ("Y", "새", "예")
             for c in ("대분류", "소분류", "세부내용"):
                 if row["구분"] == "이체" and c == "소분류":
@@ -1720,7 +1865,7 @@ class Engine:
             if not a:
                 continue
             act = a["처리"]
-            if act == "추가":
+            if act in ("추가", "이체"):
                 row = self.answer_row(it, a)
                 rows.append(row)
                 self.row_origin.append((row, it.id))
@@ -1843,6 +1988,8 @@ class Engine:
             terms = defaultdict(int)
             df = self.new_df
             sub = df[(df["날짜"].dt.date > as_of) & (df["날짜"].dt.date <= E)]
+            billed_pm = defaultdict(int)      # (카드, 결제월) → 그 청구의 CSV 행 + 행 없는 청구 거래(C1 항)
+            ct_cards = {c["card"] for c in self.cfg["card_transfer"]}
             for _, r in sub.iterrows():
                 card, pay = r["비고"], r["결제수단"]
                 if r["구분"] != "지출" or card not in self.card_src:
@@ -1851,9 +1998,13 @@ class Engine:
                 d = r["날짜"].date()
                 amt = int(round(r["금액"]))
                 if (card, d, amt) in sched_marks:
-                    paid = d <= E
+                    # 할부 회차 행은 결제일 날짜 = 그 달 청구. 카드값 이체 카드는 그 달 카드대금 이체가 관측돼야 결제됨
+                    # (답 전·뒤 잔차가 같게 — 다른 행과 같은 판정)
+                    paid = self.is_paid_ym(card, (d.year, d.month), E, file_start) if card in ct_cards else d <= E
+                    billed_pm[(card, (d.year, d.month))] += amt
                 else:
                     paid = self.is_paid(card, d, E, file_start)
+                    billed_pm[(card, self.pay_month(card, d))] += amt
                 if pay == acct and billing == acct and not paid:
                     terms["미결제 카드(+)"] += amt
                 elif pay == acct and billing != acct:
@@ -1883,8 +2034,8 @@ class Engine:
                     continue
                 d = R.disps.get(t.key)
                 st = d.state if d else self.led.state.get(t.key, {}).get("state", "")
-                if st in ("card_payment", "internal") or (d is None and st in ("written", "paired", "transfer_pair",
-                                                                                "kept_missing")):
+                if st in ("card_payment", "card_transfer", "internal") or t.key in self.ct_answer or \
+                        (d is None and st in ("written", "paired", "transfer_pair", "kept_missing")):
                     continue
                 if d is not None and self.has_row(d):
                     continue
@@ -1901,6 +2052,19 @@ class Engine:
                                                                      "points_full", "suppressed") \
                             and self.is_paid(card, t.date, E, file_start):
                         terms["행 없는 카드 거래 중 청구된 것(−)"] -= self.amount_after_points(t)
+                        billed_pm[(card, self.pay_month(card, t.date))] += self.amount_after_points(t)
+            # 카드결제 계좌(자동화 밖)에 남은 돈(C1): 카드대금 이체 누계 − 그 청구 합계 누계(as_of 이후). 이체로 낸
+            # 청구의 카드 행은 '결제됨'이라 미결제 항에 없고, 옮긴 금액 ≠ 청구액인 만큼이 이 통장 밖에 남는다
+            if any(c["account"] == acct for c in self.cfg["card_transfer"]):
+                groups = defaultdict(lambda: [0, False])
+                for c in R.card_checks:
+                    if c.get("account") == acct and as_of < dt.date.fromisoformat(c["date"]) <= E:
+                        g = groups[(c["card"], tuple(int(x) for x in c["pay_month"].split("-")))]
+                        g[0] += c["paid"]
+                        g[1] = g[1] or c.get("via") == "transfer"
+                terms["카드결제 계좌에 남은 돈(−)"] = -sum(
+                    paid - billed_pm[(card, ym)] for (card, ym), (paid, via_tr) in groups.items()
+                    if via_tr and self.card_src[card].account == acct)
             unb = 0
             for r in self.doc_draft_recs():
                 if r["date"] is None or not (max(file_start, self.start) <= r["date"] <= E) or r["date"] <= as_of:
@@ -1935,6 +2099,8 @@ class Engine:
 
     def has_row(self, d):
         """이 거래를 받치는 CSV 행이 새 CSV 초안에 있나(자동 행·손 행 짝·답으로 추가·이체 짝)."""
+        if d.follows:
+            return self.follow_state(d) == "transfer_pair"
         if d.status in ("자동", "짝"):
             return True
         if d.status == "끝남":
@@ -1944,10 +2110,25 @@ class Engine:
         a = self.answered.get(d.item.id) if d.item is not None else None
         if d.item is not None and d.item.kind in ("vanished", "changed", "gone_row"):
             return not (a and a["처리"] in ("삭제", "지운 것 맞음", "다시 넣기"))
-        return bool(a and a["처리"] in ("추가", "짝", "고친 행", "전액", "유지"))
+        return bool(a and a["처리"] in ("추가", "이체", "짝", "고친 행", "전액", "유지"))
+
+    def follow_state(self, d):
+        """C2 입금 쪽의 원장 상태 — 짝(출금 쪽)이 행을 내면 transfer_pair · '제외' 답이면 suppressed · 답 대기면 held."""
+        od = self.R.disps.get(d.follows)
+        if od is None:
+            return "held"
+        if od.status in ("자동", "짝"):
+            return "transfer_pair"
+        a = self.answered.get(od.item.id) if od.item is not None else None
+        act = a["처리"] if a else ""
+        if act in ("이체", "추가", "짝", "고친 행"):
+            return "transfer_pair"
+        return "suppressed" if act == "제외" else "held"
 
     def is_paid(self, card, d, E, file_start):
-        ym = self.pay_month(card, d)
+        return self.is_paid_ym(card, self.pay_month(card, d), E, file_start)
+
+    def is_paid_ym(self, card, ym, E, file_start):
         nominal = self.pay_date(card, ym)
         for c in self.R.card_checks:
             if c["card"] == card and c["pay_month"] == f"{ym[0]}-{ym[1]:02d}":
@@ -1998,7 +2179,7 @@ class Engine:
             if t.kind != "bank":
                 continue
             ck = d.csv_key if d.status in ("짝", "끝남") else new_keys.get(k, "")
-            if d.state == "transfer_pair" and d.partner:
+            if (d.state == "transfer_pair" or (d.follows and self.follow_state(d) == "transfer_pair")) and d.partner:
                 pd_ = R.disps.get(d.partner)
                 ck = (pd_.csv_key if pd_ and pd_.status in ("짝", "끝남") else new_keys.get(d.partner, "")) or \
                     next((x["csv_key"] for x in self.led.transfers if d.partner in (x["out_key"], x["in_key"])), "")
@@ -2321,7 +2502,9 @@ def report_md(engine, run_id, mode):
         L.append(f"- {c['card']} {c['pay_month']} 결제 {c['date']}: 출금 {c['paid']:,} · 이용기간 {c['span'][0]}~"
                  f"{c['span'][1]} 합계 {c['expected']:,} (일시불 {c['spend']:,} · 취소 {c['cancel']:,} · 할부 회차 "
                  f"{c['inst']:,} · 포인트 {c['points']:,} · 경계 ±3일 {c['edge']:,}) · 차이 {c['diff']:,} · "
-                 f"{'대조됨' if c['ok'] else ('대조 불가(파일 기간 부족)' if not c['covered'] else '불일치')}")
+                 + ("카드결제 계좌 경유(카드대금 이체 — 차이는 잔액 대조 '카드결제 계좌에 남은 돈')"
+                    if c.get("via") == "transfer" else
+                    ('대조됨' if c['ok'] else ('대조 불가(파일 기간 부족)' if not c['covered'] else '불일치'))))
     if not R.card_checks:
         L.append("- 카드대금 출금 없음")
     L += ["", "## 잔액 대조(3-0 8)"]
@@ -2377,7 +2560,8 @@ def print_summary(engine, run_dir, limit=8):
             print(f"    … {len(lst) - limit}건 더(확인필요.xlsx)")
     for c in R.card_checks:
         print(f"  카드대금 {c['card']} {c['pay_month']}: 차이 {c['diff']:,} "
-              f"{'대조됨' if c['ok'] else ('대조 불가' if not c['covered'] else '불일치')}")
+              + ("카드결제 계좌 경유(잔액 대조 항)" if c.get("via") == "transfer" else
+                 ('대조됨' if c['ok'] else ('대조 불가' if not c['covered'] else '불일치'))))
     for b in R.balance:
         print(f"  잔액 {b['account']}: {b['status']}" + (f" · 잔차 {b['residual']:,}" if "residual" in b else ""))
     for e in R.answer_errors:
@@ -2693,7 +2877,7 @@ def ledger_ops(eng, rid, new_keys_final, key_remap):
         if d.status == "제외":
             if d.wait_fill:
                 ops["transfer"].append(("__fill__", d.wait_fill, k, d.partner, 0, "", "", rid))
-            st(k, d.state, d.csv_key)
+            st(k, eng.follow_state(d) if d.follows else d.state, d.csv_key)
             continue
         # 확인 필요
         if it is None:
@@ -2704,7 +2888,7 @@ def ledger_ops(eng, rid, new_keys_final, key_remap):
             if act not in KINDS[it.kind][1] or act == "보류":
                 keep_old.add(k)
                 continue
-        if act == "추가":
+        if act in ("추가", "이체"):
             ck = new_keys_final.get(it.id, "")
             st(k, "written", ck)
             row = eng.answer_row(it, a)
@@ -2712,6 +2896,9 @@ def ledger_ops(eng, rid, new_keys_final, key_remap):
                 partner = d.partner if d.transfer == (row["결제수단"], row["소분류"]) else ""
                 transfer(k if t.direction == "out" else partner, k if t.direction == "in" else partner,
                          row["결제수단"], row["소분류"], row["금액"], row["날짜"], ck)
+        elif CARD_TRANSFER_ANSWER.fullmatch(act) and eng.card_transfer_choice(it, act):
+            card, ym = eng.card_transfer_choice(it, act)
+            st(k, "card_transfer", extra={"card": card, "pay_month": "%d-%02d" % ym})
         elif act == "할부":
             st(k, "sched")
         elif act == "제외":

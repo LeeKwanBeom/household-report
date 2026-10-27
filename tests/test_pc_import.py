@@ -1921,6 +1921,270 @@ class FormatTests(Base):
         self.assertEqual(kinds.get(60013), "transfer_unknown")
 
 
+# ============================================================
+# 첫 실사용 전 고치기 C1~C3 — 카드값 이체 창 · 신한→생활비 이체 가르기 · 취소 짝 시각
+# ============================================================
+
+CARD_TRANSFER_CFG = CONFIG + r'''
+[[transfer_ambiguous]]
+account = "생활비"
+patterns = ["라마바"]
+candidates = ["커플통장", "신한은행"]
+default = "커플통장"
+
+[[card_transfer]]
+card = "현대카드"
+account = "생활비"
+field = "merchant"
+patterns = ['^가나다$']
+days_before = 3
+
+[[card_transfer]]
+card = "신한카드"
+account = "생활비"
+field = "merchant"
+patterns = ['^가나다$']
+'''
+
+FILL_CFG = FORMAT_CONFIG + r'''
+[[transfer_pair]]
+from = "신한은행"
+to = "생활비"
+"대분류" = "이체"
+auto_only_with_income = true
+
+[[income]]
+account = "신한은행"
+field = "merchant"
+patterns = ['^가상급여처$']
+"대분류" = "급여"
+"세부내용" = "가상급여"
+"고정여부" = "고정"
+'''
+
+
+class C123Tests(Base):
+    # ---- C1 카드값 이체 창 ----
+    def card_transfer_world(self):
+        """BASE_ROWS 9월 카드 행: 현대카드 12,345 + 9,917(신한은행 귀속) = 22,262 · 신한카드 48,123.
+        창: 현대 결제일 12 → 10/9~10/12 · 신한 결제일 15 → 10/12~10/15(기본 3일)."""
+        w = self.world(config=CARD_TRANSFER_CFG, rows=BASE_ROWS)
+        w.put("lv.csv", living([("10-10", "09:00:00", "이체", "가나다", 23_013, 0),     # 현대 창만
+                                ("10-10", "10:00:00", "이체", "라마바", 12_013, 0),     # 창 안 · 다른 상대
+                                ("10-12", "09:00:00", "이체", "가나다", 47_017, 0),     # 두 창 — 신한 합계에 가깝다
+                                ("10-20", "09:00:00", "이체", "가나다", 30_013, 0)]))   # 창 밖
+        return w
+
+    def test_card_transfer_window_suggests_only(self):
+        """C1a: 창 안 본인 이름 출금 → 확인 필요 · 제안 카드대금(카드명, 겹치면 직전 주기 합계에 가까운 카드) ·
+        자동 행 0. 창 밖·다른 상대는 지금 동작(제안 커플통장) 그대로."""
+        w = self.card_transfer_world()
+        out, rid = self.ok_scan(w)
+        items = {i["금액"]: i for i in w.items(rid)}
+        self.assertEqual({k: v["종류"] for k, v in items.items()},
+                         {23013: "transfer_unknown", 47017: "transfer_unknown", 30013: "transfer_unknown",
+                          12013: "transfer_unknown"}, out)
+        self.assertIn("제안 카드대금(현대카드)", items[23013]["사유"])
+        self.assertIn("합계 22,262(CSV)", items[23013]["사유"])
+        self.assertIn("제안 카드대금(신한카드)", items[47017]["사유"])
+        self.assertIn("현대카드 결제일 2026-10-12", items[47017]["사유"])       # 후보·근거 둘 다
+        self.assertIn("신한카드 결제일 2026-10-15", items[47017]["사유"])
+        for amt in (30013, 12013):
+            self.assertNotIn("카드대금", items[amt]["사유"])
+            self.assertEqual(items[amt]["소분류"], "커플통장")                    # 제안 커플통장 그대로
+        self.assertEqual({p["상태"] for p in w.proposals(rid) if p["출처"] == "생활비"}, {"확인 필요"})
+        self.assertEqual(read_bytes(os.path.join(w.run_dir(rid), f"초안_가계부_{rid}.csv")), w.csv())
+        # 카드대금 답은 그 카드의 [[card_transfer]] 패턴에 맞는 출금에만
+        w.answer(rid, lambda d: d["금액"] == 12013, 처리="카드대금(현대카드)")
+        rc, out = w.apply(rid, *ACK, confirm=False)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("카드값 이체 설정", out)
+
+    def test_card_transfer_answer_two_rounds(self):
+        """C1b·C1c: 답 '카드대금' → 행 0 · 원장 card_transfer · 다음 회차 질문 0 · 카드대금 대조의 관측 출금 ·
+        잔액 대조 '카드결제 계좌에 남은 돈' 항 · 같은 입력으로 재scan하면 기준 차액 그대로(ack 없이 apply)."""
+        w = self.card_transfer_world()
+        out, rid = self.ok_scan(w)
+        resid1 = [x.split(" · ")[0] for x in read_report(w, rid) if x.startswith("  - 잔차")]
+        self.assertEqual(len(resid1), 1, resid1)                                 # 생활비 하나(신한은행은 파일 없음)
+        w.answer(rid, lambda d: d["금액"] == 23013, 처리="카드대금(현대카드)")
+        w.answer(rid, lambda d: d["금액"] == 47017, 처리="카드대금(신한카드)")
+        before = w.csv()
+        rc, out = w.apply(rid, *ACK)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(w.new_lines(before), [], out)                           # 행 0
+        self.assertIn("카드대금 현대카드 2026-10: 차이 23,013 카드결제 계좌 경유", out)   # 카드 파일 없음 — 파일 합계 0 대비
+        self.assertIn("카드대금 신한카드 2026-10: 차이 47,017 카드결제 계좌 경유", out)
+        extra = [json.loads(x) for x, in w.ledger("SELECT extra FROM state WHERE state='card_transfer'")]
+        self.assertEqual(sorted((x["card"], x["pay_month"]) for x in extra),
+                         [("신한카드", "2026-10"), ("현대카드", "2026-10")])
+        base = w.ledger("SELECT baseline FROM anchor WHERE account='생활비'")[0][0]
+        self.assertEqual(resid1, [f"  - 잔차 {base:,}"])                          # 답 전 scan = apply 계산
+        # 둘째 회차(같은 입력·답): 질문 0 · 관측 출금으로 다시 쓰임 · 기준 차액 그대로 · ack 없이 apply
+        out, rid2 = self.ok_scan(w)
+        self.assertEqual(sorted(i["금액"] for i in w.items(rid2)), [12013, 30013], out)
+        self.assertIn("카드대금 현대카드 2026-10: 차이 23,013 카드결제 계좌 경유", out)
+        self.assertIn("잔액 생활비: 통과(기준 차액 그대로)", out)
+        rep = read_report(w, rid2)
+        self.assertIn("  - 카드결제 계좌에 남은 돈(−): 355", rep)                  # −((23,013−22,262)+(47,017−48,123))
+        self.assertEqual([x.split(" · ")[0] for x in rep if x.startswith("  - 잔차")], resid1)
+        rc, out = w.apply(rid2)
+        self.assertEqual(rc, 0, out)
+
+    def test_installment_month_residual_same_before_and_after_answer(self):
+        """C1c(자체 검토): 카드값 이체 카드에 할부 회차 행이 있는 달도 답 전 scan 잔차 = apply 기준 차액 = 재scan
+        (회차 행도 그 달 카드대금 이체가 관측돼야 결제됨)."""
+        nov = dt.date(2026, 11, 27)
+        w = self.world(config=CARD_TRANSFER_CFG, rows=BASE_ROWS)
+        w.put("h.csv", hyundai([("10-05", "19:00:00", "가상마트 2호점", 30_039, "3개월", "10000101", "정상"),
+                                ("10-06", "19:00:00", "가상마트 2호점", 5_013, "일시불", "10000102", "정상")],
+                               period=("2026.10.01", "2026.11.27")))
+        w.put("lv.csv", living([("10-10", "09:00:00", "이체", "가나다", 23_013, 0),
+                                ("11-11", "09:00:00", "이체", "가나다", 15_013, 0),
+                                ("11-20", "09:00:00", "체크", "가상가게", 1_013, 0)]))
+        out, rid = self.ok_scan(w, today=nov)
+        resid1 = [x.split(" · ")[0] for x in read_report(w, rid) if x.startswith("  - 잔차")]
+        w.answer(rid, lambda d: d["종류"] == "transfer_unknown" and d["금액"] in (23013, 15013),
+                 처리="카드대금(현대카드)")
+        rc, out = w.apply(rid, *ACK, *NEW_MONTH, today=nov)
+        self.assertEqual(rc, 0, out)
+        self.assertIn('2026-11-12,지출,식비,장보기,가상마트,"10,013",생활비,,현대카드', w.csv().decode("utf-8"))
+        base = w.ledger("SELECT baseline FROM anchor WHERE account='생활비'")[0][0]
+        self.assertEqual(resid1, [f"  - 잔차 {base:,}"], out)
+        out, rid2 = self.ok_scan(w, today=nov)
+        self.assertIn("잔액 생활비: 통과(기준 차액 그대로)", out)
+
+    def test_card_transfer_counts_as_observed_payment(self):
+        """C1b: 카드대금 이체 답은 관측된 카드대금 — '카드 행이 있는 달인데 카드대금 출금이 없다' 질문이 없어진다."""
+        w = self.world(config=CARD_TRANSFER_CFG, rows=BASE_ROWS)
+        w.put("h.csv", hyundai([("10-06", "08:00:00", "가상마트 2호점", 7_013, "일시불", "10000061", "정상")]))
+        w.put("lv.csv", living([("10-01", "09:00:00", "급여", "가상회사", 0, 3_123_457),
+                                ("11-11", "09:00:00", "이체", "가나다", 7_013, 0),
+                                ("11-20", "09:00:00", "체크", "가상가게", 1_013, 0)]))
+        today = dt.date(2026, 11, 25)
+        out, rid = self.ok_scan(w, today=today)
+        self.assertIn("cardpay_missing", [i["종류"] for i in w.items(rid)], out)
+        w.answer(rid, lambda d: d["종류"] == "transfer_unknown" and d["금액"] == 7013, 처리="카드대금(현대카드)")
+        out, rid2 = self.ok_scan(w, today=today)                                 # 답 이어받음
+        self.assertNotIn("cardpay_missing", [i["종류"] for i in w.items(rid2)], out)
+        self.assertIn("카드대금 현대카드 2026-11", out)
+
+    # ---- C2 신한→생활비 이체 가르기 ----
+    def fill_world(self):
+        rows = BASE_ROWS + ['2026-10-05,지출,문화생활비,어플/멤버쉽,가상구독,"6,017",신한은행,고정,현대카드']
+        w = self.world(config=FILL_CFG, rows=rows)
+        w.put("sb.xls", shinhan_like([
+            ("10-07", "09:00:00", "급여", 0, 1_234_017, "가상급여처", ""),
+            ("10-07", "09:30:00", "오픈뱅킹 이체", 1_234_017, 0, "가상송금", "자금부"),
+            ("10-09", "10:00:00", "오픈뱅킹 이체", 6_017, 0, "가상송금", "자금부"),
+        ]))
+        w.put("kb.xlsx", kakao_like([("10-07", "09:31:00", "입금", "오픈뱅킹", "홍길동", 1_234_017),
+                                     ("10-09", "10:01:00", "입금", "오픈뱅킹", "홍길동", 6_017)]))
+        return w
+
+    def test_fill_transfer_needs_same_day_income(self):
+        """C2a: 같은 날 같은 금액 자동 수입이 있는 쌍만 자동 이체 행 · 그 밖은 확인 필요(제안 제외 · 귀속 카드 행 사유) ·
+        자동 제외 0."""
+        w = self.fill_world()
+        out, rid = self.ok_scan(w)
+        props = {(p["출처"], p["금액"], p["방향"]): p for p in w.proposals(rid)}
+        self.assertEqual(props[("신한은행", "1234017", "in")]["상태"], "자동", out)            # 수입 규칙
+        self.assertEqual(props[("신한은행", "1234017", "out")]["상태"], "자동")                 # 이체 행
+        self.assertIn("자동 수입", props[("신한은행", "1234017", "out")]["사유"])
+        self.assertEqual(props[("카뱅", "1234017", "in")]["상태"], "제외")                      # 이체 짝
+        self.assertEqual(props[("신한은행", "6017", "out")]["상태"], "확인 필요")
+        self.assertEqual(props[("카뱅", "6017", "in")]["상태"], "제외")
+        self.assertIn("답을 따른다", props[("카뱅", "6017", "in")]["사유"])
+        it = [i for i in w.items(rid) if i["금액"] == 6017]
+        self.assertEqual([i["종류"] for i in it], ["transfer_fill"], out)
+        self.assertIn("제안 제외", it[0]["사유"])
+        self.assertIn("CSV 16행(2026-10-05 현대카드)", it[0]["사유"])
+        draft = read_bytes(os.path.join(w.run_dir(rid), f"초안_가계부_{rid}.csv")).decode("utf-8")
+        self.assertIn('2026-10-07,이체,이체,생활비,,"1,234,017",신한은행,,', draft)
+        self.assertIn('2026-10-07,수입,급여,,가상급여,"1,234,017",신한은행,고정,', draft)
+        self.assertNotIn('"6,017",신한은행,,', draft)
+
+    def test_fill_answers_two_rounds(self):
+        """C2b: 답 '제외' → 행 0 · 다음 회차 질문 0 / 답 '이체' → 이체 한 행(양쪽 키) · 다음 회차 새 행 0."""
+        for act in ("제외", "이체"):
+            with self.subTest(act=act):
+                w = self.fill_world()
+                out, rid = self.ok_scan(w)
+                w.answer(rid, lambda d: d["종류"] == "transfer_fill", 처리=act)
+                before = w.csv()
+                rc, out = w.apply(rid, *ACK)
+                self.assertEqual(rc, 0, out)
+                fill = [x for x in w.new_lines(before) if '"6,017"' in x]
+                if act == "제외":
+                    self.assertEqual(fill, [], out)
+                    self.assertEqual(sorted(s for s, in w.ledger(
+                        "SELECT state FROM state WHERE key LIKE '%/6017/%'")), ["suppressed", "suppressed"])
+                else:
+                    self.assertEqual(fill, ['2026-10-09,이체,이체,생활비,,"6,017",신한은행,,'], out)
+                    tr = w.ledger("SELECT out_key, in_key FROM transfer WHERE amount=6017")
+                    self.assertEqual(len(tr), 1)
+                    self.assertTrue(tr[0][0] and tr[0][1], tr)
+                before = w.csv()
+                out, rid2 = self.ok_scan(w)
+                self.assertEqual([i for i in w.items(rid2) if i["금액"] == 6017], [], out)
+                rc, out = w.apply(rid2, *ACK)
+                self.assertEqual(rc, 0, out)
+                self.assertEqual(w.new_lines(before), [], out)
+
+    # ---- C3 취소 짝 시각 ----
+    def test_cancel_before_purchase_time_is_orphan(self):
+        """C3a: 같은 날 취소 먼저·결제 나중 → 짝 0 · 짝 없는 취소는 확인 필요 · 결제는 할부 일정
+        (실행일 뒤 회차 행 0). 대조군: 결제 먼저·취소 나중은 지금처럼 짝(둘 다 행 0)."""
+        w = self.world(config=FORMAT_CONFIG, rows=BASE_ROWS)
+        w.put("sc.xlsx", shinhan_card_like([
+            ("10-23", "13:07", "신용", "본인555*", "가상폰가게", "20000011", -900_017, "승인취소", "할부(6개월)", "취소"),
+            ("10-23", "14:52", "신용", "본인555*", "가상폰가게", "20000012", 900_017, "결제확정", "할부(6개월)", ""),
+        ]))
+        out, rid = self.ok_scan(w)
+        kinds = {i["금액"]: i for i in w.items(rid)}
+        self.assertEqual(kinds[-900017]["종류"], "cancel_orphan", out)
+        self.assertEqual(kinds[900017]["종류"], "new_merchant")
+        self.assertEqual(int(kinds[900017]["할부 개월"]), 6)
+        w.answer(rid, lambda d: d["금액"] == 900017, 처리="할부", 대분류="식비", 소분류="외식", 세부내용="폰",
+                 **{"새 이름": "Y"})
+        before = w.csv()
+        rc, out = w.apply(rid, *ACK)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(w.new_lines(before), [], out)                           # 11/15부터 — 실행일 뒤
+        self.assertEqual(w.ledger("SELECT total, months, first_month FROM schedule"), [(900_017, 6, "2026-11")])
+        w2 = self.world(config=FORMAT_CONFIG, rows=BASE_ROWS)
+        w2.put("sc.xlsx", shinhan_card_like([
+            ("10-23", "13:07", "신용", "본인555*", "가상폰가게", "20000012", 900_017, "결제확정", "할부(6개월)", ""),
+            ("10-23", "14:52", "신용", "본인555*", "가상폰가게", "20000011", -900_017, "승인취소", "할부(6개월)", "취소"),
+        ]))
+        out, rid = self.ok_scan(w2)
+        self.assertEqual(sorted(p["상태"] for p in w2.proposals(rid) if p["출처"] == "신한C"), ["제외", "제외"], out)
+        self.assertEqual(w2.items(rid), [], out)
+
+    def test_cancel_with_later_repurchase_does_not_pick_earlier_purchase(self):
+        """C3 검토 막음: 취소 시각 뒤 같은 날 재결제가 있으면, 남은 앞선 같은 구매 하나와 자동으로 짝짓지 않는다
+        (그 구매가 조용히 빠지지 않게) — 묻는다. 승인번호가 같은 거래가 취소 뒤면 가맹점·금액 짝으로 넘어가지 않는다."""
+        for cancel_ap, kind in (("20000032", "cancel_ambiguous"), ("20000033", "cancel_orphan")):
+            with self.subTest(kind=kind):
+                w = self.world(config=FORMAT_CONFIG, rows=BASE_ROWS)
+                w.put("sc.xlsx", shinhan_card_like([
+                    ("10-04", "12:10", "신용", "본인555*", "가상꽃집", "20000031", 20_017, "결제확정", "일시불", ""),
+                    ("10-21", "13:10", "신용", "본인555*", "가상꽃집", cancel_ap, -20_017, "승인취소", "일시불", "취소"),
+                    ("10-21", "13:40", "신용", "본인555*", "가상꽃집", "20000033", 20_017, "결제확정", "일시불", ""),
+                ]))
+                out, rid = self.ok_scan(w)
+                kinds = {(i["날짜"], i["금액"]): i["종류"] for i in w.items(rid)}
+                self.assertEqual(kinds[("2026-10-21", -20017)], kind, out)
+                props = {(p["날짜"], p["금액"]): p["상태"] for p in w.proposals(rid) if p["출처"] == "신한C"}
+                self.assertEqual(props[("2026-10-04", "20017")], "확인 필요", out)      # 앞선 구매 — 조용히 제외 0
+                self.assertEqual(props[("2026-10-21", "20017")], "확인 필요")
+
+def read_report(w, rid):
+    """회차 보고.md 줄 목록."""
+    with open(os.path.join(w.run_dir(rid), "보고.md"), encoding="utf-8") as f:
+        return f.read().split("\n")
+
+
 class ExposeMoreTests(unittest.TestCase):
     def test_blob_hits_catch_common_shapes(self):
         """막음 3: '(주)…' 상호 · 시각 뺀 날짜+금액 · h:mm · MM-DD(시험 도우미 꼴) · 가계부 꼴 행도 잡는다."""

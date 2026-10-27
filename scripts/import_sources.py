@@ -296,6 +296,7 @@ def load_config(path, account_names, card_names):
         "transfer_ambiguous": [],
         "transfer_pair": {},
         "card_payment": [],
+        "card_transfer": [],
         "income": [],
         "platform_keys": [],
         "ignore_files": [],
@@ -457,14 +458,36 @@ def load_config(path, account_names, card_names):
         k = (t.get("from"), t.get("to"))
         if not set(k) <= set(account_names):
             errs.append(f"[[transfer_pair]] {k}: from·to는 ACCOUNT_KEY 값")
+        # auto_only_with_income: 이 쌍은 출금 계좌(from)에 같은 날·같은 금액의 자동 수입([[income]] 규칙)이 있을 때만
+        # 자동 이체 행 — 그 밖은 '확인 필요'(받은 수입을 옮긴 돈과 귀속 구독값을 채운 돈을 가른다)
+        gate = t.get("auto_only_with_income", False)
+        if not isinstance(gate, bool) or (gate and t.get("from") not in bank_accounts):
+            errs.append(f"[[transfer_pair]] {k}: auto_only_with_income은 true/false, true면 from이 파일이 있는 통장")
         cfg["transfer_pair"][k] = {"대분류": t.get("대분류", "이체"), "세부내용": t.get("세부내용", ""),
-                                   "고정여부": t.get("고정여부", "")}
+                                   "고정여부": t.get("고정여부", ""), "auto_only_with_income": gate is True}
     for t in raw.get("card_payment", []):
         where = f"[[card_payment]] {t.get('card')}"
         if t.get("card") not in card_names or t.get("account") not in bank_accounts:
             errs.append(f"{where}: card는 카드명, account는 파일이 있는 통장")
         cfg["card_payment"].append({"account": t.get("account"), "card": t.get("card"), "field": fld(t, where),
                                     "patterns": pats(t.get("patterns", []), where)})
+    card_billing = {s.card: s.account for s in cfg["sources"] if s.kind == "card"}
+    for t in raw.get("card_transfer", []):
+        # 카드값 이체 창: 청구 계좌에서 카드결제 계좌(자동화 밖)로 옮기는 본인 이름 이체 — 결제일(그 카드 source의
+        # pay_day) −days_before일 ~ 결제일 안에서 patterns에 맞으면 '이체 상대 모름' 질문의 제안이 카드대금(카드명)
+        where = f"[[card_transfer]] {t.get('card')}"
+        days = t.get("days_before", 3)
+        if t.get("card") not in card_billing:
+            errs.append(f"{where}: card는 카드 출처([[source]] kind=card)가 있는 카드명")
+        elif t.get("account") != card_billing[t.get("card")]:
+            errs.append(f"{where}: account는 그 카드의 청구 계좌({card_billing[t.get('card')]})")
+        if not isinstance(days, int) or isinstance(days, bool) or not 0 <= days <= 10:
+            errs.append(f"{where}: days_before는 0~10 정수")
+            days = 3
+        if not t.get("patterns"):
+            errs.append(f"{where}: patterns(이체 상대 — 예: 본인 이름)가 없다")
+        cfg["card_transfer"].append({"account": t.get("account"), "card": t.get("card"), "field": fld(t, where),
+                                     "patterns": pats(t.get("patterns", []), where), "days_before": days})
     for t in raw.get("income", []):
         where = f"[[income]] {t.get('account')}"
         if t.get("account") not in bank_accounts:
