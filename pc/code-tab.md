@@ -144,12 +144,17 @@ git ls-remote origin refs/heads/main          # = 로컬 HEAD
   카드대금 ≠ 청구 주기 카드 행 합계(또는 이용기간을 파일이 다 덮지 않음) → `--ack-card <카드> <사유>` · 잔액 대조 잔차가 기준 차액과 다름
   (첫 회차는 기준 차액 정하기) → `--ack-balance <계좌> <사유>` · 쓰기 전 검사의 경고 종류별 건수 증가 → `--ack-warning <종류> <사유>` ·
   답 오류 · 자동·짝 행 거래가 파일에서 사라짐/바뀜(답 필요).
+  - 잔액 공식을 고친 코드로 처음 scan하면 잔차가 기준 차액과 고친 항만큼 다르다(예: 통장 밖 칸을 칸 이름마다 한 번만 빼게 고친 판).
+    `보고.md` 잔액 대조 절에서 그 차이가 바뀐 항과 같은지 확인한 뒤, 다음 apply에 `--ack-balance <계좌> <사유>`를 붙여 새 기준 차액을 정한다
+    (기준만 바꾸려고 따로 apply하지 않는다). 차이가 바뀐 항과 다르면 ack하지 않고 그 차이부터 본다.
 - 같은 날 apply한다(scan 날과 다르면 scan부터). 가장 최근 scan 회차만 apply한다.
 - 실 내역·rules·원장·회차 폴더·백업은 모두 clone 밖이다. `pc_import.py`는 그 경로가 clone 안이면 시작하지 않는다.
   저장소 시험 fixture는 텍스트만이고, `pc_run.py`의 코드 회차 검사가 커밋의 줄을 uploads·rules에서 뽑은 실값과 대조한다.
 
 **처음 한 번**: `rules\계좌.toml`을 실물 파일을 보고 만든다(예시 `pc/import/계좌.toml.example` — 출처마다 열 이름·값 서명·역할·식별 값,
 이체 적요·카드대금 적요·급여 패턴, 카드 청구 계좌·결제일·이용기간). `분류규칙.csv`·`원장.sqlite`는 첫 apply가 만든다.
+통장 밖 칸(세이프박스 등) `[[internal]]`은 같은 칸을 적요 칸마다 여러 줄(같은 `name`)로 둘 수 있다 — 잔액 대조는 칸 이름마다 한 번
+(`[[internal_balance]]` 시작 잔액 + 그 뒤 그 칸 줄에 맞는 이동).
 
 **리허설**: `$PY <개발 clone>/scripts/pc_import.py --rehearsal init` → `… --rehearsal scan` → `… --rehearsal apply --run <회차> --confirm`.
 내역 파일은 `uploads\내역\`에서 읽기만 하고, CSV·rules·원장·회차 폴더는 `work-rehearsal\내역\` 사본에만 쓴다.
