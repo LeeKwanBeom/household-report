@@ -177,6 +177,23 @@ EXPECTED_MONTHLY_TRANSFERS = {
     ],
 }
 
+# 커플통장 정산 (2026-10-27 사용자 결정)
+#
+# 데이트 비용 중 내 카드·계좌로 내고 커플통장에서 돌려받는 것을 모아 "정산 받을 금액"을 보인다.
+# 받을 금액 = 대상 합 − 받음 합. 어떤 항목이 남았는지는 대상을 날짜 순(같은 날은 CSV 순)으로 놓고
+# 받음 합을 오래된 것부터 지운 나머지다. 커플통장 잔고는 여전히 보이지 않는다(HIDDEN_ACCOUNTS).
+# - 대상: start 이후(그날 포함) · 구분 지출 · (대분류, 소분류) = target · 결제수단 ≠ account
+#   (커플통장에서 바로 낸 것은 정산할 것이 없다. 결제수단 빈칸·신한은행도 대상이다)
+# - 받음: start 이후 · 구분 이체 · 결제수단 = account · 소분류 = receive_to (세부내용은 보지 않는다)
+# 화면·대화 문구는 이 값을 옮겨 적지 않고 bundle["couple_settlement"]["rule"]에서 읽는다.
+COUPLE_SETTLEMENT = {
+    "start": "2026-09-01",
+    "target": ("내여자", "데이트비용"),
+    "account": "커플통장",
+    "receive_to": "생활비",
+    "memo": "데이트비 정산",   # 대화의 이체 행 예시에 적는 세부내용(계산에는 쓰지 않는다)
+}
+
 
 # ============================================================
 # CSV 로딩 — 견고한 파싱
@@ -340,6 +357,97 @@ def account_balance(df, name, until=None):
     into = src[(src["구분"] == "이체") & (src["소분류"] == short)]["금액"].sum()
     moved = len(src[((src["결제수단"] == short) | (src["소분류"] == short))])
     return round(start + income - expense - out + into), moved
+
+
+def _md(ts):
+    """Timestamp → '10/23' (정산 기간·대화 줄의 짧은 날짜)."""
+    return f"{ts.month}/{ts.day}"
+
+
+def couple_settlement(df):
+    """커플통장 정산(COUPLE_SETTLEMENT) → bundle["couple_settlement"].
+
+    금액은 행마다 원 단위 정수로 바꿔 더한다 — 날짜별 소계의 합이 받을 금액과 정확히 같아야 한다(validate).
+    음수 금액(환불)은 대상 합을 줄이고, 남은 항목을 고를 때는 받음과 같이 오래된 대상부터 지운다.
+    그래서 남은 항목의 합은 언제나 max(0, 대상 합 − 받음 합)이다.
+    """
+    cs = COUPLE_SETTLEMENT
+    main_cat, sub_cat = cs["target"]
+    acct, dest = cs["account"], cs["receive_to"]
+    src = df[df["날짜"] >= pd.Timestamp(cs["start"])]
+    # kind="stable": 같은 날은 CSV 순서 그대로
+    tgt = src[(src["구분"] == "지출") & (src["대분류"] == main_cat) & (src["소분류"] == sub_cat)
+              & (src["결제수단"] != acct)].sort_values("날짜", kind="stable")
+    rec = src[(src["구분"] == "이체") & (src["결제수단"] == acct)
+              & (src["소분류"] == dest)].sort_values("날짜", kind="stable")
+
+    amounts = [int(round(float(a))) for a in tgt["금액"]]
+    target_total = sum(amounts)
+    received = [(r["날짜"], int(round(float(r["금액"])))) for _, r in rec.iterrows()]
+    received_total = sum(a for _, a in received)
+    refund_total = -sum(a for a in amounts if a < 0)
+    owed = max(0, target_total - received_total)
+    over = max(0, received_total - target_total)
+
+    # 받음 합(+ 환불)을 오래된 대상부터 지운다. 걸친 행은 남은 몫만 남긴다.
+    credit = max(received_total + refund_total, 0)
+    left = []
+    for (_, r), a in zip(tgt.iterrows(), amounts):
+        if a <= 0:
+            continue
+        used = min(a, credit)
+        credit -= used
+        if a > used:
+            left.append((r, a - used, a))
+
+    days = {}
+    for r, rest, orig in left:
+        days.setdefault(r["날짜"], []).append((r, rest, orig))
+    day_list = []
+    for d, rows in days.items():
+        # 같은 날 같은 세부내용은 한 줄로 묶는다(×건수). 금액 큰 순, 같으면 먼저 나온 순.
+        groups = {}
+        for r, rest, orig in rows:
+            name = r["세부내용"] or r["소분류"]
+            g = groups.setdefault(name, {"세부내용": name, "건수": 0, "금액": 0, "일부": None})
+            g["건수"] += 1
+            g["금액"] += rest
+            if rest != orig:
+                g["일부"] = orig   # 일부만 남은 행의 원래 금액
+        items = sorted(groups.values(), key=lambda g: -g["금액"])
+        day_list.append({"날짜": d.strftime("%Y-%m-%d"), "건수": len(rows),
+                         "소계": sum(rest for _, rest, _ in rows), "items": items})
+
+    if left:
+        first, last = left[0][0]["날짜"], left[-1][0]["날짜"]
+        if first == last:
+            period = _md(first)
+        elif first.year == last.year:
+            period = f"{_md(first)}~{_md(last)}"
+        else:
+            period = f"{first.year}.{_md(first)}~{last.year}.{_md(last)}"
+    else:
+        period = ""
+    recent = [{"날짜": d.strftime("%Y-%m-%d"), "금액": a} for d, a in reversed(received[-5:])]
+
+    # 대화 한 줄(pipeline 요약 · pc_run.py review가 그대로 찍는다 — 문구는 여기 한 곳에서만 만든다)
+    if owed:
+        talk = [f"{acct} 정산: 받을 금액 {owed:,}원 ({period} · {len(left)}건)",
+                f"이체한 뒤 CSV에 넣을 행: 날짜 <이체한 날> · 구분 이체 · 대분류 이체 · 소분류 {dest} · "
+                f"세부내용 {cs['memo']} · 금액 {owed:,} · 결제수단 {acct}"]
+    else:
+        last_txt = f"(마지막 정산 {_md(received[-1][0])} {received[-1][1]:,}원)" if received else ""
+        talk = [f"{acct} 정산: 받을 금액 없음{last_txt}" + (f" · 더 받음 {over:,}원" if over else "")]
+
+    return {
+        "rule": {"start": cs["start"], "대분류": main_cat, "소분류": sub_cat,
+                 "account": acct, "receive_to": dest, "memo": cs["memo"]},
+        "target_total": target_total, "target_count": len(amounts),
+        "received_total": received_total, "received_count": len(received),
+        "refund_total": refund_total,
+        "owed": owed, "over": over, "count": len(left), "period": period,
+        "days": day_list, "recent": recent, "talk": talk,
+    }
 
 
 def build_bundle(df):
@@ -558,14 +666,14 @@ def build_bundle(df):
     negative_rows = int((df["금액"] < 0).sum())
     zero_rows = int((df["금액"] == 0).sum())
 
-    # 비고에 카드명이 아닌 값. 카드 실적(02·03번)은 비고 == 카드명 정확 일치만 보므로
+    # 비고에 카드명이 아닌 값. 카드 실적(03·04번)은 비고 == 카드명 정확 일치만 보므로
     # "현대 카드"처럼 적히면 실적에서 조용히 빠진다.
     _memo = core[(core["비고"] != "") & ~core["비고"].isin(card_tags)]
     unknown_memo_tags = sorted(_memo["비고"].unique())
     unknown_memo_rows = int(len(_memo))
 
     # 매달 있어야 하는 이체 (EXPECTED_MONTHLY_TRANSFERS) — 누락·합계 불일치
-    # 터미널용(transfer_issues)은 금액을 적고, 화면 13번용(transfer_issues_screen)은 합계 불일치를
+    # 터미널용(transfer_issues)은 금액을 적고, 화면 14번용(transfer_issues_screen)은 합계 불일치를
     # 금액 없이 건수만 적는다(2026-09-27 사용자 지시). 둘은 같은 루프에서 만들어 어긋나지 않는다.
     transfer_issues = []
     transfer_issues_screen = []
@@ -745,6 +853,7 @@ def build_bundle(df):
                        "items": projection_items, "excluded": excluded_items},
         "accounts": {"list": accounts_list,
                      "as_of_range": sorted({a["as_of"] for a in accounts_list})},
+        "couple_settlement": couple_settlement(df),
         "shinhan_fixed": shinhan_fixed,
         "shinhan_fixed_total": sum(x["예상금액"] for x in shinhan_fixed),
         "shinhan_month": sh_month,
@@ -802,6 +911,23 @@ def validate(bundle):
     if kpi_inc == 0:
         errors.append("총수입이 0원입니다 — 수입 행이 하나도 집계되지 않았습니다.")
 
+    # 커플통장 정산: 받을 금액 = max(0, 대상 합 − 받음 합) · 날짜별 소계 합 = 받을 금액
+    cs = bundle.get("couple_settlement")
+    if cs is not None:
+        label = f"{cs['rule']['account']} 정산"
+        want = max(0, cs["target_total"] - cs["received_total"])
+        if cs["owed"] != want:
+            errors.append(f"{label} 받을 금액({cs['owed']:,}) != max(0, 대상 합 − 받음 합)({want:,})")
+        days_sum = sum(d["소계"] for d in cs["days"])
+        if days_sum != cs["owed"]:
+            errors.append(f"{label} 날짜별 소계 합({days_sum:,}) != 받을 금액({cs['owed']:,})")
+        if sum(d["건수"] for d in cs["days"]) != cs["count"]:
+            errors.append(f"{label} 날짜별 건수 합 != 남은 건수({cs['count']})")
+        for d in cs["days"]:
+            if (sum(i["금액"] for i in d["items"]) != d["소계"]
+                    or sum(i["건수"] for i in d["items"]) != d["건수"]):
+                errors.append(f"{label} {d['날짜']} 항목 합이 그날 소계·건수와 다릅니다")
+
     return errors
 
 
@@ -813,7 +939,7 @@ def warnings_for(bundle, screen=False):
     난다 — 계좌명 오타로 거래가 잔고에서 증발하거나, 제외 규칙 키가 옛날
     이름이라 종료된 항목이 계속 예상치에 들어가는 식이다.
 
-    screen=True 는 화면 13번용 문구. 지금은 "매달 이체 확인"의 합계 불일치만 다르다
+    screen=True 는 화면 14번용 문구. 지금은 "매달 이체 확인"의 합계 불일치만 다르다
     (금액 없이 건수만 — diagnostics["transfer_issues_screen"]). 그 외 문구는 터미널과 같다.
 
     여기 종류를 추가하면 SKILL.md 5단계 경고 목록도 같이 갱신할 것.
@@ -864,6 +990,16 @@ def warnings_for(bundle, screen=False):
     for issue in d.get("transfer_issues_screen" if screen else "transfer_issues", []):
         warns.append("매달 이체 확인: " + issue)
 
+    # ---- 커플통장 정산 ----
+    # 문구에 정산 계좌(커플통장 — HIDDEN_ACCOUNTS)가 들어가 screen_warnings_for가 화면에서 뺀다 → 대화로만.
+    # 화면에서는 정산 섹션이 "더 받음"을 보인다.
+    cs = bundle.get("couple_settlement") or {}
+    if cs.get("over"):
+        rule = cs["rule"]
+        warns.append(f"{rule['account']} 정산: 받은 정산이 대상보다 {cs['over']:,}원 많습니다(더 받음) — "
+                     f"{rule['account']}→{rule['receive_to']} 이체 금액이나 "
+                     f"'{rule['대분류']}/{rule['소분류']}' 분류를 확인하세요")
+
     # ---- 규칙·기간 ----
     if d.get("stale_rule_keys"):
         warns.append("데이터에서 한 번도 안 걸린 제외 규칙 (이름 변경/오타 의심): "
@@ -895,7 +1031,7 @@ def warnings_for(bundle, screen=False):
 
 
 def screen_warnings_for(bundle):
-    """리포트 화면 13번 '확인이 필요한 항목'에 올릴 경고.
+    """리포트 화면 14번 '확인이 필요한 항목'에 올릴 경고.
 
     터미널 경고와 같되, 화면에서 감춘 계좌(HIDDEN_ACCOUNTS)를 언급하는 경고는
     뺀다 — 계좌를 화면에서 뺀 이유(2026-09-10)가 그대로 적용된다. 그 경고는
@@ -937,7 +1073,7 @@ def main():
     else:
         print("      경고 없음")
 
-    # 경고를 bundle에 실어 build.py가 화면 13번 '확인이 필요한 항목'에 그대로 렌더한다.
+    # 경고를 bundle에 실어 build.py가 화면 14번 '확인이 필요한 항목'에 그대로 렌더한다.
     # (예전에는 pipeline이 계산만 하고 화면은 하드코딩 2줄이었다 — 2026-09-06 #3)
     bundle["warnings"] = screen_warnings_for(bundle)
 
@@ -954,6 +1090,8 @@ def main():
         print(f"  {a['name']}: {a['current_balance']:,}원 "
               f"({a['as_of']} 기준 {a['start_balance']:,}원 → {sign}{delta:,}, "
               f"{a['tx_count']}건 반영)")
+    for ln in bundle["couple_settlement"]["talk"]:
+        print(f"  {ln}")
 
 
 if __name__ == "__main__":

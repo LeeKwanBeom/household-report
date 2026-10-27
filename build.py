@@ -102,6 +102,82 @@ def account_cards():
         </div>""")
     return "".join(cards)
 
+_cs = bundle.get('couple_settlement') or {}
+_cs_rule = _cs.get('rule', {})
+
+def _cs_md(iso):
+    """'2026-10-23' → '10/23'"""
+    _, m, d = (int(x) for x in iso.split('-'))
+    return f"{m}/{d}"
+
+def couple_settlement_html():
+    """02 커플통장 정산. 계산·규칙 값은 pipeline.py가 bundle['couple_settlement']에 실어 보낸다
+    (COUPLE_SETTLEMENT가 유일한 원본 — 여기에 대분류·계좌 이름을 적지 않는다).
+    정산 받을 금액만 보이고 커플통장 잔고는 보이지 않는다(HIDDEN_ACCOUNTS)."""
+    if not _cs:
+        return '<div class="card"><p class="muted" style="margin:0;">정산 정보 없음</p></div>'
+    acct, dest = esc(_cs_rule['account']), esc(_cs_rule['receive_to'])
+    recent = _cs.get('recent', [])
+    if _cs['owed'] > 0:
+        head = f"""
+    <div class="card settle-card">
+      <div class="settle-label">정산 받을 금액</div>
+      <div class="settle-value">{won(_cs['owed'])}원</div>
+      <div class="settle-sub">{acct} → {dest}로 이체할 금액 · {esc(_cs['period'])} · {_cs['count']}건</div>
+    </div>"""
+    else:
+        last = (f"마지막 정산 {_cs_md(recent[0]['날짜'])} {won(recent[0]['금액'])}원"
+                if recent else "정산 기록 없음")
+        over = (f'<div class="settle-sub"><span class="badge warn">더 받음 {won(_cs["over"])}원</span></div>'
+                if _cs.get('over') else '')
+        head = f"""
+    <div class="card settle-card">
+      <div class="settle-label">정산 받을 금액</div>
+      <div class="settle-value settle-zero">정산할 금액 없음</div>
+      <div class="settle-sub">{last}</div>{over}
+    </div>"""
+
+    days = []
+    for d in _cs.get('days', []):
+        rows = []
+        for it in d['items']:
+            n = f' <span class="muted">×{it["건수"]}</span>' if it['건수'] > 1 else ''
+            part = (f' <span class="badge warn">일부 남음</span>'
+                    f' <span class="muted settle-orig">원래 {won(it["일부"])}원</span>') if it.get('일부') else ''
+            rows.append(f"""
+          <tr>
+            <td class="settle-name">{esc(it['세부내용'])}{n}{part}</td>
+            <td class="num strong settle-amt">{won(it['금액'])}원</td>
+          </tr>""")
+        days.append(f"""
+      <div class="settle-day">
+        <div class="card-list-head">
+          <div class="card-list-title">{_cs_md(d['날짜'])}</div>
+          <div class="muted card-list-meta">{d['건수']}건 · {won(d['소계'])}원</div>
+        </div>
+        <table><tbody>{''.join(rows)}</tbody></table>
+      </div>""")
+    days_html = f'<div class="card settle-days">{"".join(days)}</div>' if days else ''
+
+    if recent:
+        rec_rows = "".join(f"""
+        <tr><td class="muted">{_cs_md(r['날짜'])}</td><td class="num">{won(r['금액'])}원</td></tr>"""
+                           for r in recent)
+        rec_html = f'<div class="card"><table><tbody>{rec_rows}</tbody></table></div>'
+    else:
+        rec_html = '<div class="card"><p class="muted" style="margin:0;">아직 정산 기록이 없어요</p></div>'
+    return f"""{head}{days_html}
+    <h3 class="sub-head">최근 정산</h3>
+    {rec_html}"""
+
+def _cs_lede():
+    if not _cs_rule:
+        return ""
+    acct, dest = esc(_cs_rule['account']), esc(_cs_rule['receive_to'])
+    return (f"{esc(_cs_rule['start'])}부터 '{esc(_cs_rule['대분류'])} / {esc(_cs_rule['소분류'])}' 지출 중 "
+            f"{acct}에서 바로 내지 않은 것을 모아, {acct} → {dest} 이체로 받은 정산을 오래된 것부터 지운 "
+            f"나머지예요. 남은 항목은 날짜별로, 같은 날 같은 내용은 한 줄로 묶었어요.")
+
 def shinhan_rows():
     rows = []
     total_expected = 0
@@ -184,7 +260,7 @@ def card_performance_cards():
 def card_category_rows():
     blocks = []
     # 카드 목록도 CARD_TARGETS에서 온다. 여기에 이름을 적어두면 카드를 추가했을 때
-    # 02번에는 뜨는데 03번에서만 조용히 빠진다.
+    # 03번에는 뜨는데 04번에서만 조용히 빠진다.
     for card in bundle.get('card_category_detail', {}) or bundle.get('card_targets', {}):
         items = bundle.get('card_category_detail', {}).get(card, [])
         if not items:
@@ -510,7 +586,7 @@ def category_detail_accordions():
 
 
 def warning_items():
-    """13번 '확인이 필요한 항목'. pipeline.py의 warnings_for()가 낸 경고를 그대로 보여준다.
+    """14번 '확인이 필요한 항목'. pipeline.py의 warnings_for()가 낸 경고를 그대로 보여준다.
 
     예전에는 여기가 하드코딩 2줄(커플통장 월평균·일시 수입 조언)이었고 pipeline 경고는
     화면에 안 올라갔다(2026-09-06 #2·#3·#6). 커플통장 줄은 2026-09부터 커플통장이
@@ -723,6 +799,22 @@ html = f"""<!DOCTYPE html>
     font-size: clamp(22px, 7vw, 34px);
     word-break: keep-all;
   }}
+  .settle-card {{ text-align: center; padding: 26px 20px; }}
+  .settle-label {{ font-size: 13px; color: var(--ink-muted); margin-bottom: 8px; }}
+  .settle-value {{
+    color: var(--red);
+    font-family: 'Noto Serif KR', serif;
+    font-weight: 700;
+    font-size: clamp(22px, 7vw, 34px);
+    word-break: keep-all;
+  }}
+  .settle-value.settle-zero {{ color: var(--green); font-size: clamp(18px, 5vw, 24px); }}
+  .settle-sub {{ font-size: 12.5px; color: var(--ink-muted); margin-top: 8px; word-break: keep-all; }}
+  .settle-days {{ margin-top: 16px; }}
+  .settle-day + .settle-day {{ margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }}
+  .settle-name {{ word-break: break-word; }}
+  .settle-amt {{ white-space: nowrap; }}
+  .settle-orig {{ font-size: 11.5px; white-space: nowrap; }}
   .card-perf-head {{ display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }}
   .card-perf-title {{ font-family: 'Noto Serif KR', serif; font-weight: 700; font-size: 16px; }}
   .card-perf-amount {{ font-size: 22px; font-weight: 700; font-family: 'Noto Serif KR', serif; margin-bottom: 4px; word-break: break-word; }}
@@ -1098,6 +1190,16 @@ html = f"""<!DOCTYPE html>
     <div class="kpi-grid" style="grid-template-columns: repeat({min(_n_accounts, 4)},1fr);">
       {account_cards()}
     </div>
+  </section>
+
+  <section id="s-couple">
+    <div class="section-head">
+      <span class="section-num">02</span>
+      <h2>{esc(_cs_rule.get('account', ''))} 정산</h2>
+      <span class="note">{esc(_cs_rule.get('account', ''))} → {esc(_cs_rule.get('receive_to', ''))} · 오래된 것부터 정산</span>
+    </div>
+    <p class="lede">{_cs_lede()}</p>
+    {couple_settlement_html()}
   </section>
 
   <section id="s2">

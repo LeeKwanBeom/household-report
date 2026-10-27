@@ -678,6 +678,15 @@ def classify_transfers(bundle):
     return stops, infos
 
 
+def settlement_lines(bundle):
+    """커플통장 정산 대화 줄 — pipeline.py가 bundle에 실은 문구 그대로(계산·문구를 여기에 옮기지 않는다).
+    → (계좌 이름, 줄 목록). 키가 없는 옛 회차 bundle이면 (None, [])."""
+    cs = bundle.get("couple_settlement")
+    if not isinstance(cs, dict) or not cs.get("talk"):
+        return None, []
+    return (cs.get("rule") or {}).get("account"), list(cs["talk"])
+
+
 def transfer_only_month(ctx, run, stamp, month):
     """수입·지출 행 없이 이체 행만 있는 달(CSV 최신 날짜의 달)의 매달 이체를 pipeline과 같은 기준으로 대조한다.
     pipeline.py를 그 clone에서 그대로 불러 load_csv·EXPECTED_MONTHLY_TRANSFERS를 쓴다(규칙을 옮겨 적지 않는다).
@@ -1221,6 +1230,13 @@ def evaluate(ctx, run, stamp, out, acks, verbose=True):
         out.info(f"{latest_month} 이체 행: " + " · ".join(f"{k} {v:,}원" for k, v in agg.items()))
     elif not stops:
         out.info(f"{latest_month} 이체 행 없음(검사 시작 월 전이면 정상)")
+
+    # 커플통장 정산 — 대화로 전한다(읽기만 · 승인 코드·멈춤과 상관없음). 옛 회차 bundle이면 건너뛴다.
+    acct, talk = settlement_lines(bundle)
+    if talk:
+        say(f"── {acct} 정산 — 대화로 전달 ──")
+        for ln in talk:
+            say(f"  {ln}")
 
     # (b) [경고] 전부
     warns = log_block(plog, "[경고]", "        - ")

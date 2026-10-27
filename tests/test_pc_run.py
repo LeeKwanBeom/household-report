@@ -38,6 +38,7 @@ CSV_NAME = "가계부T.csv"
 CODE = ["pipeline.py", "build.py", "scripts/deploy.py", "scripts/detect_ended.py", "scripts/pc_run.py"]
 EXTRA_ROW = "2026-09-26,지출,식비,외식,시험 저녁,\"21,000\",생활비,,"
 EXTRA_ROW2 = "2026-09-26,지출,식비,외식,시험 저녁2,\"34,000\",생활비,,"
+SETTLE_ROW = "2026-09-26,지출,내여자,데이트비용,시험 데이트,\"13,013\",생활비,,"   # 커플통장 정산 대상(합성)
 
 
 def md5(b):
@@ -676,6 +677,36 @@ class ReviewStops(PcRunBase):
         self.assertIn("[PASS] HEAD = origin/main", out)
 
 
+class ReviewSettlement(PcRunBase):
+    """review가 커플통장 정산 줄(bundle 문구 그대로)을 찍고, 승인 코드·멈춤·exit 코드는 그대로다(커플정산 K7)."""
+
+    def test_review_prints_settlement_line_without_changing_gates(self):
+        self.write_csv(csv_variant(add=[SETTLE_ROW]))
+        rc, out, rid = self.build()
+        self.assertEqual(rc, 0, out)
+        rc, out = self.pc("review", "--run", rid)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("── 커플통장 정산 — 대화로 전달 ──", out)
+        self.assertIn("  커플통장 정산: 받을 금액 13,013원 (9/26 · 1건)", out)
+        self.assertIn("  이체한 뒤 CSV에 넣을 행: 날짜 <이체한 날> · 구분 이체 · 대분류 이체 · 소분류 생활비 · "
+                      "세부내용 데이트비 정산 · 금액 13,013 · 결제수단 커플통장", out)
+        self.assertIn(f"승인 코드: {self.code_of(rid)}", out)
+        self.assertNotIn("커플통장 정산", out.split("──── 승인 질문")[1])   # 승인 질문 블록은 그대로
+        rc, out = self.pc("deploy", "--run", rid)
+        self.assertEqual(rc, 0, out)
+
+    def test_settlement_line_with_transfer_stop(self):
+        """이체 멈춤(exit 2 · 승인 코드 없음)은 그대로이고, 정산 줄은 함께 찍힌다. 받을 금액 0이면 '없음' 한 줄."""
+        self.write_csv(csv_variant(drop=["2026-09-01,이체,이체,커플통장"]))
+        rc, out, rid = self.build()
+        self.assertEqual(rc, 0, out)
+        rc, out = self.pc("review", "--run", rid)
+        self.assertEqual(rc, 2, out)
+        self.assertIn("  커플통장 정산: 받을 금액 없음", out)
+        self.assertNotIn("이체한 뒤 CSV에 넣을 행", out)
+        self.assertNotIn("승인 코드:", out)
+
+
 class OldCsv(PcRunBase):
     base_name = "newer"   # 공개판이 CSV보다 하루 뒤까지
 
@@ -813,6 +844,13 @@ class Units(unittest.TestCase):
         self.assertEqual(pc_run.latest_date_of({"months_included": ["2026-12"], "latest_update": "1월 2일"}),
                          date(2027, 1, 2))
         self.assertIsNone(pc_run.latest_date_of({"months_included": [], "latest_update": "1월 2일"}))
+
+    def test_settlement_lines_reads_bundle_only(self):
+        """bundle의 정산 문구를 그대로 돌려준다. 키가 없는 옛 회차 bundle이면 줄이 없다(커플정산 K7)."""
+        self.assertEqual(pc_run.settlement_lines({"kpi": {}}), (None, []))
+        self.assertEqual(pc_run.settlement_lines({"couple_settlement": {}}), (None, []))
+        b = {"couple_settlement": {"rule": {"account": "커플통장"}, "talk": ["가", "나"]}}
+        self.assertEqual(pc_run.settlement_lines(b), ("커플통장", ["가", "나"]))
 
     def test_run_key_order(self):
         names = ["20261012-161500-10", "20261012-161500", "20261012-161500-2", "20261011-235959"]

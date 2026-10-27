@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
 import pipeline  # noqa: E402
 from pipeline import (  # noqa: E402
-    ACCOUNTS_START, ACCOUNT_KEY, ENDED_FIXED_ITEMS, EXPECTED_COLS,
+    ACCOUNTS_START, ACCOUNT_KEY, COUPLE_SETTLEMENT, ENDED_FIXED_ITEMS, EXPECTED_COLS,
     EXPECTED_MONTHLY_TRANSFERS, HIDDEN_ACCOUNTS, MANUALLY_EXCLUDED_FIXED_ITEMS,
     NO_CORE_ROWS_MSG, SUBSCRIPTION_ALIASES, build_bundle, fixed_app_name, load_csv,
     screen_warnings_for, today_kst, validate, warnings_for,
@@ -301,7 +301,7 @@ class Warnings(unittest.TestCase):
                              [x.split()[0] for x in issues]), issues)
 
     def test_transfer_sum_mismatch_screen_has_no_amount(self):
-        """화면 13번(screen_warnings_for)에는 합계 불일치를 금액 없이 건수만 싣고,
+        """화면 14번(screen_warnings_for)에는 합계 불일치를 금액 없이 건수만 싣고,
         터미널(warnings_for)에는 금액을 그대로 둔다 (2026-09-27 정정·수정 회차 2, 선택 7)."""
         df = fixture_rows()
         i = df[(df["구분"] == "이체") & (df["소분류"] == "신한은행")].index[0]
@@ -515,6 +515,263 @@ class FixedAppGroups(unittest.TestCase):
     def test_fixed_app_name(self):
         self.assertEqual(fixed_app_name("클로드 추가료"), "클로드")
         self.assertEqual(fixed_app_name("샘플OTT"), "샘플OTT")
+
+
+SETTLE_TODAY = "2027-12-31"  # 정산 시험 행은 2027년 합성 날짜·금액이다(실 가계부와 겹치지 않게)
+
+
+def spend(df, 날짜, 금액, 세부내용="합성 데이트", 결제수단="생활비", 대분류="내여자", 소분류="데이트비용"):
+    return add_row(df, 날짜=날짜, 구분="지출", 대분류=대분류, 소분류=소분류, 세부내용=세부내용,
+                   금액=금액, 결제수단=결제수단)
+
+
+def settle(df, 날짜, 금액, 결제수단="커플통장", 소분류="생활비"):
+    return add_row(df, 날짜=날짜, 구분="이체", 대분류="이체", 소분류=소분류, 세부내용="합성 정산",
+                   금액=금액, 결제수단=결제수단)
+
+
+class CoupleSettlement(unittest.TestCase):
+    """커플통장 정산(COUPLE_SETTLEMENT) — 대상·받음 판정(K3) · 오래된 것부터 지우기·0·더 받음·환불(K4) ·
+    validate 정합(K2) (2026-10-27 커플정산 기록 '정한 것' 1~4)."""
+
+    def _cs(self, df):
+        _, b = run_rows(df, today=SETTLE_TODAY)
+        return b["couple_settlement"], b
+
+    def test_fixture_has_nothing_to_settle(self):
+        """fixture의 데이트비용 행은 커플통장에서 바로 낸 것 — 대상이 아니다."""
+        cs, b = self._cs(fixture_rows())
+        self.assertEqual((cs["target_count"], cs["received_count"], cs["owed"], cs["over"]), (0, 0, 0, 0))
+        self.assertEqual(cs["talk"], ["커플통장 정산: 받을 금액 없음"])
+        self.assertEqual(validate(b), [])
+
+    def test_targets_are_only_settlement_rows(self):
+        """대상 = 지출 · 내여자/데이트비용 · 결제수단 ≠ 커플통장(빈칸·신한은행 포함). 개인 결제·선물·
+        다른 대분류·커플통장에서 바로 낸 것·수입 행은 아니다(K3)."""
+        df = spend(fixture_rows(), "2027-03-02", "11,113", 결제수단="생활비")
+        df = spend(df, "2027-03-02", "2,221", 결제수단="")
+        df = spend(df, "2027-03-03", "3,337", 결제수단="신한은행")
+        df = spend(df, "2027-03-03", "9,991", 소분류="개인 결제")
+        df = spend(df, "2027-03-03", "8,883", 소분류="선물")
+        df = spend(df, "2027-03-04", "7,771", 대분류="식비")
+        df = spend(df, "2027-03-04", "6,661", 결제수단="커플통장")
+        df = add_row(df, 날짜="2027-03-04", 구분="수입", 대분류="내여자", 소분류="데이트비용",
+                     세부내용="합성 데이트", 금액="5,551", 결제수단="생활비")
+        cs, b = self._cs(df)
+        self.assertEqual(cs["target_count"], 3)
+        self.assertEqual(cs["target_total"], 11_113 + 2_221 + 3_337)
+        self.assertEqual(cs["owed"], 16_671)
+        self.assertEqual(validate(b), [])
+
+    def test_received_is_only_couple_to_living_transfer(self):
+        """받음 = 이체 · 결제수단 커플통장 · 소분류 생활비. 반대 방향·다른 계좌로 간 이체는 아니다(K3)."""
+        df = spend(fixture_rows(), "2027-03-02", "30,003")
+        df = settle(df, "2027-03-05", "10,001")
+        df = settle(df, "2027-03-05", "4,441", 결제수단="생활비", 소분류="커플통장")
+        df = settle(df, "2027-03-05", "5,557", 소분류="신한은행")
+        cs, _ = self._cs(df)
+        self.assertEqual((cs["received_count"], cs["received_total"]), (1, 10_001))
+        self.assertEqual(cs["owed"], 20_002)
+
+    def test_start_date_is_inclusive(self):
+        """시작일 전 행은 대상·받음 모두 아니다. 시작일 당일은 들어간다(K3)."""
+        with mock.patch.dict(pipeline.COUPLE_SETTLEMENT, {"start": "2027-03-05"}):
+            df = spend(fixture_rows(), "2027-03-04", "4,447")
+            df = spend(df, "2027-03-05", "5,553")
+            df = settle(df, "2027-03-04", "1,117")
+            cs, b = self._cs(df)
+        self.assertEqual((cs["target_total"], cs["received_total"], cs["owed"]), (5_553, 0, 5_553))
+        self.assertEqual(cs["rule"]["start"], "2027-03-05")
+        self.assertEqual(validate(b), [])
+
+    def test_exact_match_is_zero(self):
+        df = spend(fixture_rows(), "2027-03-02", "12,341")
+        df = spend(df, "2027-03-03", "3,331")
+        df = settle(df, "2027-03-06", "15,672")
+        cs, b = self._cs(df)
+        self.assertEqual((cs["owed"], cs["over"], cs["count"], cs["days"], cs["period"]), (0, 0, 0, [], ""))
+        self.assertEqual(cs["talk"], ["커플통장 정산: 받을 금액 없음(마지막 정산 3/6 15,672원)"])
+        self.assertFalse(any("더 받음" in w for w in warnings_for(b)))
+        self.assertEqual(validate(b), [])
+
+    def test_partial_clears_oldest_first(self):
+        """받음 합을 오래된 대상부터 지우고, 걸친 행은 남은 몫만 '일부'로 남긴다(K4)."""
+        df = spend(fixture_rows(), "2027-03-02", "10,001", 세부내용="합성 가")
+        df = spend(df, "2027-03-03", "20,003", 세부내용="합성 나")
+        df = spend(df, "2027-03-03", "5,005", 세부내용="합성 다")
+        df = spend(df, "2027-03-04", "7,007", 세부내용="합성 라")
+        df = settle(df, "2027-03-05", "25,000")
+        cs, b = self._cs(df)
+        self.assertEqual(cs["owed"], 42_016 - 25_000)
+        self.assertEqual([(d["날짜"], d["건수"], d["소계"]) for d in cs["days"]],
+                         [("2027-03-03", 2, 10_009), ("2027-03-04", 1, 7_007)])
+        self.assertEqual(cs["days"][0]["items"], [
+            {"세부내용": "합성 다", "건수": 1, "금액": 5_005, "일부": None},
+            {"세부내용": "합성 나", "건수": 1, "금액": 5_004, "일부": 20_003}])
+        self.assertEqual((cs["count"], cs["period"]), (3, "3/3~3/4"))
+        self.assertEqual(cs["talk"][0], "커플통장 정산: 받을 금액 17,016원 (3/3~3/4 · 3건)")
+        self.assertEqual(cs["talk"][1], "이체한 뒤 CSV에 넣을 행: 날짜 <이체한 날> · 구분 이체 · 대분류 이체 · "
+                                        "소분류 생활비 · 세부내용 데이트비 정산 · 금액 17,016 · 결제수단 커플통장")
+        self.assertEqual(validate(b), [])
+
+    def test_order_is_date_then_csv(self):
+        """날짜 순이 먼저(CSV 뒤에 적힌 이른 날짜 행이 먼저 지워진다), 같은 날은 CSV 순(K4)."""
+        df = spend(fixture_rows(), "2027-03-02", "10,001", 세부내용="합성 가")
+        df = spend(df, "2027-03-03", "5,005", 세부내용="합성 다")
+        df = spend(df, "2027-03-03", "20,003", 세부내용="합성 나")
+        df = spend(df, "2027-03-04", "7,007", 세부내용="합성 라")
+        df = spend(df, "2027-03-01", "1,001", 세부내용="합성 마")
+        df = settle(df, "2027-03-05", "26,001")
+        cs, b = self._cs(df)
+        self.assertEqual(cs["owed"], 17_016)
+        self.assertEqual(cs["days"][0]["items"], [{"세부내용": "합성 나", "건수": 1, "금액": 10_009, "일부": 20_003}])
+        self.assertEqual(validate(b), [])
+
+    def test_over_received_is_zero_and_warns_in_talk_only(self):
+        """받음이 더 크면 0원 · '더 받음' · 경고는 대화(warnings_for)에만, 화면 14번(screen_warnings_for)엔 없다(K4)."""
+        df = spend(fixture_rows(), "2027-03-02", "8,881")
+        df = settle(df, "2027-03-03", "10,009")
+        cs, b = self._cs(df)
+        self.assertEqual((cs["owed"], cs["over"], cs["days"]), (0, 1_128, []))
+        self.assertEqual(cs["talk"], ["커플통장 정산: 받을 금액 없음(마지막 정산 3/3 10,009원) · 더 받음 1,128원"])
+        over = [w for w in warnings_for(b) if "더 받음" in w]
+        self.assertEqual(len(over), 1, over)
+        self.assertIn("1,128원", over[0])
+        self.assertIn(COUPLE_SETTLEMENT["account"], over[0])
+        self.assertFalse(any("더 받음" in w for w in screen_warnings_for(b)))
+        self.assertEqual(validate(b), [])
+
+    def test_refund_reduces_owed(self):
+        """음수 금액(환불)은 받을 금액을 줄이고, 남은 항목의 합은 받을 금액과 같다(K4)."""
+        df = spend(fixture_rows(), "2027-03-02", "10,001", 세부내용="합성 가")
+        df = spend(df, "2027-03-03", "6,006", 세부내용="합성 나")
+        df = spend(df, "2027-03-04", "-3,001", 세부내용="합성 환불")
+        cs, b = self._cs(df)
+        self.assertEqual((cs["target_total"], cs["refund_total"], cs["owed"]), (13_006, 3_001, 13_006))
+        self.assertEqual(sum(d["소계"] for d in cs["days"]), 13_006)
+        self.assertEqual(cs["days"][0]["items"][0]["일부"], 10_001)
+        self.assertEqual(validate(b), [])
+
+    def test_same_day_same_detail_grouped(self):
+        """같은 날 같은 세부내용은 한 줄(건수)로, 금액 큰 순. 다른 날은 따로(정한 것 5)."""
+        df = fixture_rows()
+        for _ in range(3):
+            df = spend(df, "2027-03-02", "1,013", 세부내용="합성 뽑기")
+        df = spend(df, "2027-03-02", "2,027", 세부내용="합성 식당")
+        df = spend(df, "2027-03-03", "1,013", 세부내용="합성 뽑기")
+        cs, b = self._cs(df)
+        self.assertEqual([(d["날짜"], d["건수"], d["소계"]) for d in cs["days"]],
+                         [("2027-03-02", 4, 5_066), ("2027-03-03", 1, 1_013)])
+        self.assertEqual([(i["세부내용"], i["건수"], i["금액"]) for i in cs["days"][0]["items"]],
+                         [("합성 뽑기", 3, 3_039), ("합성 식당", 1, 2_027)])
+        self.assertEqual(validate(b), [])
+
+    def test_recent_five_newest_first(self):
+        df = fixture_rows()
+        for i in range(1, 7):
+            df = settle(df, f"2027-03-0{i}", f"{i},001")
+        cs, _ = self._cs(df)
+        self.assertEqual([r["날짜"] for r in cs["recent"]],
+                         ["2027-03-06", "2027-03-05", "2027-03-04", "2027-03-03", "2027-03-02"])
+        self.assertEqual(cs["recent"][0]["금액"], 6_001)
+
+    def test_validate_catches_settlement_mismatch(self):
+        """받을 금액 ≠ max(0, 대상 − 받음) · 날짜별 소계 합 ≠ 받을 금액이면 [실패](K2)."""
+        df = spend(fixture_rows(), "2027-03-02", "10,001")
+        df = spend(df, "2027-03-03", "7,007")
+        df = settle(df, "2027-03-05", "4,000")
+        _, b = run_rows(df, today=SETTLE_TODAY)
+        self.assertEqual(validate(b), [])
+        muts = {
+            "받을 금액": lambda cs: cs.__setitem__("received_total", cs["received_total"] + 1),
+            "날짜별 소계 합": lambda cs: cs["days"][0].update(소계=cs["days"][0]["소계"] + 1),
+            "날짜별 건수 합": lambda cs: cs.__setitem__("count", cs["count"] + 1),
+            "항목 합": lambda cs: cs["days"][-1]["items"][0].update(금액=0),
+        }
+        for label, mut in muts.items():
+            bb = copy.deepcopy(b)
+            mut(bb["couple_settlement"])
+            errs = validate(bb)
+            self.assertTrue(any("커플통장 정산" in e and label in e for e in errs), f"{label}: {errs}")
+
+
+class CoupleSettlementOutput(unittest.TestCase):
+    """pipeline 끝 요약의 정산 줄(K7) · 화면 02번 섹션·번호·{REF}·0원/더 받음 렌더(K6)."""
+
+    def test_main_prints_settlement_after_account_lines(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, tmp, True)
+        df = spend(fixture_rows(), "2027-03-02", "10,001")
+        df.to_csv(os.path.join(tmp, "in.csv"), index=False, encoding="utf-8-sig")
+        out, cwd = io.StringIO(), os.getcwd()
+        try:
+            os.chdir(tmp)
+            with mock.patch.object(pipeline, "_now_utc", return_value=pd.Timestamp("2027-12-31", tz="UTC")), \
+                    mock.patch.object(sys, "argv", ["pipeline.py", "in.csv"]), redirect_stdout(out):
+                pipeline.main()
+        finally:
+            os.chdir(cwd)
+        lines = out.getvalue().splitlines()
+        acct_last = max(i for i, ln in enumerate(lines) if ln.startswith("  주식잔고:"))
+        self.assertEqual(lines[acct_last + 1], "  커플통장 정산: 받을 금액 10,001원 (3/2 · 1건)")
+        self.assertTrue(lines[acct_last + 2].startswith("  이체한 뒤 CSV에 넣을 행: 날짜 <이체한 날> · 구분 이체"))
+
+    def _report(self, df):
+        """bundle(합성) → build.py → report HTML. pipeline.main처럼 화면 경고를 bundle에 싣는다."""
+        import shutil
+        import subprocess
+        _, b = run_rows(df, today=SETTLE_TODAY)
+        self.assertEqual(validate(b), [])
+        b["warnings"] = screen_warnings_for(b)
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        with open(os.path.join(tmp, "data_bundle.json"), "w", encoding="utf-8") as f:
+            json.dump(b, f, ensure_ascii=False)
+        out = os.path.join(tmp, "report.html")
+        env = dict(os.environ, PYTHONUTF8="1", PYTHONDONTWRITEBYTECODE="1", HOUSEHOLD_OUT=out)
+        subprocess.run([sys.executable, os.path.join(ROOT, "build.py")], cwd=tmp, check=True,
+                       capture_output=True, env=env)
+        with open(out, encoding="utf-8") as f:
+            return f.read()
+
+    @staticmethod
+    def _section(html, sid):
+        return re.search(rf'<section id="{re.escape(sid)}">(.*?)</section>', html, re.S).group(1)
+
+    def test_section_is_second_and_numbers_follow(self):
+        """새 섹션이 02번 · 뒤 섹션이 03~15 · {REF:s11}이 12번 · 계좌 잔고에 커플통장 카드 없음(K6·K5)."""
+        html = self._report(fixture_rows())
+        ids = re.findall(r'<section id="([^"]+)"', html)
+        nums = re.findall(r'<span class="section-num">(\d+)</span>', html)
+        self.assertEqual(ids, ["s1", "s-couple", "s2", "s3", "s5", "s6", "s-mom", "s7", "s9", "s10",
+                               "s4", "s11", "s12", "s13", "s14"])
+        self.assertEqual(nums, [f"{i:02d}" for i in range(1, 16)])
+        self.assertIn("다음 12번의 예상 고정지출", html)
+        self.assertNotIn("{REF:", html)
+        self.assertNotIn(f'<div class="label">{HIDDEN_ACCOUNTS[0]}</div>', self._section(html, "s1"))
+        # 0원 · 정산 기록 없음 상태
+        sec = self._section(html, "s-couple")
+        self.assertIn("정산할 금액 없음", sec)
+        self.assertIn("정산 기록 없음", sec)
+
+    def test_owed_and_over_states_render(self):
+        df = spend(fixture_rows(), "2027-03-02", "10,001", 세부내용="합성 가")
+        df = spend(df, "2027-03-03", "1,013", 세부내용="합성 뽑기")
+        df = spend(df, "2027-03-03", "1,013", 세부내용="합성 뽑기")
+        df = settle(df, "2027-03-04", "4,001")
+        sec = self._section(self._report(df), "s-couple")
+        self.assertIn("정산 받을 금액", sec)
+        self.assertIn("8,026원", sec)
+        self.assertIn("3/2~3/3 · 3건", sec)
+        self.assertIn("일부 남음", sec)
+        self.assertIn("×2", sec)
+        self.assertIn("최근 정산", sec)
+        # 더 받음: 화면 02번에는 보이고, 14번 경고에는 없다
+        df2 = settle(spend(fixture_rows(), "2027-03-02", "8,881"), "2027-03-03", "10,009")
+        html2 = self._report(df2)
+        self.assertIn("더 받음 1,128원", self._section(html2, "s-couple"))
+        self.assertIn("마지막 정산 3/3 10,009원", self._section(html2, "s-couple"))
+        self.assertNotIn("더 받음", self._section(html2, "s13"))
 
 
 class DeployChecks(unittest.TestCase):
