@@ -557,7 +557,8 @@ def _heat_label(v):
     return "–"
 
 def heatmap_table():
-    """대분류 × 월 표. 색 진하기는 옛 화면처럼 대분류(줄)마다 그 줄의 가장 큰 달 기준이다."""
+    """대분류 × 월 표. 색 진하기는 옛 화면처럼 대분류(줄)마다 그 줄의 가장 큰 달 기준이다.
+    글자는 모든 칸이 본문 글자색 — 가장 진한 칸에서도 라이트·다크 둘 다 흰/검은 글자를 바꿔 쓰는 것보다 잘 읽힌다."""
     head = "".join(f'<th scope="col" data-col="{m}"{_SEL_CLS if m == _SEL else ""}><span>{esc(_heat["months"][i])}</span></th>'
                    for i, m in enumerate(months_included))
     body = []
@@ -567,11 +568,9 @@ def heatmap_table():
         cells = []
         for i, v in enumerate(row):
             t = v / mx
-            if t > 0:
-                style = f"background:color-mix(in oklab, var(--exp) {round((0.12 + t * 0.75) * 100)}%, var(--surface));"
-                style += "color:var(--on-exp);" if t > 0.55 else ""
-            else:
-                style = "background:var(--surface-2);"
+            pct = round((0.12 + t * 0.75) * 100) if t > 0 else 0
+            style = (f"background:color-mix(in oklab, var(--exp) {pct}%, var(--surface));" if pct
+                     else "background:var(--surface-2);")
             m = months_included[i]
             cells.append(f'<td data-col="{m}"{_SEL_CLS if m == _SEL else ""} style="{style}" '
                          f'title="{_attr(cat)} · {_attr(_heat["months"][i])} · {won(v)}원">{_heat_label(v)}</td>')
@@ -643,7 +642,7 @@ CSS = """
     --page: #F3F2F4; --surface: #FFFFFF; --surface-2: #F7F6F8; --ink: #17151A; --ink-2: #4B4751; --muted: #706B76;
     --line: #E5E2E7; --axis: #C9C5CD; --accent: #A8172A; --accent-ink: #FFFFFF; --accent-soft: #F7E4E7; --accent-text: #A8172A;
     --exp: #C8364B; --inc: #2A78D6; --net: #17151A; --good: #0E7A3A; --good-bg: #E2F2E7; --warn: #8F5400; --warn-bg: #FBEFD6;
-    --warn-mark: #E89B0C; --crit: #B4232F; --crit-bg: #FBE4E6; --tip-bg: #17151A; --tip-ink: #FFFFFF; --on-exp: #FFFFFF;
+    --warn-mark: #E89B0C; --crit: #B4232F; --crit-bg: #FBE4E6; --tip-bg: #17151A; --tip-ink: #FFFFFF;
     --shadow: rgba(23, 21, 26, 0.16);
     --font: "IBM Plex Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
     --radius: 14px;
@@ -654,7 +653,7 @@ CSS = """
       --page: #0E0D10; --surface: #18171B; --surface-2: #201F24; --ink: #F2F0F4; --ink-2: #C8C4CD; --muted: #9A95A0;
       --line: #2B2930; --axis: #3D3B43; --accent: #E0566B; --accent-ink: #1B0A0E; --accent-soft: #3A1A21; --accent-text: #F48A9A;
       --exp: #E2586C; --inc: #3987E5; --net: #F2F0F4; --good: #5BCB86; --good-bg: #15301F; --warn: #F2B544; --warn-bg: #33270F;
-      --warn-mark: #F2B544; --crit: #F27B85; --crit-bg: #3A1A1E; --tip-bg: #F2F0F4; --tip-ink: #17151A; --on-exp: #1B0A0E;
+      --warn-mark: #F2B544; --crit: #F27B85; --crit-bg: #3A1A1E; --tip-bg: #F2F0F4; --tip-ink: #17151A;
       --shadow: rgba(0, 0, 0, 0.5);
       color-scheme: dark;
     }
@@ -663,7 +662,7 @@ CSS = """
     --page: #0E0D10; --surface: #18171B; --surface-2: #201F24; --ink: #F2F0F4; --ink-2: #C8C4CD; --muted: #9A95A0;
     --line: #2B2930; --axis: #3D3B43; --accent: #E0566B; --accent-ink: #1B0A0E; --accent-soft: #3A1A21; --accent-text: #F48A9A;
     --exp: #E2586C; --inc: #3987E5; --net: #F2F0F4; --good: #5BCB86; --good-bg: #15301F; --warn: #F2B544; --warn-bg: #33270F;
-    --warn-mark: #F2B544; --crit: #F27B85; --crit-bg: #3A1A1E; --tip-bg: #F2F0F4; --tip-ink: #17151A; --on-exp: #1B0A0E;
+    --warn-mark: #F2B544; --crit: #F27B85; --crit-bg: #3A1A1E; --tip-bg: #F2F0F4; --tip-ink: #17151A;
     --shadow: rgba(0, 0, 0, 0.5);
     color-scheme: dark;
   }
