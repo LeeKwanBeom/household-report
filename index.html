@@ -241,7 +241,6 @@
   }
   td { padding: 10px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
   tr:last-child td { border-bottom: none; }
-  td.rank { color: var(--red); font-weight: 700; font-family: 'Noto Serif KR', serif; width: 30px; }
   td.name { font-weight: 600; }
   td.num { text-align: right; font-weight: 600; }
   td.num.muted { color: var(--ink-muted); font-weight: 400; }
@@ -263,10 +262,8 @@
     font-weight: 600;
   }
   .badge.warn { background: #FBEFD4; color: #8A5A0B; }
-  tr.row-warn { background: #FDFAF1; }
   .tag { font-size: 11.5px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
   .tag.fixed { background: var(--red-soft); color: var(--red-deep); }
-  .top-date-short { display: none; }
   .tag.var { background: #EAF2EE; color: var(--green); }
 
   /* ---------- Income bars ---------- */
@@ -299,6 +296,12 @@
   .sub-table td { font-size: 14px; padding: 6px 10px; }
   .rs-notes { margin: -6px 0 16px 34px; font-size: 12.5px; line-height: 1.55; word-break: keep-all; overflow-wrap: anywhere; }
   .rs-notes p { margin: 0 0 4px; }
+  /* 04번 카드 목록 접기 — 처음엔 접힘(open 없음 · 열림 상태 저장 없음). 06번과 같은 .detail-item 줄 */
+  .card-fold { border-top: 1px solid var(--border); }
+  .card-fold > summary .name { margin-right: auto; }
+  .card-fold .fold-open, .card-fold[open] .fold-closed { display: none; }
+  .card-fold[open] .fold-open { display: inline; }
+  .card-fold > .kpi-grid { margin: 4px 0 18px; }
 
   /* ---------- Category + detail combined accordion ---------- */
   .cd-row {
@@ -325,24 +328,7 @@
   table.heatmap th.rowh, table.heatmap td.rowh { text-align: left; font-weight: 600; font-size: 13px; padding-left: 4px; }
   .heat-cell { font-weight: 600; border-radius: 3px; }
 
-  /* ---------- Summary / Actions ---------- */
-  .summary-list { list-style: none; margin: 0; padding: 0; }
-  .summary-list li {
-    position: relative;
-    padding: 10px 0 10px 20px;
-    border-bottom: 1px solid var(--border);
-    font-size: 14.5px;
-  }
-  .summary-list li:last-child { border-bottom: none; }
-  .summary-list li::before {
-    content: '';
-    position: absolute; left: 0; top: 18px;
-    width: 7px; height: 7px;
-    background: var(--red);
-    border-radius: 50%;
-  }
-  .summary-list b { color: var(--red-deep); }
-
+  /* ---------- Actions ---------- */
   .action-list { list-style: none; margin: 0; padding: 0; counter-reset: action; }
   .action-list li {
     counter-increment: action;
@@ -415,7 +401,6 @@
     gap: 8px;
   }
   .tx-head-row2 { display: block; font-size: 11.5px; margin-top: 2px; }
-  .proj-item-short { display: none; }
   .tx-panel table { font-size: 13px; }
   .tx-panel td, .tx-panel th { padding: 7px 8px; }
   td.tx-income { color: var(--green); font-weight: 600; }
@@ -469,14 +454,8 @@
     .card-perf-target { font-size: 13px; }
     .card-list-title { font-size: 14px; }
     .card-list-meta { font-size: 12.5px; }
-    .top-cat-col { display: none; }
-    .top-status-col { display: none; }
-    .top-rank-col { display: none; }
     .sub-rank-col { display: none; }
     .sub-pct-col { display: none; }
-    .mom-prev-col { display: none; }
-    .proj-item-full { display: none; }
-    .proj-item-short { display: inline; }
   }
 
   @media (max-width: 480px) {
@@ -501,15 +480,9 @@
     .card-list-title { font-size: 13.5px; }
     .card-list-meta { font-size: 12px; }
     .tx-scroll { max-height: 420px; }
-    .fv-bar-col { display: none; }
     table.heatmap { min-width: 460px; }
     table.heatmap th, table.heatmap td { padding: 4px 3px; font-size: 11px; }
     .heat-cell { min-width: 22px !important; padding: 3px 4px !important; }
-    .top-date-full { display: none; }
-    .top-date-short { display: inline; }
-    .top-cat-col { display: none; }
-    .top-status-col { display: none; }
-    .top-rank-col { display: none; }
     table.heatmap th.rowh, table.heatmap td.rowh {
       position: sticky;
       left: 0;
@@ -650,8 +623,10 @@
       <h2>카드사별 결제 내역</h2>
       <span class="note">10월 · 비고 태그 기준</span>
     </div>
-    <div class="kpi-grid card-list-grid" style="grid-template-columns: repeat(2,1fr);">
-      
+    <details class="detail-item card-fold">
+      <summary><span class="name">결제 내역 <span class="fold-closed">펼치기</span><span class="fold-open">접기</span></span><span class="num muted">카드 2개 · 99건</span></summary>
+      <div class="kpi-grid card-list-grid" style="grid-template-columns: repeat(2,1fr);">
+        
         <div class="card">
           <div class="card-list-head">
             <div class="card-list-title">현대카드</div>
@@ -1260,7 +1235,8 @@
             <td class="num strong card-tx-amt">7,890원</td>
           </tr></tbody></table>
         </div>
-    </div>
+      </div>
+    </details>
   </section>
 
   <section id="s5">
@@ -1765,233 +1741,9 @@
         </details></div>
   </section>
 
-  <section id="s-mom">
-    <div class="section-head">
-      <span class="section-num">07</span>
-      <h2>전월 대비 증감</h2>
-      <span class="note">9월 → 10월 1~27일 · 변동폭 큰 순</span>
-    </div>
-    <p class="lede">지난달 대비 이번 달 지출이 어떻게 달라졌는지 대분류별로 보여줘요. 빨간색은 늘어난 것, 초록색은 줄어든 것이에요. 이번 달이 아직 진행 중이라서, 양쪽 모두 <b>1일부터 27일까지</b>만 잘라서 비교했어요. 달이 끝나면 전체 기간으로 자동 전환돼요.</p>
-    <div class="card" style="overflow-x:auto;">
-      <table>
-        <thead><tr><th>대분류</th><th style="text-align:right;" class="mom-prev-col">전월</th><th style="text-align:right;">당월</th><th style="text-align:right;">증감</th></tr></thead>
-        <tbody>
-        <tr>
-          <td class="name">가족</td>
-          <td class="num muted mom-prev-col" style="white-space:nowrap;">1,367,600원</td>
-          <td class="num" style="white-space:nowrap;">4,400원</td>
-          <td class="num green" style="white-space:nowrap;">-1,363,200원</td>
-        </tr>
-        <tr>
-          <td class="name">문화생활비</td>
-          <td class="num muted mom-prev-col" style="white-space:nowrap;">914,180원</td>
-          <td class="num" style="white-space:nowrap;">403,895원</td>
-          <td class="num green" style="white-space:nowrap;">-510,285원</td>
-        </tr>
-        <tr>
-          <td class="name">사회생활비</td>
-          <td class="num muted mom-prev-col" style="white-space:nowrap;">70,240원</td>
-          <td class="num" style="white-space:nowrap;">372,000원</td>
-          <td class="num red" style="white-space:nowrap;">+301,760원</td>
-        </tr>
-        <tr>
-          <td class="name">의료비</td>
-          <td class="num muted mom-prev-col" style="white-space:nowrap;">222,800원</td>
-          <td class="num" style="white-space:nowrap;">0원</td>
-          <td class="num green" style="white-space:nowrap;">-222,800원</td>
-        </tr>
-        <tr>
-          <td class="name">약속</td>
-          <td class="num muted mom-prev-col" style="white-space:nowrap;">0원</td>
-          <td class="num" style="white-space:nowrap;">107,990원</td>
-          <td class="num red" style="white-space:nowrap;">+107,990원</td>
-        </tr>
-        <tr>
-          <td class="name">쇼핑비</td>
-          <td class="num muted mom-prev-col" style="white-space:nowrap;">439,180원</td>
-          <td class="num" style="white-space:nowrap;">543,960원</td>
-          <td class="num red" style="white-space:nowrap;">+104,780원</td>
-        </tr>
-        <tr>
-          <td class="name">뷰티</td>
-          <td class="num muted mom-prev-col" style="white-space:nowrap;">113,500원</td>
-          <td class="num" style="white-space:nowrap;">192,080원</td>
-          <td class="num red" style="white-space:nowrap;">+78,580원</td>
-        </tr>
-        <tr>
-          <td class="name">내여자</td>
-          <td class="num muted mom-prev-col" style="white-space:nowrap;">642,850원</td>
-          <td class="num" style="white-space:nowrap;">693,200원</td>
-          <td class="num red" style="white-space:nowrap;">+50,350원</td>
-        </tr>
-        <tr>
-          <td class="name">교통비</td>
-          <td class="num muted mom-prev-col" style="white-space:nowrap;">0원</td>
-          <td class="num" style="white-space:nowrap;">50,000원</td>
-          <td class="num red" style="white-space:nowrap;">+50,000원</td>
-        </tr>
-        <tr>
-          <td class="name">차량유지비</td>
-          <td class="num muted mom-prev-col" style="white-space:nowrap;">102,400원</td>
-          <td class="num" style="white-space:nowrap;">78,000원</td>
-          <td class="num green" style="white-space:nowrap;">-24,400원</td>
-        </tr></tbody>
-      </table>
-    </div>
-  </section>
-
-  <section id="s7">
-    <div class="section-head">
-      <span class="section-num">08</span>
-      <h2>고정 지출 vs 변동 지출</h2>
-      <span class="note">전체 고정비중 58.5% · 최고 주거생활비 98.3%</span>
-    </div>
-    <div class="card" style="overflow-x:auto;">
-      <table>
-        <thead><tr><th>대분류</th><th style="text-align:right;">고정</th><th style="text-align:right;">변동</th><th style="text-align:right;">고정비중</th><th style="width:120px;" class="fv-bar-col"></th></tr></thead>
-        <tbody>
-        <tr>
-          <td class="name">금융</td>
-          <td class="num">4,820,773원</td>
-          <td class="num muted">1,880,000원</td>
-          <td class="num">71.9%</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:71.9%"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name">내여자</td>
-          <td class="num">5,450,000원</td>
-          <td class="num muted">769,399원</td>
-          <td class="num">87.6%</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:87.6%"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name">쇼핑비</td>
-          <td class="num">0원</td>
-          <td class="num muted">5,126,225원</td>
-          <td class="num">0.0%</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:0.0%"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name">가족</td>
-          <td class="num">2,330,000원</td>
-          <td class="num muted">1,802,378원</td>
-          <td class="num">56.4%</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:56.4%"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name">뷰티</td>
-          <td class="num">1,697,410원</td>
-          <td class="num muted">1,805,130원</td>
-          <td class="num">48.5%</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:48.5%"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name">주거생활비</td>
-          <td class="num">2,674,060원</td>
-          <td class="num muted">46,580원</td>
-          <td class="num">98.3%</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:98.3%"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name">문화생활비</td>
-          <td class="num">2,013,720원</td>
-          <td class="num muted">568,792원</td>
-          <td class="num">78.0%</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:78.0%"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name">사회생활비</td>
-          <td class="num">590,000원</td>
-          <td class="num muted">952,120원</td>
-          <td class="num">38.3%</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:38.3%"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name">차량유지비</td>
-          <td class="num">1,100,000원</td>
-          <td class="num muted">221,790원</td>
-          <td class="num">83.2%</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:83.2%"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name">의료비</td>
-          <td class="num">442,230원</td>
-          <td class="num muted">754,590원</td>
-          <td class="num">37.0%</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:37.0%"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name">몸 만들기</td>
-          <td class="num">348,210원</td>
-          <td class="num muted">420,680원</td>
-          <td class="num">45.3%</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:45.3%"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name">약속</td>
-          <td class="num">0원</td>
-          <td class="num muted">680,190원</td>
-          <td class="num">0.0%</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:0.0%"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name">교통비</td>
-          <td class="num">197,200원</td>
-          <td class="num muted">84,100원</td>
-          <td class="num">70.1%</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:70.1%"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name">식비</td>
-          <td class="num">23,000원</td>
-          <td class="num muted">178,735원</td>
-          <td class="num">11.4%</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:11.4%"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name">교육비</td>
-          <td class="num">0원</td>
-          <td class="num muted">77,497원</td>
-          <td class="num">0.0%</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:0.0%"></div></div>
-          </td>
-        </tr></tbody>
-      </table>
-    </div>
-  </section>
-
   <section id="s9">
     <div class="section-head">
-      <span class="section-num">09</span>
+      <span class="section-num">07</span>
       <h2>카테고리 × 월 히트맵</h2>
       <span class="note">진할수록 해당 월 지출이 큼</span>
     </div>
@@ -2002,148 +1754,13 @@
     </div>
   </section>
 
-  <section id="s10">
-    <div class="section-head">
-      <span class="section-num">10</span>
-      <h2>최대 지출 TOP 15</h2>
-      <span class="note">회생·용돈·커플통장 제외 · 1위 아버지 컴퓨터 (1,204,770원)</span>
-    </div>
-    <p class="lede">회생·용돈·커플통장은(는) 성격상 순위를 독점하는 반복성 큰 금액이라 제외했어요. 대신 실제 낱개 소비 지출 위주로 다시 뽑았어요.</p>
-    <div class="card" style="overflow-x:auto;">
-      <table>
-        <thead><tr><th class="top-rank-col"></th><th>날짜</th><th class="top-cat-col">카테고리</th><th>세부내용</th><th class="top-status-col">구분</th><th style="text-align:right;">금액</th></tr></thead>
-        <tbody>
-        <tr>
-          <td class="rank top-rank-col">01</td>
-          <td class="num muted"><span class="top-date-full">2026-09-17</span><span class="top-date-short">09-17</span></td>
-          <td class="name top-cat-col">가족 <span class="muted">/ 결제</span></td>
-          <td>아버지 컴퓨터</td>
-          <td class="top-status-col"><span class="tag var">변동</span></td>
-          <td class="num strong">1,204,770원</td>
-        </tr>
-        <tr>
-          <td class="rank top-rank-col">02</td>
-          <td class="num muted"><span class="top-date-full">2026-08-12</span><span class="top-date-short">08-12</span></td>
-          <td class="name top-cat-col">쇼핑비 <span class="muted">/ 전자제품</span></td>
-          <td>스타일러 3벌</td>
-          <td class="top-status-col"><span class="tag var">변동</span></td>
-          <td class="num strong">1,130,500원</td>
-        </tr>
-        <tr>
-          <td class="rank top-rank-col">03</td>
-          <td class="num muted"><span class="top-date-full">2026-08-06</span><span class="top-date-short">08-06</span></td>
-          <td class="name top-cat-col">뷰티 <span class="muted">/ 피부관리비</span></td>
-          <td>노원 닥터에버스 110만원</td>
-          <td class="top-status-col"><span class="tag var">변동</span></td>
-          <td class="num strong">995,500원</td>
-        </tr>
-        <tr>
-          <td class="rank top-rank-col">04</td>
-          <td class="num muted"><span class="top-date-full">2026-07-23</span><span class="top-date-short">07-23</span></td>
-          <td class="name top-cat-col">의료비 <span class="muted">/ 병원비</span></td>
-          <td>가다실</td>
-          <td class="top-status-col"><span class="tag var">변동</span></td>
-          <td class="num strong">480,000원</td>
-        </tr>
-        <tr>
-          <td class="rank top-rank-col">05</td>
-          <td class="num muted"><span class="top-date-full">2026-08-28</span><span class="top-date-short">08-28</span></td>
-          <td class="name top-cat-col">쇼핑비 <span class="muted">/ 전자제품</span></td>
-          <td>갤럭시 워치9</td>
-          <td class="top-status-col"><span class="tag var">변동</span></td>
-          <td class="num strong">469,000원</td>
-        </tr>
-        <tr>
-          <td class="rank top-rank-col">06</td>
-          <td class="num muted"><span class="top-date-full">2026-03-19</span><span class="top-date-short">03-19</span></td>
-          <td class="name top-cat-col">쇼핑비 <span class="muted">/ 의류</span></td>
-          <td>오프로드 옷 5벌</td>
-          <td class="top-status-col"><span class="tag var">변동</span></td>
-          <td class="num strong">462,000원</td>
-        </tr>
-        <tr>
-          <td class="rank top-rank-col">07</td>
-          <td class="num muted"><span class="top-date-full">2026-09-15</span><span class="top-date-short">09-15</span></td>
-          <td class="name top-cat-col">문화생활비 <span class="muted">/ 어플/멤버쉽</span></td>
-          <td>클로드 맥스 20x</td>
-          <td class="top-status-col"><span class="tag fixed">고정</span></td>
-          <td class="num strong">375,000원</td>
-        </tr>
-        <tr>
-          <td class="rank top-rank-col">08</td>
-          <td class="num muted"><span class="top-date-full">2026-04-10</span><span class="top-date-short">04-10</span></td>
-          <td class="name top-cat-col">쇼핑비 <span class="muted">/ 전자제품</span></td>
-          <td>갤럭시 버즈4 프로</td>
-          <td class="top-status-col"><span class="tag var">변동</span></td>
-          <td class="num strong">339,000원</td>
-        </tr>
-        <tr>
-          <td class="rank top-rank-col">09</td>
-          <td class="num muted"><span class="top-date-full">2026-03-14</span><span class="top-date-short">03-14</span></td>
-          <td class="name top-cat-col">내여자 <span class="muted">/ 선물</span></td>
-          <td>부산 차오란</td>
-          <td class="top-status-col"><span class="tag var">변동</span></td>
-          <td class="num strong">326,000원</td>
-        </tr>
-        <tr>
-          <td class="rank top-rank-col">10</td>
-          <td class="num muted"><span class="top-date-full">2026-10-04</span><span class="top-date-short">10-04</span></td>
-          <td class="name top-cat-col">사회생활비 <span class="muted">/ 경조사비</span></td>
-          <td>성우 축의금</td>
-          <td class="top-status-col"><span class="tag var">변동</span></td>
-          <td class="num strong">300,000원</td>
-        </tr>
-        <tr>
-          <td class="rank top-rank-col">11</td>
-          <td class="num muted"><span class="top-date-full">2026-09-09</span><span class="top-date-short">09-09</span></td>
-          <td class="name top-cat-col">문화생활비 <span class="muted">/ 어플/멤버쉽</span></td>
-          <td>티마 3개월</td>
-          <td class="top-status-col"><span class="tag var">변동</span></td>
-          <td class="num strong">264,000원</td>
-        </tr>
-        <tr>
-          <td class="rank top-rank-col">12</td>
-          <td class="num muted"><span class="top-date-full">2026-09-28</span><span class="top-date-short">09-28</span></td>
-          <td class="name top-cat-col">가족 <span class="muted">/ 결제</span></td>
-          <td>아버지 휴대용 모니터</td>
-          <td class="top-status-col"><span class="tag var">변동</span></td>
-          <td class="num strong">239,000원</td>
-        </tr>
-        <tr>
-          <td class="rank top-rank-col">13</td>
-          <td class="num muted"><span class="top-date-full">2026-01-05</span><span class="top-date-short">01-05</span></td>
-          <td class="name top-cat-col">몸 만들기 <span class="muted">/ 센터이용권</span></td>
-          <td>헬스장 6개월</td>
-          <td class="top-status-col"><span class="tag var">변동</span></td>
-          <td class="num strong">230,000원</td>
-        </tr>
-        <tr>
-          <td class="rank top-rank-col">14</td>
-          <td class="num muted"><span class="top-date-full">2026-10-23</span><span class="top-date-short">10-23</span></td>
-          <td class="name top-cat-col">쇼핑비 <span class="muted">/ 의류</span></td>
-          <td>원더플레이스</td>
-          <td class="top-status-col"><span class="tag var">변동</span></td>
-          <td class="num strong">229,000원</td>
-        </tr>
-        <tr>
-          <td class="rank top-rank-col">15</td>
-          <td class="num muted"><span class="top-date-full">2026-06-09</span><span class="top-date-short">06-09</span></td>
-          <td class="name top-cat-col">뷰티 <span class="muted">/ 복용약</span></td>
-          <td>이소티논</td>
-          <td class="top-status-col"><span class="tag fixed">고정</span></td>
-          <td class="num strong">225,000원</td>
-        </tr></tbody>
-      </table>
-    </div>
-  </section>
-
   <section id="s4">
     <div class="section-head">
-      <span class="section-num">11</span>
+      <span class="section-num">08</span>
       <h2>신한은행 고정지출 예상 vs 실제</h2>
       <span class="note">10월 기준 · 매달 갱신</span>
     </div>
-    <p class="lede">신한은행 통장에서 빠져나가는 고정비 18개 항목이에요. 관범님이 직접 정리해주신 목록 기준(합계 701,578원)이라, 다음 12번의 예상 고정지출(1,673,820원)과는 집계 기준이 다릅니다 — 12번은 CSV의 고정 태그 전체를 통장 구분 없이 모은 값이에요.</p>
+    <p class="lede">신한은행 통장에서 빠져나가는 고정비 18개 항목이에요. 관범님이 직접 정리해주신 목록 기준(합계 701,578원)이에요.</p>
     <div class="card" style="overflow-x:auto;">
       <table>
         <thead><tr><th>고정지출</th><th style="text-align:right;">금액(예상)</th><th style="text-align:right;">출금액(실제)</th></tr></thead>
@@ -2247,540 +1864,9 @@
     </div>
   </section>
 
-  <section id="s11">
-    <div class="section-head">
-      <span class="section-num">12</span>
-      <h2>매달 예상 고정지출</h2>
-      <span class="note">1~9월 총액 ÷ 9개월 기준</span>
-    </div>
-    <p class="lede">고정 태그가 붙은 항목의 완성된 9개월(1~9월) 누적 금액을 9로 나눈 월평균값이에요. 진행 중인 달(10월)은 아직 다 안 끝나서 계산에서 빠져요. 종료가 확인된 <b>회생·OTT·Chat GPT·MIB·삼성 케어·이모티콘</b>는 계산에서 제외했어요. <b>카톡 이모티콘 1년</b>는 연간결제성이라 별도 요청으로 제외했어요.</p>
-
-    <div class="kpi-grid" style="grid-template-columns: repeat(2,1fr); margin-bottom:24px;">
-      <div class="kpi-card">
-        <div class="label">예상 고정지출 합계</div>
-        <div class="value red">1,673,820원</div>
-        <div class="sub">고정 항목 28개 기준</div>
-      </div>
-      <div class="kpi-card">
-        <div class="label">계산 제외 항목</div>
-        <div class="value green">7건</div>
-        <div class="sub">종료 확인 6건 + 제외 요청 1건</div>
-      </div>
-    </div>
-
-    <div class="card" style="overflow-x:auto;">
-      <table class="tx-table-view" style="min-width:560px;">
-        <thead><tr><th>항목</th><th style="text-align:right;">최근 등장월</th><th style="text-align:right;">9개월 합계</th><th style="text-align:right;">월 예상액</th><th></th></tr></thead>
-        <tbody>
-        <tr>
-          <td class="name">내여자 / 커플통장</td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">4,850,000원</td>
-          <td class="num strong">538,889원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">가족 / 용돈</td>
-          <td class="num muted">2026-08</td>
-          <td class="num muted">2,300,000원</td>
-          <td class="num strong">255,556원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">주거생활비 / 보험비</td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">1,412,508원</td>
-          <td class="num strong">156,945원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">뷰티 / 화장품</td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">1,069,070원</td>
-          <td class="num strong">118,786원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">주거생활비 / 통신비</td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">888,100원</td>
-          <td class="num strong">98,678원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">차량유지비 / 유류비</td>
-          <td class="num muted">2026-08</td>
-          <td class="num muted">800,000원</td>
-          <td class="num strong">88,889원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name"><span class="proj-item-full">문화생활비 / 어플·멤버쉽 / 클로드</span><span class="proj-item-short">클로드</span></td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">662,398원</td>
-          <td class="num strong">73,600원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">사회생활비 / 곗돈</td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">530,000원</td>
-          <td class="num strong">58,889원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">의료비 / 병원비</td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">348,330원</td>
-          <td class="num strong">38,703원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">몸 만들기 / 영양제</td>
-          <td class="num muted">2026-08</td>
-          <td class="num muted">348,210원</td>
-          <td class="num strong">38,690원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">뷰티 / 복용약</td>
-          <td class="num muted">2026-07</td>
-          <td class="num muted">303,500원</td>
-          <td class="num strong">33,722원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">차량유지비 / 통행</td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">250,000원</td>
-          <td class="num strong">27,778원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name"><span class="proj-item-full">문화생활비 / 어플·멤버쉽 / 어도비 클라우드</span><span class="proj-item-short">어도비 클라우드</span></td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">239,745원</td>
-          <td class="num strong">26,638원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">교통비 / 대중교통</td>
-          <td class="num muted">2026-07</td>
-          <td class="num muted">197,200원</td>
-          <td class="num strong">21,911원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">뷰티 / 미용실</td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">165,000원</td>
-          <td class="num strong">18,333원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">문화생활비 / 로또</td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">160,000원</td>
-          <td class="num strong">17,778원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">금융 / 이자</td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">108,494원</td>
-          <td class="num strong">12,055원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">문화생활비 / 웹툰</td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">95,470원</td>
-          <td class="num strong">10,608원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">의료비 / 건강 관리 제품</td>
-          <td class="num muted">2026-08</td>
-          <td class="num muted">81,900원</td>
-          <td class="num strong">9,100원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name"><span class="proj-item-full">문화생활비 / 어플·멤버쉽 / 쿠팡 월 회비</span><span class="proj-item-short">쿠팡 월 회비</span></td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">71,010원</td>
-          <td class="num strong">7,890원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name"><span class="proj-item-full">문화생활비 / 어플·멤버쉽 / 리모트뷰</span><span class="proj-item-short">리모트뷰</span></td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">49,290원</td>
-          <td class="num strong">5,477원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">가족 / 결제</td>
-          <td class="num muted">2026-08</td>
-          <td class="num muted">30,000원</td>
-          <td class="num strong">3,333원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name"><span class="proj-item-full">문화생활비 / 어플·멤버쉽 / 유투브</span><span class="proj-item-short">유투브</span></td>
-          <td class="num muted">2026-08</td>
-          <td class="num muted">29,800원</td>
-          <td class="num strong">3,311원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">뷰티 / 미용기기</td>
-          <td class="num muted">2026-08</td>
-          <td class="num muted">26,760원</td>
-          <td class="num strong">2,973원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name"><span class="proj-item-full">문화생활비 / 어플·멤버쉽 / T우주 유투브</span><span class="proj-item-short">T우주 유투브</span></td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">14,900원</td>
-          <td class="num strong">1,656원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name">의료비 / 약값</td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">12,000원</td>
-          <td class="num strong">1,333원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name"><span class="proj-item-full">문화생활비 / 어플·멤버쉽 / 네이버 멤버쉽</span><span class="proj-item-short">네이버 멤버쉽</span></td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">11,780원</td>
-          <td class="num strong">1,309원</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td class="name"><span class="proj-item-full">문화생활비 / 어플·멤버쉽 / 카톡 톡서랍</span><span class="proj-item-short">카톡 톡서랍</span></td>
-          <td class="num muted">2026-09</td>
-          <td class="num muted">8,910원</td>
-          <td class="num strong">990원</td>
-          <td></td>
-        </tr></tbody>
-      </table>
-      <div class="tx-card-view">
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">커플통장</span>
-            <span class="tx-card-amt tx-expense">538,889원/월</span>
-          </div>
-          <div class="tx-card-meta muted">내여자 · 최근 2026-09 · 9개월 4,850,000원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">용돈</span>
-            <span class="tx-card-amt tx-expense">255,556원/월</span>
-          </div>
-          <div class="tx-card-meta muted">가족 · 최근 2026-08 · 9개월 2,300,000원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">보험비</span>
-            <span class="tx-card-amt tx-expense">156,945원/월</span>
-          </div>
-          <div class="tx-card-meta muted">주거생활비 · 최근 2026-09 · 9개월 1,412,508원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">화장품</span>
-            <span class="tx-card-amt tx-expense">118,786원/월</span>
-          </div>
-          <div class="tx-card-meta muted">뷰티 · 최근 2026-09 · 9개월 1,069,070원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">통신비</span>
-            <span class="tx-card-amt tx-expense">98,678원/월</span>
-          </div>
-          <div class="tx-card-meta muted">주거생활비 · 최근 2026-09 · 9개월 888,100원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">유류비</span>
-            <span class="tx-card-amt tx-expense">88,889원/월</span>
-          </div>
-          <div class="tx-card-meta muted">차량유지비 · 최근 2026-08 · 9개월 800,000원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">클로드</span>
-            <span class="tx-card-amt tx-expense">73,600원/월</span>
-          </div>
-          <div class="tx-card-meta muted">문화생활비 · 최근 2026-09 · 9개월 662,398원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">곗돈</span>
-            <span class="tx-card-amt tx-expense">58,889원/월</span>
-          </div>
-          <div class="tx-card-meta muted">사회생활비 · 최근 2026-09 · 9개월 530,000원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">병원비</span>
-            <span class="tx-card-amt tx-expense">38,703원/월</span>
-          </div>
-          <div class="tx-card-meta muted">의료비 · 최근 2026-09 · 9개월 348,330원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">영양제</span>
-            <span class="tx-card-amt tx-expense">38,690원/월</span>
-          </div>
-          <div class="tx-card-meta muted">몸 만들기 · 최근 2026-08 · 9개월 348,210원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">복용약</span>
-            <span class="tx-card-amt tx-expense">33,722원/월</span>
-          </div>
-          <div class="tx-card-meta muted">뷰티 · 최근 2026-07 · 9개월 303,500원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">통행</span>
-            <span class="tx-card-amt tx-expense">27,778원/월</span>
-          </div>
-          <div class="tx-card-meta muted">차량유지비 · 최근 2026-09 · 9개월 250,000원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">어도비 클라우드</span>
-            <span class="tx-card-amt tx-expense">26,638원/월</span>
-          </div>
-          <div class="tx-card-meta muted">문화생활비 · 최근 2026-09 · 9개월 239,745원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">대중교통</span>
-            <span class="tx-card-amt tx-expense">21,911원/월</span>
-          </div>
-          <div class="tx-card-meta muted">교통비 · 최근 2026-07 · 9개월 197,200원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">미용실</span>
-            <span class="tx-card-amt tx-expense">18,333원/월</span>
-          </div>
-          <div class="tx-card-meta muted">뷰티 · 최근 2026-09 · 9개월 165,000원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">로또</span>
-            <span class="tx-card-amt tx-expense">17,778원/월</span>
-          </div>
-          <div class="tx-card-meta muted">문화생활비 · 최근 2026-09 · 9개월 160,000원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">이자</span>
-            <span class="tx-card-amt tx-expense">12,055원/월</span>
-          </div>
-          <div class="tx-card-meta muted">금융 · 최근 2026-09 · 9개월 108,494원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">웹툰</span>
-            <span class="tx-card-amt tx-expense">10,608원/월</span>
-          </div>
-          <div class="tx-card-meta muted">문화생활비 · 최근 2026-09 · 9개월 95,470원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">건강 관리 제품</span>
-            <span class="tx-card-amt tx-expense">9,100원/월</span>
-          </div>
-          <div class="tx-card-meta muted">의료비 · 최근 2026-08 · 9개월 81,900원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">쿠팡 월 회비</span>
-            <span class="tx-card-amt tx-expense">7,890원/월</span>
-          </div>
-          <div class="tx-card-meta muted">문화생활비 · 최근 2026-09 · 9개월 71,010원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">리모트뷰</span>
-            <span class="tx-card-amt tx-expense">5,477원/월</span>
-          </div>
-          <div class="tx-card-meta muted">문화생활비 · 최근 2026-09 · 9개월 49,290원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">결제</span>
-            <span class="tx-card-amt tx-expense">3,333원/월</span>
-          </div>
-          <div class="tx-card-meta muted">가족 · 최근 2026-08 · 9개월 30,000원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">유투브</span>
-            <span class="tx-card-amt tx-expense">3,311원/월</span>
-          </div>
-          <div class="tx-card-meta muted">문화생활비 · 최근 2026-08 · 9개월 29,800원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">미용기기</span>
-            <span class="tx-card-amt tx-expense">2,973원/월</span>
-          </div>
-          <div class="tx-card-meta muted">뷰티 · 최근 2026-08 · 9개월 26,760원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">T우주 유투브</span>
-            <span class="tx-card-amt tx-expense">1,656원/월</span>
-          </div>
-          <div class="tx-card-meta muted">문화생활비 · 최근 2026-09 · 9개월 14,900원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">약값</span>
-            <span class="tx-card-amt tx-expense">1,333원/월</span>
-          </div>
-          <div class="tx-card-meta muted">의료비 · 최근 2026-09 · 9개월 12,000원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">네이버 멤버쉽</span>
-            <span class="tx-card-amt tx-expense">1,309원/월</span>
-          </div>
-          <div class="tx-card-meta muted">문화생활비 · 최근 2026-09 · 9개월 11,780원</div>
-        </div>
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">카톡 톡서랍</span>
-            <span class="tx-card-amt tx-expense">990원/월</span>
-          </div>
-          <div class="tx-card-meta muted">문화생활비 · 최근 2026-09 · 9개월 8,910원</div>
-        </div></div>
-    </div>
-
-    <details class="detail-item" style="margin-top:8px;">
-      <summary><span class="name">계산에서 제외한 항목 (참고용)</span><span class="num muted">7건</span></summary>
-      <table class="sub-table">
-        <thead><tr><th>항목</th><th style="text-align:right;">마지막 결제월</th><th style="text-align:right;">9개월 합계(참고)</th><th>제외 사유</th></tr></thead>
-        <tbody>
-        <tr>
-          <td class="name">금융 / 회생</td>
-          <td class="num muted">2026-04</td>
-          <td class="num muted">4,700,000원</td>
-          <td class="muted">종료 확인</td>
-        </tr>
-        <tr>
-          <td class="name">주거생활비 / OTT</td>
-          <td class="num muted">2026-05</td>
-          <td class="num muted">94,500원</td>
-          <td class="muted">종료 확인</td>
-        </tr>
-        <tr>
-          <td class="name">문화생활비 / 어플·멤버쉽 / Chat GPT</td>
-          <td class="num muted">2026-05</td>
-          <td class="num muted">132,082원</td>
-          <td class="muted">종료 확인</td>
-        </tr>
-        <tr>
-          <td class="name">문화생활비 / 어플·멤버쉽 / MIB</td>
-          <td class="num muted">2026-04</td>
-          <td class="num muted">36,740원</td>
-          <td class="muted">종료 확인</td>
-        </tr>
-        <tr>
-          <td class="name">문화생활비 / 어플·멤버쉽 / 삼성 케어</td>
-          <td class="num muted">2026-05</td>
-          <td class="num muted">21,500원</td>
-          <td class="muted">종료 확인</td>
-        </tr>
-        <tr>
-          <td class="name">문화생활비 / 어플·멤버쉽 / 이모티콘</td>
-          <td class="num muted">2026-06</td>
-          <td class="num muted">34,200원</td>
-          <td class="muted">종료 확인</td>
-        </tr>
-        <tr>
-          <td class="name">문화생활비 / 어플·멤버쉽 / 카톡 이모티콘 1년</td>
-          <td class="num muted">2026-06</td>
-          <td class="num muted">42,000원</td>
-          <td class="muted">제외 요청(연간결제성)</td>
-        </tr></tbody>
-      </table>
-    </details>
-    <h3 class="sub-head">매달 목표 대비 실적</h3>
-    <p class="lede">위에서 계산한 예상 고정지출(1,673,820원)을 목표로 두고, 매달 실제 고정지출(고정여부="고정" 전체)이 이 기준을 넘었는지 비교해요. 종료 항목이 다 정리된 7월부터 비교를 시작해요.</p>
-    <div class="card" style="overflow-x:auto;">
-      <table>
-        <thead><tr><th style="white-space:nowrap;">월</th><th style="text-align:right;">지출</th><th style="text-align:right;">목표</th><th style="text-align:right;">차이</th><th style="width:120px;" class="fv-bar-col"></th></tr></thead>
-        <tbody>
-        <tr>
-          <td class="name" style="white-space:nowrap;">7월</td>
-          <td class="num" style="white-space:nowrap;">1,518,771원</td>
-          <td class="num muted" style="white-space:nowrap;">1,673,820원</td>
-          <td class="num green" style="white-space:nowrap;">-155,049원</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:90.7%;background:var(--green);"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name" style="white-space:nowrap;">8월</td>
-          <td class="num" style="white-space:nowrap;">1,461,520원</td>
-          <td class="num muted" style="white-space:nowrap;">1,673,820원</td>
-          <td class="num green" style="white-space:nowrap;">-212,300원</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:87.3%;background:var(--green);"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name" style="white-space:nowrap;">9월</td>
-          <td class="num" style="white-space:nowrap;">1,968,220원</td>
-          <td class="num muted" style="white-space:nowrap;">1,673,820원</td>
-          <td class="num red" style="white-space:nowrap;">+294,400원</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:100%;background:var(--red);"></div></div>
-          </td>
-        </tr>
-        <tr>
-          <td class="name" style="white-space:nowrap;">10월</td>
-          <td class="num" style="white-space:nowrap;">1,561,206원</td>
-          <td class="num muted" style="white-space:nowrap;">1,673,820원</td>
-          <td class="num green" style="white-space:nowrap;">-112,614원</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:93.3%;background:var(--green);"></div></div>
-          </td>
-        </tr></tbody>
-      </table>
-    </div>
-  </section>
-
-  <section id="s12">
-    <div class="section-head">
-      <span class="section-num">13</span>
-      <h2>핵심 요약</h2>
-    </div>
-    <div class="card">
-      <ul class="summary-list">
-        <li>전체 지출의 <b>고정비 비중은 58.5%</b>(21,686,603원), 변동비는 41.5%(15,368,206원)예요.</li>
-        <li><b>주거생활비(98.3%)</b> · <b>내여자(87.6%)</b> · <b>차량유지비(83.2%)</b>는 거의 순수 고정비 성격이에요.</li>
-        <li>수입은 <b>급여가 69.1%</b>로 절대적이고, 기타 수익가 30.0%로 뒤를 이어요.</li>
-        <li><b>매달 예상 고정지출은 약 1,673,820원</b>(완성된 9개월 기준, 연 환산 20,085,840원) — 종료·제외 확인된 7건은 계산에서 뺐어요.</li>
-      </ul>
-    </div>
-  </section>
-
   <section id="s13">
     <div class="section-head">
-      <span class="section-num">14</span>
+      <span class="section-num">09</span>
       <h2>확인이 필요한 항목</h2>
     </div>
     <p class="lede">이번 CSV를 집계하면서 pipeline이 낸 경고예요. 계산은 됐지만 값이 조용히 어긋날 수 있는 자리라 한 번 확인이 필요해요. 경고가 없으면 "확인할 항목 없음"으로 표시돼요.</p>
@@ -2791,7 +1877,7 @@
 
   <section id="s14">
     <div class="section-head">
-      <span class="section-num">15</span>
+      <span class="section-num">10</span>
       <h2>월별 전체 내역</h2>
       <span class="note">업로드 원본 그대로 · 수입·지출 전체</span>
     </div>
@@ -15588,7 +14674,7 @@ const DATA = {"kpi": {"total_income": 48412291, "total_expense": 37054809, "net"
 function fmtMan(v) { return Math.round(v/10000).toLocaleString() + '만'; }
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-// ---- 01 월별 수입/지출 (순수 SVG, 라이브러리 없음) ----
+// ---- 05 월별 수입·지출 추이 (순수 SVG, 라이브러리 없음) ----
 (function() {
   const el = document.getElementById('chartMonthly');
   const W = el.clientWidth || 880, H = el.clientHeight || 420;
@@ -15651,7 +14737,7 @@ function showTxMonth(m) {
   document.querySelectorAll('.tx-panel').forEach(p => p.classList.toggle('active', p.id === 'tx-' + m));
 }
 
-// ---- 05 히트맵 (JS 렌더) ----
+// ---- 07 히트맵 (JS 렌더) ----
 (function() {
   const h = DATA.heatmap;
   const table = document.getElementById('heatmapTable');
