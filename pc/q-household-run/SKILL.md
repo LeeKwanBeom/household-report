@@ -57,7 +57,7 @@ status 줄이 하나도 없고 숫자가 `0 N`(N ≥ 1)이면 `git merge --ff-on
 2. **① CSV** — `D:\household\uploads\`의 CSV. 하나면 그것, 여럿이면 이름·수정 시각을 보이고 묻는다.
 3. **② build** `$RUN build --csv /d/household/uploads/<파일>` — 마지막에 찍히는 회차 이름을 쓴다. `[FAIL]`이면 멈춘다.
 4. **③ review** `$RUN review --run <회차>`
-   - `[경고]` 전부 · 종료 추정 · 이체 · 기준판 대비 변동을 대화로 전한다.
+   - `[경고]` 전부 · 종료 추정 · 이체 · 커플통장 정산 줄(받을 금액 · 이체 행 예시 — 찍힌 그대로) · 기준판 대비 변동을 대화로 전한다.
    - exit 2 `[멈춤]`: 질문을 그대로 묻고 답을 기다린다.
      - 이체 질문에 "그대로 진행" → `$RUN review --run <회차> --ack-transfer`
      - CSV를 고친다·새 CSV → 사용자가 uploads에 둔 뒤 ①부터(새 회차 · 새 승인 코드)
