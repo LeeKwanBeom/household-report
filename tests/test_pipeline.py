@@ -301,7 +301,7 @@ class Warnings(unittest.TestCase):
                              [x.split()[0] for x in issues]), issues)
 
     def test_transfer_sum_mismatch_screen_has_no_amount(self):
-        """화면 14번(screen_warnings_for)에는 합계 불일치를 금액 없이 건수만 싣고,
+        """화면 09번(screen_warnings_for)에는 합계 불일치를 금액 없이 건수만 싣고,
         터미널(warnings_for)에는 금액을 그대로 둔다 (2026-09-27 정정·수정 회차 2, 선택 7)."""
         df = fixture_rows()
         i = df[(df["구분"] == "이체") & (df["소분류"] == "신한은행")].index[0]
@@ -628,7 +628,7 @@ class CoupleSettlement(unittest.TestCase):
         self.assertEqual(validate(b), [])
 
     def test_over_received_is_zero_and_warns_in_talk_only(self):
-        """받음이 더 크면 0원 · '더 받음' · 경고는 대화(warnings_for)에만, 화면 14번(screen_warnings_for)엔 없다(K4)."""
+        """받음이 더 크면 0원 · '더 받음' · 경고는 대화(warnings_for)에만, 화면 09번(screen_warnings_for)엔 없다(K4)."""
         df = spend(fixture_rows(), "2027-03-02", "8,881")
         df = settle(df, "2027-03-03", "10,009")
         cs, b = self._cs(df)
@@ -695,6 +695,10 @@ class CoupleSettlement(unittest.TestCase):
             self.assertTrue(any("커플통장 정산" in e and label in e for e in errs), f"{label}: {errs}")
 
 
+# 리포트 섹션(2026-10-27 섹션 정리 뒤 10개 · 화면 순서). 번호는 build.py renumber_sections가 01~10을 매긴다.
+REPORT_SECTION_IDS = ["s1", "s-couple", "s2", "s3", "s5", "s6", "s9", "s4", "s13", "s14"]
+
+
 class CoupleSettlementOutput(unittest.TestCase):
     """pipeline 끝 요약의 정산 줄(K7) · 화면 02번 섹션·번호·{REF}·0원/더 받음 렌더(K6)."""
 
@@ -739,14 +743,12 @@ class CoupleSettlementOutput(unittest.TestCase):
         return re.search(rf'<section id="{re.escape(sid)}">(.*?)</section>', html, re.S).group(1)
 
     def test_section_is_second_and_numbers_follow(self):
-        """새 섹션이 02번 · 뒤 섹션이 03~15 · {REF:s11}이 12번 · 계좌 잔고에 커플통장 카드 없음(K6·K5)."""
+        """새 섹션이 02번 · 뒤 섹션이 03~10(2026-10-27 섹션 정리 뒤) · 계좌 잔고에 커플통장 카드 없음(K6·K5)."""
         html = self._report(fixture_rows())
         ids = re.findall(r'<section id="([^"]+)"', html)
         nums = re.findall(r'<span class="section-num">(\d+)</span>', html)
-        self.assertEqual(ids, ["s1", "s-couple", "s2", "s3", "s5", "s6", "s-mom", "s7", "s9", "s10",
-                               "s4", "s11", "s12", "s13", "s14"])
-        self.assertEqual(nums, [f"{i:02d}" for i in range(1, 16)])
-        self.assertIn("다음 12번의 예상 고정지출", html)
+        self.assertEqual(ids, REPORT_SECTION_IDS)
+        self.assertEqual(nums, [f"{i:02d}" for i in range(1, 11)])
         self.assertNotIn("{REF:", html)
         self.assertNotIn(f'<div class="label">{HIDDEN_ACCOUNTS[0]}</div>', self._section(html, "s1"))
         # 0원 · 정산 기록 없음 상태
@@ -766,7 +768,7 @@ class CoupleSettlementOutput(unittest.TestCase):
         self.assertIn("일부 남음", sec)
         self.assertIn("×2", sec)
         self.assertIn("최근 정산", sec)
-        # 더 받음: 화면 02번에는 보이고, 14번 경고에는 없다
+        # 더 받음: 화면 02번에는 보이고, 09번 경고에는 없다
         df2 = settle(spend(fixture_rows(), "2027-03-02", "8,881"), "2027-03-03", "10,009")
         html2 = self._report(df2)
         self.assertIn("더 받음 1,128원", self._section(html2, "s-couple"))
@@ -1027,7 +1029,7 @@ class CoupleRealSpend(unittest.TestCase):
 
 
 class CoupleRealSpendOutput(unittest.TestCase):
-    """pipeline 끝 요약의 실질 지출 줄(K6) · 06번 내여자 펼침 아래 참고 줄 · 섹션 15개 번호 그대로(K5)."""
+    """pipeline 끝 요약의 실질 지출 줄(K6) · 06번 내여자 펼침 아래 참고 줄 · 섹션 10개 번호 그대로(K5)."""
 
     _report = CoupleSettlementOutput._report
     _section = staticmethod(CoupleSettlementOutput._section)
@@ -1061,8 +1063,8 @@ class CoupleRealSpendOutput(unittest.TestCase):
         df = settle(df, "2027-03-04", "12,000")
         html = self._report(df)
         ids = re.findall(r'<section id="([^"]+)"', html)
-        self.assertEqual(len(ids), 15)
-        self.assertEqual(re.findall(r'<span class="section-num">(\d+)</span>', html), [f"{i:02d}" for i in range(1, 16)])
+        self.assertEqual(len(ids), 10)
+        self.assertEqual(re.findall(r'<span class="section-num">(\d+)</span>', html), [f"{i:02d}" for i in range(1, 11)])
         sec = self._section(html, "s6")
         blocks = re.findall(r'<details class="detail-item">(.*?)</details>', sec, re.S)
         mine = [blk for blk in blocks if '<span class="cd-name name">내여자</span>' in blk]
@@ -1073,6 +1075,95 @@ class CoupleRealSpendOutput(unittest.TestCase):
                       mine[0])
         self.assertIn("커플통장에서 바로 낸 20,000원은 이체로 이미 셌으니 지출에서 뺐어요", mine[0])
         self.assertEqual(sum("rs-notes" in blk for blk in blocks), 1)
+
+
+# 화면에서 뺀 섹션(id → 제목). 계산·bundle 키는 pipeline.py에 그대로 있다(정한 것 5).
+REMOVED_SECTIONS = {"s-mom": "전월 대비 증감", "s7": "고정 지출 vs 변동 지출", "s10": "최대 지출 TOP 15",
+                    "s11": "매달 예상 고정지출", "s12": "핵심 요약"}
+
+
+def report_script(html):
+    """report의 script 블록에서 `const DATA = …;` 한 줄(bundle 전체 — deploy·review가 읽는다)을 뺀 코드."""
+    script = re.search(r"<script>(.*?)</script>", html, re.S).group(1)
+    code, n = re.subn(r"^const DATA = .*;$", "", script, count=1, flags=re.M)
+    assert n == 1, "DATA 줄을 찾지 못했다"
+    return code
+
+
+class ReportTrim(unittest.TestCase):
+    """리포트 섹션 정리(2026-10-27 섹션정리 기록 '정한 것' 1~4) — 10개·순서·번호 · 지운 섹션·문구 0(K1) ·
+    04번 카드 목록 처음엔 접힘(K2) · script가 지운 섹션의 요소·데이터를 찾지 않음(K4). 합성 fixture만."""
+
+    _report = CoupleSettlementOutput._report
+    _section = staticmethod(CoupleSettlementOutput._section)
+
+    def test_ten_sections_in_order_and_removed_gone(self):
+        html = self._report(fixture_rows())
+        markup = html.split("<script>", 1)[0]
+        self.assertEqual(re.findall(r'<section id="([^"]+)"', html), REPORT_SECTION_IDS)
+        self.assertEqual(re.findall(r'<span class="section-num">(\d+)</span>', html), [f"{i:02d}" for i in range(1, 11)])
+        self.assertEqual(re.findall(r"<h2>(.*?)</h2>", markup),
+                         ["계좌 잔고", f"{COUPLE_SETTLEMENT['account']} 정산", "신용카드별 실적 체크", "카드사별 결제 내역",
+                          "월별 수입·지출 추이", "대분류별 지출 비중·소분류 상세", "카테고리 × 월 히트맵",
+                          "신한은행 고정지출 예상 vs 실제", "확인이 필요한 항목", "월별 전체 내역"])
+        # 지운 섹션의 id·제목·하위 블록 제목이 화면에 없다(09번 경고는 pipeline 문구 그대로라 따로 보지 않는다)
+        screen = markup.replace(self._section(html, "s13"), "")
+        for sid, title in REMOVED_SECTIONS.items():
+            self.assertNotIn(f'id="{sid}"', html)
+            self.assertNotIn(title, screen)
+        self.assertNotIn("목표 대비 실적", screen)
+        self.assertNotIn("{REF:", html)
+        # 08번 신한은행 lede: 예상 고정지출 비교 문장을 지우고 남은 문장으로 끝난다
+        lede = re.search(r'<p class="lede">(.*?)</p>', self._section(html, "s4"), re.S).group(1)
+        self.assertNotIn("예상 고정지출", lede)
+        self.assertNotIn("번", lede)
+        self.assertRegex(lede, r"목록 기준\(합계 [\d,]+원\)이에요\.$")
+
+    def test_card_list_starts_folded(self):
+        html = self._report(fixture_rows())
+        items = [i for v in deploy._extract_data(html)["card_category_detail"].values() for i in v]
+        self.assertGreater(len(items), 0)
+        sec = self._section(html, "s3")
+        head = sec.split("<details", 1)[0]
+        self.assertIn("<h2>카드사별 결제 내역</h2>", head)            # 머리(번호·제목·note)는 접힘 밖
+        self.assertIn('<span class="note">', head)
+        # 접힘 하나 · open 없음(열 때마다 접힘) · summary가 첫 자식(키보드로 열림 — 브라우저 기본)
+        self.assertEqual(re.findall(r"<details([^>]*)>", sec), [' class="detail-item card-fold"'])
+        summary, body = re.search(r"<details[^>]*>\s*<summary>(.*?)</summary>(.*)</details>", sec, re.S).groups()
+        self.assertNotIn("tabindex", sec)
+        # 카드 목록 전부가 접힘 안에 있다 — 거래 줄 수 = bundle 건수, 세부내용이 다 있다
+        self.assertEqual(head.count("card-list-title"), 0)
+        self.assertEqual(body.count('<td class="num strong card-tx-amt">'), len(items))
+        for it in items:
+            self.assertIn(f"<td>{it['세부내용']}</td>", body)
+        # 접힌 줄은 단추 문구와 카드 수·건수뿐 — 가맹점·금액 없음
+        text = re.sub(r"<[^>]+>", "", summary)
+        self.assertEqual(text, f"결제 내역 펼치기접기카드 {len(deploy._extract_data(html)['card_targets'])}개 · {len(items)}건")
+        # 열림 상태를 저장하지 않는다 — script가 접힘을 건드리지 않는다
+        code = report_script(html)
+        for s in ("localStorage", "sessionStorage", "card-fold", "details", ".open"):
+            self.assertNotIn(s, code)
+
+    def test_script_does_not_look_up_removed_sections(self):
+        html = self._report(fixture_rows())
+        code = report_script(html)
+        for key in ("month_over_month", "fixed_variable", "top_expenses", "top_expense_exclusions", "projection",
+                    "fixed_vs_target", "income_breakdown"):
+            self.assertNotIn(key, code)
+        for sid in REMOVED_SECTIONS:
+            self.assertNotRegex(code, rf"(?<![\w-]){re.escape(sid)}(?![\w-])")
+        self.assertEqual(sorted(set(re.findall(r"DATA\.(\w+)", code))), ["heatmap", "monthly"])
+        # script가 찾는 요소·class는 모두 화면에 있다
+        el_ids = re.findall(r"getElementById\('([^']+)'\)", code)
+        self.assertEqual(sorted(el_ids), ["chartMonthly", "heatmapTable"])
+        for el_id in el_ids:
+            self.assertIn(f'id="{el_id}"', html)
+        for cls in re.findall(r"querySelectorAll\('\.([\w-]+)'\)", code):
+            self.assertRegex(html.split("<script>", 1)[0], rf'class="(?:[^"]* )?{cls}[ "]')
+        # 지운 섹션만 쓰던 CSS class가 남지 않는다
+        for cls in ("summary-list", "mom-prev-col", "fv-bar-col", "top-rank-col", "top-cat-col", "top-status-col",
+                    "top-date-", "proj-item-", "row-warn", "td.rank"):
+            self.assertNotIn(cls, html)
 
 
 class DeployChecks(unittest.TestCase):

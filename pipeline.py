@@ -814,7 +814,7 @@ def build_bundle(df):
     unknown_memo_rows = int(len(_memo))
 
     # 매달 있어야 하는 이체 (EXPECTED_MONTHLY_TRANSFERS) — 누락·합계 불일치
-    # 터미널용(transfer_issues)은 금액을 적고, 화면 14번용(transfer_issues_screen)은 합계 불일치를
+    # 터미널용(transfer_issues)은 금액을 적고, 화면 09번용(transfer_issues_screen)은 합계 불일치를
     # 금액 없이 건수만 적는다(2026-09-27 사용자 지시). 둘은 같은 루프에서 만들어 어긋나지 않는다.
     transfer_issues = []
     transfer_issues_screen = []
@@ -1108,7 +1108,7 @@ def warnings_for(bundle, screen=False):
     난다 — 계좌명 오타로 거래가 잔고에서 증발하거나, 제외 규칙 키가 옛날
     이름이라 종료된 항목이 계속 예상치에 들어가는 식이다.
 
-    screen=True 는 화면 14번용 문구. 지금은 "매달 이체 확인"의 합계 불일치만 다르다
+    screen=True 는 화면 09번용 문구. 지금은 "매달 이체 확인"의 합계 불일치만 다르다
     (금액 없이 건수만 — diagnostics["transfer_issues_screen"]). 그 외 문구는 터미널과 같다.
 
     여기 종류를 추가하면 SKILL.md 5단계 경고 목록도 같이 갱신할 것.
@@ -1200,7 +1200,7 @@ def warnings_for(bundle, screen=False):
 
 
 def screen_warnings_for(bundle):
-    """리포트 화면 14번 '확인이 필요한 항목'에 올릴 경고.
+    """리포트 화면 09번 '확인이 필요한 항목'에 올릴 경고.
 
     터미널 경고와 같되, 화면에서 감춘 계좌(HIDDEN_ACCOUNTS)를 언급하는 경고는
     뺀다 — 계좌를 화면에서 뺀 이유(2026-09-10)가 그대로 적용된다. 그 경고는
@@ -1242,7 +1242,7 @@ def main():
     else:
         print("      경고 없음")
 
-    # 경고를 bundle에 실어 build.py가 화면 14번 '확인이 필요한 항목'에 그대로 렌더한다.
+    # 경고를 bundle에 실어 build.py가 화면 09번 '확인이 필요한 항목'에 그대로 렌더한다.
     # (예전에는 pipeline이 계산만 하고 화면은 하드코딩 2줄이었다 — 2026-09-06 #3)
     bundle["warnings"] = screen_warnings_for(bundle)
 

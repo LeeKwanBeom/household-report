@@ -18,13 +18,11 @@ def esc(s):
 
 kpi = bundle['kpi']
 category = bundle['category']
-fv = bundle['fixed_variable']
-top_expenses = bundle['top_expenses']
 months_included = bundle.get('months_included', [])
 
 # 상단 KPI의 '월평균'은 총수입·총지출을 나눈 값이다. 그 총액은 진행 중인 달까지
 # 포함하므로 분모도 전체 월수여야 한다. 예전에는 완성월수(= 전체-1)로 나눠서
-# 월평균이 조용히 부풀려졌다. 예상 고정지출 쪽 분모는 N_COMPLETED로 따로 있다.
+# 월평균이 조용히 부풀려졌다. 완성월수 분모는 pipeline의 예상 고정지출(bundle['projection'])에만 있다.
 N_MONTHS = len(months_included) or 1
 def _ym(s):
     """'2026-09' → (2026, 9)"""
@@ -51,35 +49,12 @@ def _month_label(months):
     return f"{y0}.{m0}월~{y1}.{m1}월"
 
 period_label = _range_label(months_included) if months_included else ""
-completed_months = bundle['projection'].get('completed_months', months_included[:-1])
-N_COMPLETED = bundle['projection']['months_used']
-completed_range_label = _month_label(completed_months) if completed_months else ""
 
-# 전월 대비 증감: 진행 중인 달은 같은 일자까지만 잘라서 비교한다
-_mom_cut = bundle.get('month_over_month', {}).get('same_day_cutoff')
-_mom_cut_label = f" 1~{_mom_cut}일" if _mom_cut else ""
-_mom_cut_lede = (
-    f"이번 달이 아직 진행 중이라서, 양쪽 모두 <b>1일부터 {_mom_cut}일까지</b>만 잘라서 비교했어요. "
-    "달이 끝나면 전체 기간으로 자동 전환돼요."
-) if _mom_cut else "두 달 모두 끝나서 전체 기간으로 비교했어요."
+# 전월 대비 증감 · 고정 지출 vs 변동 지출 · 최대 지출 TOP 15 · 매달 예상 고정지출(목표 대비 실적 포함) ·
+# 핵심 요약은 화면에서 뺐다(2026-10-27 사용자 요청). 계산·bundle 키(month_over_month · fixed_variable ·
+# top_expenses · projection · fixed_vs_target 등)는 pipeline.py에 그대로 있다 — validate()가 그 값으로 정합을 본다.
 
 # ---- pre-render some static table rows (values only; layout/format via CSS) ----
-
-def fv_rows():
-    rows = []
-    for r in fv:
-        pct = r['고정비중']
-        rows.append(f"""
-        <tr>
-          <td class="name">{esc(r['대분류'])}</td>
-          <td class="num">{won(r['고정'])}원</td>
-          <td class="num muted">{won(r['변동'])}원</td>
-          <td class="num">{pct}%</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:{pct}%"></div></div>
-          </td>
-        </tr>""")
-    return "".join(rows)
 
 _visible_accounts = [a for a in bundle['accounts']['list'] if not a.get('hidden')]
 _n_accounts = len(_visible_accounts)
@@ -288,146 +263,12 @@ def card_category_rows():
         </div>""")
     return "".join(blocks)
 
-def top_rows():
-    rows = []
-    for i, r in enumerate(top_expenses, start=1):
-        tag = f'<span class="tag fixed">고정</span>' if r['고정여부']=='고정' else '<span class="tag var">변동</span>'
-        short_date = r['날짜'][5:]  # MM-DD
-        rows.append(f"""
-        <tr>
-          <td class="rank top-rank-col">{i:02d}</td>
-          <td class="num muted"><span class="top-date-full">{r['날짜']}</span><span class="top-date-short">{short_date}</span></td>
-          <td class="name top-cat-col">{esc(r['대분류'])} <span class="muted">/ {esc(r['소분류'])}</span></td>
-          <td>{esc(r['세부내용'])}</td>
-          <td class="top-status-col">{tag}</td>
-          <td class="num strong">{won(r['금액'])}원</td>
-        </tr>""")
-    return "".join(rows)
-
-def projection_rows():
-    rows = []
-    for r in bundle['projection']['items']:
-        status_badge = '<span class="badge warn">확인필요</span>' if r['상태']=='확인필요' else ''
-        row_class = ' class="row-warn"' if r['상태']=='확인필요' else ''
-        parts = r['항목'].split(' / ')
-        if len(parts) == 3:
-            item_html = f'<span class="proj-item-full">{esc(r["항목"])}</span><span class="proj-item-short">{esc(parts[-1])}</span>'
-        else:
-            item_html = esc(r['항목'])
-        rows.append(f"""
-        <tr{row_class}>
-          <td class="name">{item_html}</td>
-          <td class="num muted">{r['마지막월']}</td>
-          <td class="num muted">{won(r['합계'])}원</td>
-          <td class="num strong">{won(r['월평균'])}원</td>
-          <td>{status_badge}</td>
-        </tr>""")
-    return "".join(rows)
-
-def projection_cards():
-    cards = []
-    for r in bundle['projection']['items']:
-        parts = r['항목'].split(' / ')
-        short_name = parts[-1]
-        main_cat = parts[0]
-        warn_badge = ' <span class="badge warn">확인필요</span>' if r['상태']=='확인필요' else ''
-        cards.append(f"""
-        <div class="tx-card">
-          <div class="tx-card-top">
-            <span class="tx-card-desc">{esc(short_name)}{warn_badge}</span>
-            <span class="tx-card-amt tx-expense">{won(r['월평균'])}원/월</span>
-          </div>
-          <div class="tx-card-meta muted">{esc(main_cat)} · 최근 {r['마지막월']} · {N_COMPLETED}개월 {won(r['합계'])}원</div>
-        </div>""")
-    return "".join(cards)
-
-def fixed_vs_target_rows():
-    data = bundle.get('fixed_vs_target', {})
-    target = data.get('target', 0)
-    months = data.get('months', [])
-    if not months:
-        return ('<tr><td colspan="5" class="muted" style="text-align:center;padding:24px;">'
-                '아직 비교할 달이 없어요 — 비교 시작 시점 이후의 완성된 달이 쌓이면 표시돼요'
-                '</td></tr>')
-    rows = []
-    _cur_y = _ym(months_included[-1])[0] if months_included else None
-    for r in months:
-        yy, mm = _ym(r['월'])
-        # 해를 넘기면 10·11·12·1 순서가 모호해지므로 다른 해는 연도를 붙인다
-        month_label = f"{mm}월" if yy == _cur_y else f"{yy}.{mm}월"
-        diff = r['차이']
-        over = diff > 0
-        sign = '+' if diff > 0 else ''
-        diff_class = 'red' if over else 'green'
-        pct = round(r['실제']/target*100,1) if target else 0
-        pct_capped = min(pct, 100)
-        bar_color = 'var(--red)' if over else 'var(--green)'
-        rows.append(f"""
-        <tr>
-          <td class="name" style="white-space:nowrap;">{month_label}</td>
-          <td class="num" style="white-space:nowrap;">{won(r['실제'])}원</td>
-          <td class="num muted" style="white-space:nowrap;">{won(target)}원</td>
-          <td class="num {diff_class}" style="white-space:nowrap;">{sign}{won(diff)}원</td>
-          <td class="fv-bar-col">
-            <div class="bar-track"><div class="bar-fill" style="width:{pct_capped}%;background:{bar_color};"></div></div>
-          </td>
-        </tr>""")
-    return "".join(rows)
-
-def excluded_prose():
-    """13번 섹션의 '제외했어요' 문장을 bundle의 실제 제외 목록에서 생성한다.
-
-    이 문장을 손으로 적어두면 pipeline.py의 ENDED_FIXED_ITEMS가 바뀔 때
-    화면만 옛날 목록으로 남는다. 실제로 OTT가 계산에서는 빠지는데 화면에는
-    언급이 없어 "포함된 줄" 오해하게 만든 이력이 있다.
-    """
-    ended, manual = [], []
-    for r in bundle['projection'].get('excluded', []):
-        name = r['항목'].split('/')[-1].strip()
-        (manual if '제외 요청' in r.get('사유', '') else ended).append(name)
-
-    parts = []
-    if ended:
-        parts.append(f"종료가 확인된 <b>{'·'.join(ended)}</b>는 계산에서 제외했어요.")
-    if manual:
-        parts.append(f"<b>{'·'.join(manual)}</b>는 연간결제성이라 별도 요청으로 제외했어요.")
-    return " ".join(parts)
-
-def _excluded_breakdown():
-    """제외 건수 내역. 바로 위 KPI 값은 len(excluded)로 동적인데 이 문구만
-    손으로 적혀 있어서, 한 카드 안에서 '8건 / 종료 확인 5건 + 제외 요청 1건'처럼
-    자기모순이 나던 자리다."""
-    ended = sum(1 for r in bundle['projection'].get('excluded', [])
-                if '제외 요청' not in r.get('사유', ''))
-    manual = sum(1 for r in bundle['projection'].get('excluded', [])
-                 if '제외 요청' in r.get('사유', ''))
-    parts = []
-    if ended:
-        parts.append(f"종료 확인 {ended}건")
-    if manual:
-        parts.append(f"제외 요청 {manual}건")
-    return " + ".join(parts) if parts else "제외 항목 없음"
-
-def income_summary():
-    """수입 구성 요약. 수입원이 1개뿐이면 두 번째를 참조하지 않는다.
-    (예전에는 [1]을 무조건 읽어서, 수입 대분류가 하나뿐인 달에 빌드가 죽었다.)"""
-    inc = bundle.get('income_breakdown', [])
-    if not inc:
-        return "수입 내역이 없어요."
-    first = f"수입은 <b>{esc(inc[0]['항목'])}가 {inc[0]['비중']}%</b>"
-    if len(inc) == 1:
-        return first + "로 전부예요."
-    return first + f"로 절대적이고, {esc(inc[1]['항목'])}가 {inc[1]['비중']}%로 뒤를 이어요."
-
-def _compare_start_label():
-    """14번 비교 시작 시점. pipeline.py의 TARGET_COMPARISON_START가 바뀌면
-    따라와야 하므로 bundle에서 읽는다. 월을 손으로 적어두면 어긋난다."""
-    ms = bundle.get('fixed_vs_target', {}).get('months', [])
-    if not ms:
-        return "비교 시작 시점"
-    y, m = _ym(ms[0]['월'])
-    cur_y = _ym(months_included[-1])[0] if months_included else y
-    return f"{m}월" if y == cur_y else f"{y}.{m}월"
+def card_list_summary():
+    """04번 접힌 줄의 한 줄 요약 — 카드 수·건수만. 가맹점·금액은 펼쳐야 보인다(2026-10-27 사용자 요청).
+    카드 목록은 card_category_rows()와 같은 곳(CARD_TARGETS)에서 온다."""
+    detail = bundle.get('card_category_detail', {})
+    cards = list(detail or bundle.get('card_targets', {}))
+    return f"카드 {len(cards)}개 · {sum(len(detail.get(c, [])) for c in cards)}건"
 
 def _card_month_label():
     m = bundle.get('card_performance', {}).get('month')
@@ -438,46 +279,6 @@ def _shinhan_month_label():
     전체를 누적하면서 라벨만 최신 월이라 적혀 있었다."""
     m = bundle.get('shinhan_month')
     return f"{_ym(m)[1]}월" if m else "이번 달"
-
-def _top_first_label():
-    """1위 항목. 제외 규칙이 전부 걸러내면 목록이 빌 수 있어 길이를 먼저 본다."""
-    if not top_expenses:
-        return ""
-    t = top_expenses[0]
-    return f" · 1위 {esc(t['세부내용'])} ({won(t['금액'])}원)"
-
-def _fv_top_label():
-    """고정비중이 가장 높은 대분류. 지출이 하나도 없으면 max()가 죽는다."""
-    if not fv:
-        return ""
-    t = max(fv, key=lambda x: x['고정비중'])
-    return f" · 최고 {esc(t['대분류'])} {t['고정비중']}%"
-
-def _mom_range_label():
-    """전월→당월 라벨. 달이 하나뿐이면 prev가 None이라 .split이 죽던 자리."""
-    mom = bundle.get('month_over_month', {})
-    prev, curr = mom.get('prev'), mom.get('curr')
-    if not prev or not curr:
-        return "비교할 이전 달 없음"
-    return f"{_ym(prev)[1]}월 → {_ym(curr)[1]}월{_mom_cut_label}"
-
-def _top_excl_label():
-    """11번 TOP15에서 제외한 항목. pipeline.py의 TOP_EXPENSE_EXCLUSIONS가
-    유일한 원본이며, 여기에 이름을 적지 않는다."""
-    items = bundle.get('top_expense_exclusions', [])
-    return "·".join(items) if items else "일부 반복성 대형 지출"
-
-def projection_excluded_rows():
-    rows = []
-    for r in bundle['projection']['excluded']:
-        rows.append(f"""
-        <tr>
-          <td class="name">{esc(r['항목'])}</td>
-          <td class="num muted">{r['마지막월']}</td>
-          <td class="num muted">{won(r['누적합계'])}원</td>
-          <td class="muted">{r['사유']}</td>
-        </tr>""")
-    return "".join(rows)
 
 def monthly_tx_tabs_and_panels():
     months = sorted(bundle['monthly_tx'].keys())
@@ -607,7 +408,7 @@ def category_detail_accordions():
 
 
 def warning_items():
-    """14번 '확인이 필요한 항목'. pipeline.py의 warnings_for()가 낸 경고를 그대로 보여준다.
+    """09번 '확인이 필요한 항목'. pipeline.py의 warnings_for()가 낸 경고를 그대로 보여준다.
 
     예전에는 여기가 하드코딩 2줄(커플통장 월평균·일시 수입 조언)이었고 pipeline 경고는
     화면에 안 올라갔다(2026-09-06 #2·#3·#6). 커플통장 줄은 2026-09부터 커플통장이
@@ -619,25 +420,6 @@ def warning_items():
         return '<p class="muted" style="margin:0;">확인할 항목 없음 — 이번 CSV 집계에서 경고가 없었어요.</p>'
     items = "".join(f"<li>{esc(w)}</li>" for w in warns)
     return f'<ol class="action-list">{items}</ol>'
-
-
-def mom_rows():
-    items = bundle.get('month_over_month', {}).get('items', [])
-    if not items:
-        return '<tr><td colspan="4" class="muted" style="text-align:center;padding:24px;">비교할 이전 달 데이터가 없어요</td></tr>'
-    rows = []
-    for r in items:
-        d = r['증감']
-        cls = 'red' if d > 0 else ('green' if d < 0 else 'muted')
-        sign = '+' if d > 0 else ''
-        rows.append(f"""
-        <tr>
-          <td class="name">{esc(r['대분류'])}</td>
-          <td class="num muted mom-prev-col" style="white-space:nowrap;">{won(r['전월'])}원</td>
-          <td class="num" style="white-space:nowrap;">{won(r['당월'])}원</td>
-          <td class="num {cls}" style="white-space:nowrap;">{sign}{won(d)}원</td>
-        </tr>""")
-    return "".join(rows)
 
 
 tx_tabs, tx_panels = monthly_tx_tabs_and_panels()
@@ -885,7 +667,6 @@ html = f"""<!DOCTYPE html>
   }}
   td {{ padding: 10px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }}
   tr:last-child td {{ border-bottom: none; }}
-  td.rank {{ color: var(--red); font-weight: 700; font-family: 'Noto Serif KR', serif; width: 30px; }}
   td.name {{ font-weight: 600; }}
   td.num {{ text-align: right; font-weight: 600; }}
   td.num.muted {{ color: var(--ink-muted); font-weight: 400; }}
@@ -907,10 +688,8 @@ html = f"""<!DOCTYPE html>
     font-weight: 600;
   }}
   .badge.warn {{ background: #FBEFD4; color: #8A5A0B; }}
-  tr.row-warn {{ background: #FDFAF1; }}
   .tag {{ font-size: 11.5px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }}
   .tag.fixed {{ background: var(--red-soft); color: var(--red-deep); }}
-  .top-date-short {{ display: none; }}
   .tag.var {{ background: #EAF2EE; color: var(--green); }}
 
   /* ---------- Income bars ---------- */
@@ -943,6 +722,12 @@ html = f"""<!DOCTYPE html>
   .sub-table td {{ font-size: 14px; padding: 6px 10px; }}
   .rs-notes {{ margin: -6px 0 16px 34px; font-size: 12.5px; line-height: 1.55; word-break: keep-all; overflow-wrap: anywhere; }}
   .rs-notes p {{ margin: 0 0 4px; }}
+  /* 04번 카드 목록 접기 — 처음엔 접힘(open 없음 · 열림 상태 저장 없음). 06번과 같은 .detail-item 줄 */
+  .card-fold {{ border-top: 1px solid var(--border); }}
+  .card-fold > summary .name {{ margin-right: auto; }}
+  .card-fold .fold-open, .card-fold[open] .fold-closed {{ display: none; }}
+  .card-fold[open] .fold-open {{ display: inline; }}
+  .card-fold > .kpi-grid {{ margin: 4px 0 18px; }}
 
   /* ---------- Category + detail combined accordion ---------- */
   .cd-row {{
@@ -969,24 +754,7 @@ html = f"""<!DOCTYPE html>
   table.heatmap th.rowh, table.heatmap td.rowh {{ text-align: left; font-weight: 600; font-size: 13px; padding-left: 4px; }}
   .heat-cell {{ font-weight: 600; border-radius: 3px; }}
 
-  /* ---------- Summary / Actions ---------- */
-  .summary-list {{ list-style: none; margin: 0; padding: 0; }}
-  .summary-list li {{
-    position: relative;
-    padding: 10px 0 10px 20px;
-    border-bottom: 1px solid var(--border);
-    font-size: 14.5px;
-  }}
-  .summary-list li:last-child {{ border-bottom: none; }}
-  .summary-list li::before {{
-    content: '';
-    position: absolute; left: 0; top: 18px;
-    width: 7px; height: 7px;
-    background: var(--red);
-    border-radius: 50%;
-  }}
-  .summary-list b {{ color: var(--red-deep); }}
-
+  /* ---------- Actions ---------- */
   .action-list {{ list-style: none; margin: 0; padding: 0; counter-reset: action; }}
   .action-list li {{
     counter-increment: action;
@@ -1059,7 +827,6 @@ html = f"""<!DOCTYPE html>
     gap: 8px;
   }}
   .tx-head-row2 {{ display: block; font-size: 11.5px; margin-top: 2px; }}
-  .proj-item-short {{ display: none; }}
   .tx-panel table {{ font-size: 13px; }}
   .tx-panel td, .tx-panel th {{ padding: 7px 8px; }}
   td.tx-income {{ color: var(--green); font-weight: 600; }}
@@ -1113,14 +880,8 @@ html = f"""<!DOCTYPE html>
     .card-perf-target {{ font-size: 13px; }}
     .card-list-title {{ font-size: 14px; }}
     .card-list-meta {{ font-size: 12.5px; }}
-    .top-cat-col {{ display: none; }}
-    .top-status-col {{ display: none; }}
-    .top-rank-col {{ display: none; }}
     .sub-rank-col {{ display: none; }}
     .sub-pct-col {{ display: none; }}
-    .mom-prev-col {{ display: none; }}
-    .proj-item-full {{ display: none; }}
-    .proj-item-short {{ display: inline; }}
   }}
 
   @media (max-width: 480px) {{
@@ -1145,15 +906,9 @@ html = f"""<!DOCTYPE html>
     .card-list-title {{ font-size: 13.5px; }}
     .card-list-meta {{ font-size: 12px; }}
     .tx-scroll {{ max-height: 420px; }}
-    .fv-bar-col {{ display: none; }}
     table.heatmap {{ min-width: 460px; }}
     table.heatmap th, table.heatmap td {{ padding: 4px 3px; font-size: 11px; }}
     .heat-cell {{ min-width: 22px !important; padding: 3px 4px !important; }}
-    .top-date-full {{ display: none; }}
-    .top-date-short {{ display: inline; }}
-    .top-cat-col {{ display: none; }}
-    .top-status-col {{ display: none; }}
-    .top-rank-col {{ display: none; }}
     table.heatmap th.rowh, table.heatmap td.rowh {{
       position: sticky;
       left: 0;
@@ -1227,7 +982,7 @@ html = f"""<!DOCTYPE html>
 
   <section id="s2">
     <div class="section-head">
-      <span class="section-num">02</span>
+      <span class="section-num">03</span>
       <h2>신용카드별 실적 체크</h2>
       <span class="note">{_card_month_label()} · 매달 초기화</span>
     </div>
@@ -1238,18 +993,21 @@ html = f"""<!DOCTYPE html>
 
   <section id="s3">
     <div class="section-head">
-      <span class="section-num">03</span>
+      <span class="section-num">04</span>
       <h2>카드사별 결제 내역</h2>
       <span class="note">{_card_month_label()} · 비고 태그 기준</span>
     </div>
-    <div class="kpi-grid card-list-grid" style="grid-template-columns: repeat(2,1fr);">
-      {card_category_rows()}
-    </div>
+    <details class="detail-item card-fold">
+      <summary><span class="name">결제 내역 <span class="fold-closed">펼치기</span><span class="fold-open">접기</span></span><span class="num muted">{card_list_summary()}</span></summary>
+      <div class="kpi-grid card-list-grid" style="grid-template-columns: repeat(2,1fr);">
+        {card_category_rows()}
+      </div>
+    </details>
   </section>
 
   <section id="s5">
     <div class="section-head">
-      <span class="section-num">04</span>
+      <span class="section-num">05</span>
       <h2>월별 수입·지출 추이</h2>
     </div>
     <div class="card">
@@ -1271,38 +1029,9 @@ html = f"""<!DOCTYPE html>
     <div class="card">{category_detail_accordions()}</div>
   </section>
 
-  <section id="s-mom">
-    <div class="section-head">
-      <span class="section-num">08</span>
-      <h2>전월 대비 증감</h2>
-      <span class="note">{_mom_range_label()} · 변동폭 큰 순</span>
-    </div>
-    <p class="lede">지난달 대비 이번 달 지출이 어떻게 달라졌는지 대분류별로 보여줘요. 빨간색은 늘어난 것, 초록색은 줄어든 것이에요. {_mom_cut_lede}</p>
-    <div class="card" style="overflow-x:auto;">
-      <table>
-        <thead><tr><th>대분류</th><th style="text-align:right;" class="mom-prev-col">전월</th><th style="text-align:right;">당월</th><th style="text-align:right;">증감</th></tr></thead>
-        <tbody>{mom_rows()}</tbody>
-      </table>
-    </div>
-  </section>
-
-  <section id="s7">
-    <div class="section-head">
-      <span class="section-num">09</span>
-      <h2>고정 지출 vs 변동 지출</h2>
-      <span class="note">전체 고정비중 {bundle['fixed_variable_total']['고정비중']}%{_fv_top_label()}</span>
-    </div>
-    <div class="card" style="overflow-x:auto;">
-      <table>
-        <thead><tr><th>대분류</th><th style="text-align:right;">고정</th><th style="text-align:right;">변동</th><th style="text-align:right;">고정비중</th><th style="width:120px;" class="fv-bar-col"></th></tr></thead>
-        <tbody>{fv_rows()}</tbody>
-      </table>
-    </div>
-  </section>
-
   <section id="s9">
     <div class="section-head">
-      <span class="section-num">10</span>
+      <span class="section-num">07</span>
       <h2>카테고리 × 월 히트맵</h2>
       <span class="note">진할수록 해당 월 지출이 큼</span>
     </div>
@@ -1313,28 +1042,13 @@ html = f"""<!DOCTYPE html>
     </div>
   </section>
 
-  <section id="s10">
-    <div class="section-head">
-      <span class="section-num">11</span>
-      <h2>최대 지출 TOP 15</h2>
-      <span class="note">{_top_excl_label()} 제외{_top_first_label()}</span>
-    </div>
-    <p class="lede">{_top_excl_label()}은(는) 성격상 순위를 독점하는 반복성 큰 금액이라 제외했어요. 대신 실제 낱개 소비 지출 위주로 다시 뽑았어요.</p>
-    <div class="card" style="overflow-x:auto;">
-      <table>
-        <thead><tr><th class="top-rank-col"></th><th>날짜</th><th class="top-cat-col">카테고리</th><th>세부내용</th><th class="top-status-col">구분</th><th style="text-align:right;">금액</th></tr></thead>
-        <tbody>{top_rows()}</tbody>
-      </table>
-    </div>
-  </section>
-
   <section id="s4">
     <div class="section-head">
-      <span class="section-num">12</span>
+      <span class="section-num">08</span>
       <h2>신한은행 고정지출 예상 vs 실제</h2>
       <span class="note">{_shinhan_month_label()} 기준 · 매달 갱신</span>
     </div>
-    <p class="lede">신한은행 통장에서 빠져나가는 고정비 {len(bundle['shinhan_fixed'])}개 항목이에요. 관범님이 직접 정리해주신 목록 기준(합계 {won(bundle.get('shinhan_fixed_total',0))}원)이라, 다음 {{REF:s11}}번의 예상 고정지출({won(bundle['projection']['total'])}원)과는 집계 기준이 다릅니다 — {{REF:s11}}번은 CSV의 고정 태그 전체를 통장 구분 없이 모은 값이에요.</p>
+    <p class="lede">신한은행 통장에서 빠져나가는 고정비 {len(bundle['shinhan_fixed'])}개 항목이에요. 관범님이 직접 정리해주신 목록 기준(합계 {won(bundle.get('shinhan_fixed_total',0))}원)이에요.</p>
     <div class="card" style="overflow-x:auto;">
       <table>
         <thead><tr><th>고정지출</th><th style="text-align:right;">금액(예상)</th><th style="text-align:right;">출금액(실제)</th></tr></thead>
@@ -1343,70 +1057,9 @@ html = f"""<!DOCTYPE html>
     </div>
   </section>
 
-  <section id="s11">
-    <div class="section-head">
-      <span class="section-num">13</span>
-      <h2>매달 예상 고정지출</h2>
-      <span class="note">{completed_range_label} 총액 ÷ {N_COMPLETED}개월 기준</span>
-    </div>
-    <p class="lede">고정 태그가 붙은 항목의 완성된 {N_COMPLETED}개월({completed_range_label}) 누적 금액을 {N_COMPLETED}로 나눈 월평균값이에요. 진행 중인 달({_ym(months_included[-1])[1]}월)은 아직 다 안 끝나서 계산에서 빠져요. {excluded_prose()}</p>
-
-    <div class="kpi-grid" style="grid-template-columns: repeat(2,1fr); margin-bottom:24px;">
-      <div class="kpi-card">
-        <div class="label">예상 고정지출 합계</div>
-        <div class="value red">{won(bundle['projection']['total'])}원</div>
-        <div class="sub">고정 항목 {len(bundle['projection']['items'])}개 기준</div>
-      </div>
-      <div class="kpi-card">
-        <div class="label">계산 제외 항목</div>
-        <div class="value green">{len(bundle['projection']['excluded'])}건</div>
-        <div class="sub">{_excluded_breakdown()}</div>
-      </div>
-    </div>
-
-    <div class="card" style="overflow-x:auto;">
-      <table class="tx-table-view" style="min-width:560px;">
-        <thead><tr><th>항목</th><th style="text-align:right;">최근 등장월</th><th style="text-align:right;">{N_COMPLETED}개월 합계</th><th style="text-align:right;">월 예상액</th><th></th></tr></thead>
-        <tbody>{projection_rows()}</tbody>
-      </table>
-      <div class="tx-card-view">{projection_cards()}</div>
-    </div>
-
-    <details class="detail-item" style="margin-top:8px;">
-      <summary><span class="name">계산에서 제외한 항목 (참고용)</span><span class="num muted">{len(bundle['projection']['excluded'])}건</span></summary>
-      <table class="sub-table">
-        <thead><tr><th>항목</th><th style="text-align:right;">마지막 결제월</th><th style="text-align:right;">{N_COMPLETED}개월 합계(참고)</th><th>제외 사유</th></tr></thead>
-        <tbody>{projection_excluded_rows()}</tbody>
-      </table>
-    </details>
-    <h3 class="sub-head">매달 목표 대비 실적</h3>
-    <p class="lede">위에서 계산한 예상 고정지출({won(bundle.get('fixed_vs_target',{}).get('target',0))}원)을 목표로 두고, 매달 실제 고정지출(고정여부="고정" 전체)이 이 기준을 넘었는지 비교해요. 종료 항목이 다 정리된 {_compare_start_label()}부터 비교를 시작해요.</p>
-    <div class="card" style="overflow-x:auto;">
-      <table>
-        <thead><tr><th style="white-space:nowrap;">월</th><th style="text-align:right;">지출</th><th style="text-align:right;">목표</th><th style="text-align:right;">차이</th><th style="width:120px;" class="fv-bar-col"></th></tr></thead>
-        <tbody>{fixed_vs_target_rows()}</tbody>
-      </table>
-    </div>
-  </section>
-
-  <section id="s12">
-    <div class="section-head">
-      <span class="section-num">15</span>
-      <h2>핵심 요약</h2>
-    </div>
-    <div class="card">
-      <ul class="summary-list">
-        <li>전체 지출의 <b>고정비 비중은 {bundle['fixed_variable_total']['고정비중']}%</b>({won(bundle['fixed_variable_total']['고정'])}원), 변동비는 {round(100 - bundle['fixed_variable_total']['고정비중'], 1)}%({won(bundle['fixed_variable_total']['변동'])}원)예요.</li>
-        <li>{' · '.join(f"<b>{x['대분류']}({x['고정비중']}%)</b>" for x in sorted(fv, key=lambda x: -x['고정비중'])[:3])}는 거의 순수 고정비 성격이에요.</li>
-        <li>{income_summary()}</li>
-        <li><b>매달 예상 고정지출은 약 {won(bundle['projection']['total'])}원</b>(완성된 {N_COMPLETED}개월 기준, 연 환산 {won(bundle['projection']['annual'])}원) — 종료·제외 확인된 {len(bundle['projection']['excluded'])}건은 계산에서 뺐어요.</li>
-      </ul>
-    </div>
-  </section>
-
   <section id="s13">
     <div class="section-head">
-      <span class="section-num">16</span>
+      <span class="section-num">09</span>
       <h2>확인이 필요한 항목</h2>
     </div>
     <p class="lede">이번 CSV를 집계하면서 pipeline이 낸 경고예요. 계산은 됐지만 값이 조용히 어긋날 수 있는 자리라 한 번 확인이 필요해요. 경고가 없으면 "확인할 항목 없음"으로 표시돼요.</p>
@@ -1417,7 +1070,7 @@ html = f"""<!DOCTYPE html>
 
   <section id="s14">
     <div class="section-head">
-      <span class="section-num">17</span>
+      <span class="section-num">10</span>
       <h2>월별 전체 내역</h2>
       <span class="note">업로드 원본 그대로 · 수입·지출 전체</span>
     </div>
@@ -1440,7 +1093,7 @@ const DATA = {DATA_JSON};
 function fmtMan(v) {{ return Math.round(v/10000).toLocaleString() + '만'; }}
 function escHtml(s) {{ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }}
 
-// ---- 01 월별 수입/지출 (순수 SVG, 라이브러리 없음) ----
+// ---- 05 월별 수입·지출 추이 (순수 SVG, 라이브러리 없음) ----
 (function() {{
   const el = document.getElementById('chartMonthly');
   const W = el.clientWidth || 880, H = el.clientHeight || 420;
@@ -1503,7 +1156,7 @@ function showTxMonth(m) {{
   document.querySelectorAll('.tx-panel').forEach(p => p.classList.toggle('active', p.id === 'tx-' + m));
 }}
 
-// ---- 05 히트맵 (JS 렌더) ----
+// ---- 07 히트맵 (JS 렌더) ----
 (function() {{
   const h = DATA.heatmap;
   const table = document.getElementById('heatmapTable');
