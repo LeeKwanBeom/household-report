@@ -2500,7 +2500,8 @@ class E1Tests(Base):
         self.assertEqual([x for x in read_report(w, rid2) if "칸 잔액" in x], lines)
 
     def test_two_boxes_count_own_moves(self):
-        """같은 계좌의 다른 칸(모임칸)은 제 이동만 — 시작 잔액이 없는 칸은 as_of 뒤 이동만 뺀다."""
+        """같은 계좌의 다른 칸(모임칸)은 제 이동만 — 시작 잔액이 없는 칸은 as_of 뒤 이동만 뺀다.
+        파일을 지운 다음 회차도 원장 거래를 칸 줄에 다시 맞춰 칸마다 같은 값."""
         w = self.world(config=FORMAT_CONFIG, rows=BASE_ROWS)
         out0, _, _ = self.box_scan(w, FORMAT_CONFIG, [], 500_000)
         out, rid, lines = self.box_scan(w, TWO_BOX_CFG, BOX_MOVES + [
@@ -2508,6 +2509,12 @@ class E1Tests(Base):
         self.assertEqual(lines, ["  - 세이프박스 칸 잔액(−): -270,013",
                                  "  - 모임칸 칸 잔액(−) — 시작 잔액 미입력(기준 차액에 남음): -7,013"])
         self.assertEqual(residual(out), residual(out0), out)
+        rc, out = w.apply(rid, "--ack-balance", "생활비", "시험 기준 차액")
+        self.assertEqual(rc, 0, out)
+        shutil.rmtree(os.path.join(w.inbox, "20261027"))
+        out2, rid2 = self.ok_scan(w)
+        self.assertIn("잔액 생활비: 통과(기준 차액 그대로)", out2)
+        self.assertEqual([x for x in read_report(w, rid2) if "칸 잔액" in x], lines)
 
 
 def read_report(w, rid):
