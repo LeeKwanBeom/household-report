@@ -695,12 +695,32 @@ class CoupleSettlement(unittest.TestCase):
             self.assertTrue(any("커플통장 정산" in e and label in e for e in errs), f"{label}: {errs}")
 
 
-# 리포트 섹션(2026-10-27 섹션 정리 뒤 10개 · 화면 순서). 번호는 build.py renumber_sections가 01~10을 매긴다.
-REPORT_SECTION_IDS = ["s1", "s-couple", "s2", "s3", "s5", "s6", "s9", "s4", "s13", "s14"]
+# 리포트 섹션(2026-10-27 대시보드 전환 뒤 10개 · DOM 순서). 화면에 섹션 번호는 없다(제목만).
+# 한눈에 보기(overview)는 <section>이 아닌 <div>다 — 섹션 수·순서에 들지 않는다.
+REPORT_SECTION_IDS = ["s1", "s2", "s-couple", "s6", "s5", "s9", "s4", "s13", "s3", "s14"]
+
+
+def report_html(b):
+    """bundle(합성) → build.py → report HTML. build.py는 cwd의 data_bundle.json을 읽는다."""
+    import subprocess
+    with tempfile.TemporaryDirectory() as tmp:
+        with open(os.path.join(tmp, "data_bundle.json"), "w", encoding="utf-8") as f:
+            json.dump(b, f, ensure_ascii=False)
+        out = os.path.join(tmp, "report.html")
+        env = dict(os.environ, PYTHONUTF8="1", PYTHONDONTWRITEBYTECODE="1", HOUSEHOLD_OUT=out)
+        subprocess.run([sys.executable, os.path.join(ROOT, "build.py")], cwd=tmp, check=True,
+                       capture_output=True, env=env)
+        with open(out, encoding="utf-8") as f:
+            return f.read()
+
+
+def report_markup(html):
+    """report에서 script 블록(머리의 테마 · 본문 DATA·화면 script)을 뺀 화면 마크업."""
+    return re.sub(r"<script>.*?</script>", "", html, flags=re.S)
 
 
 class CoupleSettlementOutput(unittest.TestCase):
-    """pipeline 끝 요약의 정산 줄(K7) · 화면 02번 섹션·번호·{REF}·0원/더 받음 렌더(K6)."""
+    """pipeline 끝 요약의 정산 줄(K7) · 화면 커플통장 정산 섹션·{REF}·0원/더 받음 렌더(K6)."""
 
     def test_main_prints_settlement_after_account_lines(self):
         tmp = tempfile.mkdtemp()
@@ -722,35 +742,24 @@ class CoupleSettlementOutput(unittest.TestCase):
 
     def _report(self, df):
         """bundle(합성) → build.py → report HTML. pipeline.main처럼 화면 경고를 bundle에 싣는다."""
-        import shutil
-        import subprocess
         _, b = run_rows(df, today=SETTLE_TODAY)
         self.assertEqual(validate(b), [])
         b["warnings"] = screen_warnings_for(b)
-        tmp = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, tmp, True)
-        with open(os.path.join(tmp, "data_bundle.json"), "w", encoding="utf-8") as f:
-            json.dump(b, f, ensure_ascii=False)
-        out = os.path.join(tmp, "report.html")
-        env = dict(os.environ, PYTHONUTF8="1", PYTHONDONTWRITEBYTECODE="1", HOUSEHOLD_OUT=out)
-        subprocess.run([sys.executable, os.path.join(ROOT, "build.py")], cwd=tmp, check=True,
-                       capture_output=True, env=env)
-        with open(out, encoding="utf-8") as f:
-            return f.read()
+        return report_html(b)
 
     @staticmethod
     def _section(html, sid):
-        return re.search(rf'<section id="{re.escape(sid)}">(.*?)</section>', html, re.S).group(1)
+        return re.search(rf'<section id="{re.escape(sid)}"[^>]*>(.*?)</section>', html, re.S).group(1)
 
-    def test_section_is_second_and_numbers_follow(self):
-        """새 섹션이 02번 · 뒤 섹션이 03~10(2026-10-27 섹션 정리 뒤) · 계좌 잔고에 커플통장 카드 없음(K6·K5)."""
+    def test_section_in_right_stack_without_numbers(self):
+        """정산 섹션이 오른쪽 묶음(잔고·카드 다음) · 섹션 번호 없음(2026-10-27 대시보드 전환) ·
+        계좌 잔고에 커플통장 줄 없음(K6·K5)."""
         html = self._report(fixture_rows())
         ids = re.findall(r'<section id="([^"]+)"', html)
-        nums = re.findall(r'<span class="section-num">(\d+)</span>', html)
         self.assertEqual(ids, REPORT_SECTION_IDS)
-        self.assertEqual(nums, [f"{i:02d}" for i in range(1, 11)])
+        self.assertNotIn("section-num", html)
         self.assertNotIn("{REF:", html)
-        self.assertNotIn(f'<div class="label">{HIDDEN_ACCOUNTS[0]}</div>', self._section(html, "s1"))
+        self.assertNotIn(f'<div class="a-name">{HIDDEN_ACCOUNTS[0]}</div>', self._section(html, "s1"))
         # 0원 · 정산 기록 없음 상태
         sec = self._section(html, "s-couple")
         self.assertIn("정산할 금액 없음", sec)
@@ -768,7 +777,7 @@ class CoupleSettlementOutput(unittest.TestCase):
         self.assertIn("일부 남음", sec)
         self.assertIn("×2", sec)
         self.assertIn("최근 정산", sec)
-        # 더 받음: 화면 02번에는 보이고, 09번 경고에는 없다
+        # 더 받음: 화면 커플통장 정산에는 보이고, 확인이 필요한 항목(경고)에는 없다
         df2 = settle(spend(fixture_rows(), "2027-03-02", "8,881"), "2027-03-03", "10,009")
         html2 = self._report(df2)
         self.assertIn("더 받음 1,128원", self._section(html2, "s-couple"))
@@ -1029,7 +1038,7 @@ class CoupleRealSpend(unittest.TestCase):
 
 
 class CoupleRealSpendOutput(unittest.TestCase):
-    """pipeline 끝 요약의 실질 지출 줄(K6) · 06번 내여자 펼침 아래 참고 줄 · 섹션 10개 번호 그대로(K5)."""
+    """pipeline 끝 요약의 실질 지출 줄(K6) · 카테고리별 지출 '전체' 보기 아래 참고 줄 · 섹션 10개(K5)."""
 
     _report = CoupleSettlementOutput._report
     _section = staticmethod(CoupleSettlementOutput._section)
@@ -1064,17 +1073,18 @@ class CoupleRealSpendOutput(unittest.TestCase):
         html = self._report(df)
         ids = re.findall(r'<section id="([^"]+)"', html)
         self.assertEqual(len(ids), 10)
-        self.assertEqual(re.findall(r'<span class="section-num">(\d+)</span>', html), [f"{i:02d}" for i in range(1, 11)])
+        self.assertNotIn("section-num", html)
         sec = self._section(html, "s6")
-        blocks = re.findall(r'<details class="detail-item">(.*?)</details>', sec, re.S)
-        mine = [blk for blk in blocks if '<span class="cd-name name">내여자</span>' in blk]
-        self.assertEqual(len(mine), 1)
+        views = {tuple(v): body for v, _, body in report_views(sec, "mv")}
+        notes = re.findall(r'<div class="note rs-notes">(.*?)</div>', sec, re.S)
+        self.assertEqual(len(notes), 1)                          # '전체' 보기에만 — 지금 문구 그대로
+        self.assertIn(notes[0], views[("all",)])
+        self.assertIn("내여자 실질 지출", notes[0])
         self.assertIn("데이트비용: 내 카드·계좌로 낸 15,006원 중 커플통장에서 정산 받은 12,000원은 지출에서 뺐어요(9/1부터)",
-                      mine[0])
+                      notes[0])
         self.assertIn("커플통장: 9/1부터는 생활비 → 커플통장 이체 400,000원을 지출로 셌어요(비고 'N월분'이면 그 달로)",
-                      mine[0])
-        self.assertIn("커플통장에서 바로 낸 20,000원은 이체로 이미 셌으니 지출에서 뺐어요", mine[0])
-        self.assertEqual(sum("rs-notes" in blk for blk in blocks), 1)
+                      notes[0])
+        self.assertIn("커플통장에서 바로 낸 20,000원은 이체로 이미 셌으니 지출에서 뺐어요", notes[0])
 
 
 # 화면에서 뺀 섹션(id → 제목). 계산·bundle 키는 pipeline.py에 그대로 있다(정한 것 5).
@@ -1083,37 +1093,60 @@ REMOVED_SECTIONS = {"s-mom": "전월 대비 증감", "s7": "고정 지출 vs 변
 
 
 def report_script(html):
-    """report의 script 블록에서 `const DATA = …;` 한 줄(bundle 전체 — deploy·review가 읽는다)을 뺀 코드."""
-    script = re.search(r"<script>(.*?)</script>", html, re.S).group(1)
-    code, n = re.subn(r"^const DATA = .*;$", "", script, count=1, flags=re.M)
+    """report의 화면 script — `const DATA = …;` 한 줄(bundle 전체 — deploy·review가 읽는다)이 든 블록에서 그 줄을 뺀 코드.
+    머리의 테마 script(그리기 전에 테마를 붙인다)는 report_all_code로 본다."""
+    main = [s for s in re.findall(r"<script>(.*?)</script>", html, re.S) if re.search(r"^const DATA = ", s, re.M)]
+    assert len(main) == 1, "DATA 줄이 든 script 블록이 하나가 아니다"
+    code, n = re.subn(r"^const DATA = .*;$", "", main[0], count=1, flags=re.M)
     assert n == 1, "DATA 줄을 찾지 못했다"
     return code
 
 
+def report_all_code(html):
+    """report의 모든 script 블록 코드(DATA 줄 뺌)."""
+    return "\n".join(re.sub(r"^const DATA = .*;$", "", s, flags=re.M)
+                     for s in re.findall(r"<script>(.*?)</script>", html, re.S))
+
+
+def report_views(sec, cls):
+    """달 고르기 덩어리 [(보기 목록, 숨김?, 내용)]. class="{cls}" 덩어리가 시작할 때마다 자른다(다음 덩어리 앞까지가 내용)."""
+    out = []
+    for chunk in sec.split(f'<div class="{cls}"')[1:]:
+        m = re.match(r' data-show="([^"]*)"( hidden)?>', chunk)
+        out.append((m.group(1).split(), bool(m.group(2)), chunk[m.end():]))
+    return out
+
+
+def won_int(s):
+    return int(s.replace(",", "").replace("원", "").replace("+", ""))
+
+
+def html_esc(s):
+    import html as _h
+    return _h.escape(str(s), quote=False)
+
+
 class ReportTrim(unittest.TestCase):
-    """리포트 섹션 정리(2026-10-27 섹션정리 기록 '정한 것' 1~4) — 10개·순서·번호 · 지운 섹션·문구 0(K1) ·
-    04번 카드 목록 처음엔 접힘(K2) · script가 지운 섹션의 요소·데이터를 찾지 않음(K4). 합성 fixture만."""
+    """리포트 섹션 정리(2026-10-27 섹션정리 기록 '정한 것' 1~4) — 10개·순서 · 지운 섹션·문구 0(K1) ·
+    카드사별 결제 내역 처음엔 접힘(K2) · script가 지운 섹션의 요소·데이터를 찾지 않음(K4). 합성 fixture만.
+    순서·제목·마크업은 2026-10-27 대시보드 전환(대시보드 기록 '정한 것' 3·6)에 맞췄다."""
 
     _report = CoupleSettlementOutput._report
     _section = staticmethod(CoupleSettlementOutput._section)
 
     def test_ten_sections_in_order_and_removed_gone(self):
         html = self._report(fixture_rows())
-        markup = html.split("<script>", 1)[0]
+        markup = report_markup(html)
         self.assertEqual(re.findall(r'<section id="([^"]+)"', html), REPORT_SECTION_IDS)
-        self.assertEqual(re.findall(r'<span class="section-num">(\d+)</span>', html), [f"{i:02d}" for i in range(1, 11)])
-        self.assertEqual(re.findall(r"<h2>(.*?)</h2>", markup),
-                         ["계좌 잔고", f"{COUPLE_SETTLEMENT['account']} 정산", "신용카드별 실적 체크", "카드사별 결제 내역",
-                          "월별 수입·지출 추이", "대분류별 지출 비중·소분류 상세", "카테고리 × 월 히트맵",
-                          "신한은행 고정지출 예상 vs 실제", "확인이 필요한 항목", "월별 전체 내역"])
-        # 지운 섹션의 id·제목·하위 블록 제목이 화면에 없다(09번 경고는 pipeline 문구 그대로라 따로 보지 않는다)
+        self.assertNotIn("section-num", html)
+        # 지운 섹션의 id·제목·하위 블록 제목이 화면에 없다(경고는 pipeline 문구 그대로라 따로 보지 않는다)
         screen = markup.replace(self._section(html, "s13"), "")
         for sid, title in REMOVED_SECTIONS.items():
             self.assertNotIn(f'id="{sid}"', html)
             self.assertNotIn(title, screen)
         self.assertNotIn("목표 대비 실적", screen)
         self.assertNotIn("{REF:", html)
-        # 08번 신한은행 lede: 예상 고정지출 비교 문장을 지우고 남은 문장으로 끝난다
+        # 신한은행 lede: 예상 고정지출 비교 문장을 지우고 남은 문장으로 끝난다
         lede = re.search(r'<p class="lede">(.*?)</p>', self._section(html, "s4"), re.S).group(1)
         self.assertNotIn("예상 고정지출", lede)
         self.assertNotIn("번", lede)
@@ -1121,49 +1154,395 @@ class ReportTrim(unittest.TestCase):
 
     def test_card_list_starts_folded(self):
         html = self._report(fixture_rows())
-        items = [i for v in deploy._extract_data(html)["card_category_detail"].values() for i in v]
+        data = deploy._extract_data(html)
+        items = [i for v in data["card_category_detail"].values() for i in v]
         self.assertGreater(len(items), 0)
         sec = self._section(html, "s3")
         head = sec.split("<details", 1)[0]
-        self.assertIn("<h2>카드사별 결제 내역</h2>", head)            # 머리(번호·제목·note)는 접힘 밖
-        self.assertIn('<span class="note">', head)
+        self.assertIn('<h2 id="s3t">카드사별 결제 내역</h2>', head)    # 머리(제목·범위 칩)는 접힘 밖
+        self.assertIn('<span class="scope a">', head)
         # 접힘 하나 · open 없음(열 때마다 접힘) · summary가 첫 자식(키보드로 열림 — 브라우저 기본)
-        self.assertEqual(re.findall(r"<details([^>]*)>", sec), [' class="detail-item card-fold"'])
+        self.assertEqual(re.findall(r"<details([^>]*)>", sec), [' class="fold"'])
         summary, body = re.search(r"<details[^>]*>\s*<summary>(.*?)</summary>(.*)</details>", sec, re.S).groups()
         self.assertNotIn("tabindex", sec)
         # 카드 목록 전부가 접힘 안에 있다 — 거래 줄 수 = bundle 건수, 세부내용이 다 있다
-        self.assertEqual(head.count("card-list-title"), 0)
-        self.assertEqual(body.count('<td class="num strong card-tx-amt">'), len(items))
+        self.assertEqual(head.count('class="cc"'), 0)
+        self.assertEqual(body.count('<td class="num r">'), len(items))
         for it in items:
             self.assertIn(f"<td>{it['세부내용']}</td>", body)
         # 접힌 줄은 단추 문구와 카드 수·건수뿐 — 가맹점·금액 없음
         text = re.sub(r"<[^>]+>", "", summary)
-        self.assertEqual(text, f"결제 내역 펼치기접기카드 {len(deploy._extract_data(html)['card_targets'])}개 · {len(items)}건")
+        self.assertEqual(text, f"결제 내역 펼치기결제 내역 접기카드 {len(data['card_targets'])}개 · {len(items)}건")
         # 열림 상태를 저장하지 않는다 — script가 접힘을 건드리지 않는다
-        code = report_script(html)
-        for s in ("localStorage", "sessionStorage", "card-fold", "details", ".open"):
+        code = report_all_code(html)
+        for s in ("sessionStorage", "fold", "details", ".open"):
             self.assertNotIn(s, code)
 
     def test_script_does_not_look_up_removed_sections(self):
         html = self._report(fixture_rows())
-        code = report_script(html)
+        code, markup = report_script(html), report_markup(html)
         for key in ("month_over_month", "fixed_variable", "top_expenses", "top_expense_exclusions", "projection",
                     "fixed_vs_target", "income_breakdown"):
             self.assertNotIn(key, code)
         for sid in REMOVED_SECTIONS:
             self.assertNotRegex(code, rf"(?<![\w-]){re.escape(sid)}(?![\w-])")
-        self.assertEqual(sorted(set(re.findall(r"DATA\.(\w+)", code))), ["heatmap", "monthly"])
-        # script가 찾는 요소·class는 모두 화면에 있다
-        el_ids = re.findall(r"getElementById\('([^']+)'\)", code)
-        self.assertEqual(sorted(el_ids), ["chartMonthly", "heatmapTable"])
+        # script가 읽는 bundle 값은 월별 추이(차트)뿐 — 다른 숫자는 파이썬이 HTML에 넣었다
+        self.assertEqual(sorted(set(re.findall(r"DATA\.(\w+)", code))), ["monthly"])
+        # script가 찾는 요소·class는 모두 화면에 있다(차트가 그리는 .hit만 script가 만든다)
+        el_ids = re.findall(r'byId\("([^"]+)"\)', code)
+        self.assertEqual(sorted(set(el_ids)), ["monthStrip", "themeBtn", "tip", "trend", "txCount", "txSearch"])
         for el_id in el_ids:
-            self.assertIn(f'id="{el_id}"', html)
-        for cls in re.findall(r"querySelectorAll\('\.([\w-]+)'\)", code):
-            self.assertRegex(html.split("<script>", 1)[0], rf'class="(?:[^"]* )?{cls}[ "]')
-        # 지운 섹션만 쓰던 CSS class가 남지 않는다
+            self.assertIn(f'id="{el_id}"', markup)
+        sels = re.findall(r'(?:each|querySelector(?:All)?|closest)\("([^"]+)"', code)
+        self.assertGreater(len(sels), 5)
+        for sel in sels:
+            for el_id in re.findall(r"#([\w-]+)", sel):
+                self.assertIn(f'id="{el_id}"', markup)
+            for cls in set(re.findall(r"\.([\w-]+)", sel)) - {"hit"}:
+                self.assertRegex(markup, rf'class="(?:[^"]* )?{cls}[ "]')
+            for att in re.findall(r"\[([\w-]+)\]", sel):
+                self.assertIn(f" {att}", markup)
+        # 지운 섹션·옛 화면만 쓰던 CSS class·함수가 남지 않는다
         for cls in ("summary-list", "mom-prev-col", "fv-bar-col", "top-rank-col", "top-cat-col", "top-status-col",
-                    "top-date-", "proj-item-", "row-warn", "td.rank"):
+                    "top-date-", "proj-item-", "row-warn", "td.rank", "kpi-card", "masthead", "seal", "tx-tab",
+                    "tx-panel", "showTxMonth", "detail-item", "card-fold", "chartMonthly", "heatmapTable", "cd-row"):
             self.assertNotIn(cls, html)
+
+
+def dash_rows():
+    """대시보드 시험용 합성 행 — fixture(2026-07~09) + 2027-03(해 넘김 · 3/4까지 진행 중 · 정산 일부)."""
+    df = spend(fixture_rows(), "2027-03-02", "10,001", 세부내용="합성 가")
+    df = other(df, "2027-03-03", "7,013")
+    df = add_row(df, 날짜="2027-03-01", 구분="수입", 대분류="급여", 소분류="월급", 세부내용="합성 급여",
+                 금액="3,000,013", 결제수단="생활비")
+    return settle(df, "2027-03-04", "4,001")
+
+
+class ReportDashboard(unittest.TestCase):
+    """리포트 대시보드 전환(2026-10-27 대시보드 기록 '정한 것' 2~9 · 완료 기준 D1~D3·D5). 합성 값만 —
+    fixture + 2027년 행(해 넘김 · 진행 중인 달 · 정산 일부 · fixture의 커플통장 이체·결제)."""
+
+    _section = staticmethod(CoupleSettlementOutput._section)
+
+    def _built(self, df, mutate=None):
+        _, b = run_rows(df, today=SETTLE_TODAY)
+        self.assertEqual(validate(b), [])
+        b["warnings"] = screen_warnings_for(b)
+        if mutate:
+            mutate(b)
+        return b, report_html(b)
+
+    @staticmethod
+    def _overview(html):
+        return html.split('<div id="overview"', 1)[1].split('<div class="stack', 1)[0]
+
+    @staticmethod
+    def _exact_prev_until_cut(df, b):
+        """시험용 정답 — pipeline과 같은 실질 지출 행으로 지난달 1일~same_day_cutoff일 합."""
+        loaded, _ = run_rows(df, today=SETTLE_TODAY)
+        months = b["months_included"]
+        exp_rows = loaded[loaded["구분"] == "지출"].copy()
+        exp, _ = pipeline.couple_real_spend(loaded, exp_rows, months, pipeline._settle_clear(loaded))
+        prev, cut = months[-2], b["month_over_month"]["same_day_cutoff"]
+        return round(exp[(exp["월"] == prev) & (exp["날짜"].dt.day <= cut)]["금액"].sum())
+
+    def test_layout_titles_and_no_numbers(self):
+        """D2 — section id 10개·순서 · 한눈에 보기는 <div> · 제목 · 번호 0 · {REF: 0 · 카드사별 결제 내역 처음 접힘."""
+        html = self._built(dash_rows())[1]
+        markup = report_markup(html)
+        self.assertEqual(re.findall(r'<section id="([^"]+)"', html), REPORT_SECTION_IDS)
+        self.assertEqual(len(re.findall(r'<section id="', html)), 10)
+        self.assertIn('<div id="overview" class="panel', markup)
+        self.assertNotRegex(markup, r'<section[^>]*id="overview"')
+        # DOM 순서: 한눈에 보기 → 오른쪽 묶음[계좌·카드·정산] → 카테고리 …
+        pos = [markup.index(t) for t in ('id="overview"', '<div class="stack', '<section id="s1"', '<section id="s2"',
+                                         '<section id="s-couple"', '<section id="s6"')]
+        self.assertEqual(pos, sorted(pos))
+        stack = markup.split('<div class="stack', 1)[1].split('<section id="s6"', 1)[0]
+        self.assertEqual(re.findall(r'<section id="([^"]+)"', stack), ["s1", "s2", "s-couple"])
+        self.assertEqual(re.findall(r"<h2[^>]*>(.*?)</h2>", markup),
+                         ["한눈에 보기", "계좌 잔고", "신용카드 실적", f"{COUPLE_SETTLEMENT['account']} 정산", "카테고리별 지출",
+                          "월별 수입·지출", "카테고리 × 월", "신한은행 고정지출 예상 vs 실제", "확인이 필요한 항목",
+                          "카드사별 결제 내역", "거래 내역"])
+        self.assertNotIn("section-num", html)
+        self.assertNotIn("{REF:", html)
+        s3 = self._section(html, "s3")
+        self.assertEqual(re.findall(r"<details([^>]*)>", s3), [' class="fold"'])
+        self.assertRegex(s3, r'<details class="fold">\s*<summary>')
+        # 범위 칩 — 달을 따르는 패널은 강조 칩(data-scope), 시점 패널은 회색 칩
+        for sec in (self._overview(html), self._section(html, "s6"), self._section(html, "s14")):
+            self.assertIn('<span class="scope m" data-scope>', sec)
+        for sid in ("s1", "s2", "s-couple", "s5", "s9", "s4", "s13", "s3"):
+            self.assertIn('<span class="scope a">', self._section(html, sid))
+            self.assertNotIn("data-scope", self._section(html, sid))
+
+    def test_month_strip_starts_on_latest(self):
+        """D3 — 달 칩(전체 + 달마다 · 연도 넘김 표기 · button aria-pressed) · 처음엔 가장 최근 달 ·
+        달을 따르는 패널은 전체 + 달마다 미리 그림(그 달만 보임) · 히트맵 고른 달 열 · 진행 중인 달 'N일까지'."""
+        b, html = self._built(dash_rows())
+        months, labels = b["months_included"], b["monthly"]["labels"]
+        self.assertEqual(labels, ["2026.7월", "2026.8월", "2026.9월", "3월"])
+        chips = re.findall(r'<button type="button" class="mchip[^"]*" data-m="([^"]+)" data-label="([^"]*)" '
+                           r'aria-pressed="(true|false)">([^<]*)</button>', html)
+        self.assertEqual([c[0] for c in chips], ["all"] + months)
+        self.assertEqual([c[3] for c in chips], ["전체"] + labels)
+        self.assertEqual([c[2] for c in chips], ["false"] * len(months) + ["true"])
+        self.assertEqual(chips[-1][1], "3월 · 4일까지")              # 진행 중(3/4 < 31일)
+        self.assertEqual(chips[0][1], "2026.7월~2027.3월 전체")
+        self.assertEqual([c[1] for c in chips[1:-1]], labels[:-1])
+        # 한눈에 보기·카테고리별 지출: 전체 + 달마다 하나씩, 가장 최근 달만 보인다
+        for sec in (self._overview(html), self._section(html, "s6")):
+            views = report_views(sec, "mv")
+            self.assertEqual([v for v, _, _ in views], [["all"]] + [[m] for m in months])
+            self.assertEqual([hid for _, hid, _ in views], [True] * len(months) + [False])
+            self.assertIn("data-scope>3월 · 4일까지</span>", sec)
+        # 거래 내역: 최근 달이 위 · 덩어리마다 '전체'에서도 보임 · 처음엔 가장 최근 달만
+        s14 = self._section(html, "s14")
+        blocks = report_views(s14, "lm")
+        self.assertEqual([v for v, _, _ in blocks], [["all", m] for m in reversed(months)])
+        self.assertEqual([hid for _, hid, _ in blocks], [False] + [True] * (len(months) - 1))
+        self.assertRegex(s14, r'<div class="ledger-sum" data-show="all" hidden>')
+        # 히트맵: 고른 달 열(머리 + 대분류마다)만 sel
+        self.assertEqual(re.findall(r'data-col="([^"]+)" class="sel"', html),
+                         [months[-1]] * (1 + len(b["heatmap"]["categories"])))
+        # 달 고르기는 단추(키보드) · script는 보이기/숨기기 · 고른 달을 저장하지 않는다
+        code = report_script(html)
+        self.assertIn('el.hidden = el.getAttribute("data-show").split(" ").indexOf(key) < 0', code)
+        self.assertIn('b.setAttribute("aria-pressed"', code)
+        self.assertNotRegex(code, r'localStorage\.\w+\("(?!hh-theme")')
+
+    def test_overview_numbers_match_bundle(self):
+        """D1 — 한눈에 보기의 금액·건수·비율 = bundle(전체 = kpi · 달 = monthly) · 증감 칩 기준."""
+        df = dash_rows()
+        b, html = self._built(df)
+        mo, months, k = b["monthly"], b["months_included"], b["kpi"]
+        n = len(months)
+        views = report_views(self._overview(html), "mv")
+        exp_rows = {m: sum(1 for r in b["monthly_tx"][m] if r["구분"] == "지출") for m in months}
+        for show, _, body in views:
+            hero = won_int(re.search(r'<div class="hero-value num">([-\d,]+)<span', body).group(1))
+            tiles = re.findall(r'<div class="t-value num">([^<]+)</div>', body)
+            if show == ["all"]:
+                self.assertEqual(hero, k["total_expense"])
+                self.assertEqual(tiles, [f"{k['total_income']:,}원", f"{k['net']:,}원", f"{k['savings_rate']}%"])
+                self.assertIn(f"월평균 {k['total_expense'] / n:,.0f}원 · 지출 {sum(exp_rows.values())}건", body)
+                self.assertIn(f"월평균 {k['total_income'] / n:,.0f}원", body)
+                self.assertNotIn('class="delta', body)
+                continue
+            i = months.index(show[0])
+            self.assertEqual(hero, mo["expense"][i])
+            self.assertEqual(tiles, [f"{mo['income'][i]:,}원", f"{mo['net'][i]:,}원", f"{mo['savings_rate'][i]}%"])
+            self.assertIn(f"지출 {exp_rows[show[0]]}건", body)
+            self.assertEqual(body.count('class="sp-dot"'), 3)        # 추이선마다 고른 달 점
+            if i == 0:
+                self.assertNotIn('class="delta', body)
+                continue
+            if i < n - 1:                                            # 끝난 달 — 지난달 전체
+                base, text = mo["expense"][i - 1], f"{mo['labels'][i - 1]}보다"
+                self.assertIn(f"{mo['labels'][i - 1]} {base:,}원", body)
+            else:                                                    # 진행 중인 달 — 지난달 같은 날짜까지
+                cut = b["month_over_month"]["same_day_cutoff"]
+                self.assertEqual(cut, 4)
+                base = self._exact_prev_until_cut(df, b)
+                text = f"{mo['labels'][i - 1]} 같은 날짜까지보다"
+                self.assertIn(f"{mo['labels'][i - 1]} {cut}일까지 {base:,}원", body)
+                self.assertIn("지출 · 4일까지</div>", body)
+            pct = abs(mo["expense"][i] - base) / base * 100
+            arrow = "▲" if mo["expense"][i] > base else "▼"
+            self.assertIn(f"{arrow} {pct:.1f}% <span>{text}</span>", body)
+            self.assertIn("up-bad" if arrow == "▲" else "down-good", body)
+
+    def test_same_day_base_when_items_are_cut(self):
+        """D1 증감 기준 — month_over_month.items가 10개로 잘리면(합이 안 맞음) 실린 대분류는 그 '전월',
+        빠진 대분류는 지난달 heatmap 칸 − 그 날짜 뒤 원래 지출 행. 실질 지출 조정이 그 날짜 뒤에 있어도 정답과 같다."""
+        df = dash_rows()
+        for k in range(11):
+            cat = f"합성분류{k:02d}"
+            df = add_row(df, 날짜="2027-02-03", 구분="지출", 대분류=cat, 소분류="가", 세부내용="합성 앞",
+                         금액=f"{(k + 1) * 1000 + 13:,}", 결제수단="생활비")
+            df = add_row(df, 날짜="2027-02-20", 구분="지출", 대분류=cat, 소분류="가", 세부내용="합성 뒤",
+                         금액="5,013", 결제수단="생활비")
+            df = add_row(df, 날짜="2027-03-03", 구분="지출", 대분류=cat, 소분류="가", 세부내용="합성 이번",
+                         금액=f"{(k % 3) * 2000 + 1013:,}", 결제수단="생활비")
+        df = spend(df, "2027-02-02", "30,013")      # 정산으로 다 지워진다(그 날짜 안)
+        df = spend(df, "2027-02-22", "7,013")       # 정산으로 다 지워진다(그 날짜 뒤 — 원래 행으로 빼면 틀린다)
+        df = spend(df, "2027-03-01", "50,013")      # 이번 달 내여자 — 증감이 커서 items에 실린다
+        df = settle(df, "2027-02-25", "37,026")
+        b, html = self._built(df)
+        mom, mo = b["month_over_month"], b["monthly"]
+        self.assertEqual((mom["prev"], mom["curr"], mom["same_day_cutoff"]), ("2027-02", "2027-03", 4))
+        self.assertEqual(len(mom["items"]), 10)                                       # 잘렸다
+        self.assertNotEqual(sum(x["당월"] for x in mom["items"]), mo["expense"][-1])   # 그래서 합이 안 맞는다
+        self.assertIn("내여자", [x["대분류"] for x in mom["items"]])
+        exact = self._exact_prev_until_cut(df, b)
+        later_raw = sum(r["금액"] for r in b["monthly_tx"]["2027-02"] if r["구분"] == "지출" and int(r["날짜"][3:]) > 4)
+        self.assertNotEqual(mo["expense"][-2] - later_raw, exact)                    # 달 전체로 한 번에 빼면 틀린다
+        latest = report_views(self._overview(html), "mv")[-1][2]
+        self.assertIn(f"{mo['labels'][-2]} 4일까지 {exact:,}원", latest)
+        # 잘리지 않으면(10개 미만) items '전월' 합이 그대로 기준이고, '당월' 합이 그 달 지출과 맞는다
+        b2, html2 = self._built(dash_rows())
+        mom2 = b2["month_over_month"]
+        self.assertLess(len(mom2["items"]), 10)
+        self.assertEqual(sum(x["당월"] for x in mom2["items"]), b2["monthly"]["expense"][-1])
+        self.assertIn(f"{b2['monthly']['labels'][-2]} 4일까지 {sum(x['전월'] for x in mom2['items']):,}원",
+                      report_views(self._overview(html2), "mv")[-1][2])
+
+    def test_category_numbers_match_bundle(self):
+        """D1 — 카테고리별 지출: 전체 = category·detail · 달 = heatmap 열 · 소분류 줄 합 = heatmap 칸
+        (원장 행 + 실질 지출 조정 줄 = real_spend.*_by_month) · 비중 · 월평균 세로 줄."""
+        b, html = self._built(dash_rows())
+        months, H, rs = b["months_included"], b["heatmap"], b["real_spend"]
+        sec = self._section(html, "s6")
+        row_re = re.compile(r'<details class="cat" data-cat="([^"]+)">(.*?)</details>', re.S)
+        sub_re = re.compile(r'<tr( class="adj")?><td>(.*?)</td><td class="cnt">(.*?)</td><td class="r">([-\d,]+)원</td></tr>')
+        val_re = re.compile(r'<span class="c-val num">([-\d,]+)원<small>(.*?)</small>')
+        for show, _, body in report_views(sec, "mv"):
+            rows = row_re.findall(body)
+            if show == ["all"]:
+                self.assertEqual([r[0] for r in rows], [c["대분류"] for c in b["category"]])
+                for (name, inner), c in zip(rows, b["category"]):
+                    v, small = val_re.search(inner).groups()
+                    self.assertEqual(won_int(v), c["합계"])
+                    self.assertEqual(small, f"월평균 {c['월평균']:,}원 · 비중 {c['비중']}%")
+                    self.assertEqual([(s[1], s[2], won_int(s[3])) for s in sub_re.findall(inner)],
+                                     [(s["소분류"], f"{s['건수']}건", s["합계"]) for s in b["detail"][name]])
+                continue
+            i = months.index(show[0])
+            col = {c: H["matrix"][k][i] for k, c in enumerate(H["categories"])}
+            total = sum(col.values())
+            self.assertEqual(total, b["monthly"]["expense"][i])
+            self.assertEqual(sorted(r[0] for r in rows), sorted(c for c, v in col.items() if v))
+            self.assertEqual([col[r[0]] for r in rows], sorted((col[r[0]] for r in rows), reverse=True))
+            adj = {"정산": 0, "이체": 0, "바로": 0}
+            for name, inner in rows:
+                v, small = val_re.search(inner).groups()
+                self.assertEqual(won_int(v), col[name])
+                self.assertEqual(small, f"비중 {col[name] / total * 100:.1f}%")
+                self.assertIn('class="c-avg"', inner)
+                subs = sub_re.findall(inner)
+                self.assertEqual(sum(won_int(s[3]) for s in subs), col[name])     # 소분류 줄 합 = heatmap 칸
+                raw = {}
+                for r in b["monthly_tx"][show[0]]:
+                    if r["구분"] == "지출" and r["대분류"] == name:
+                        cnt, amt_ = raw.get(r["소분류"], (0, 0))
+                        raw[r["소분류"]] = (cnt + 1, amt_ + r["금액"])
+                self.assertEqual({s[1]: (int(s[2][:-1]), won_int(s[3])) for s in subs if not s[0]}, raw)
+                for s in subs:
+                    if s[0]:
+                        key = "정산" if s[1].startswith("정산 받은 몫") else "이체" if "이체(지출로 셈)" in s[1] else "바로"
+                        adj[key] += won_int(s[3])
+                        self.assertEqual(s[2], "")
+            self.assertEqual(adj, {"정산": -rs["settled_by_month"][i], "이체": rs["transfer_by_month"][i],
+                                   "바로": -rs["couple_paid_by_month"][i]})
+            if any(rs[f"{p}_by_month"][i] for p in ("settled", "transfer", "couple_paid")):
+                self.assertIn(f"내여자 실질 지출 {col.get('내여자', 0):,}원</b>", body)
+            else:
+                self.assertNotIn('<div class="note">', body)
+        # 시험 재료가 조정 줄 셋을 다 거친다(2026-09: 이체 400,000 · 커플통장 결제 20,000 / 2027-03: 정산 4,001)
+        self.assertEqual(rs["transfer_by_month"][2], 400_000)
+        self.assertEqual(rs["couple_paid_by_month"][2], 20_000)
+        self.assertEqual(rs["settled_by_month"][3], 4_001)
+
+    def test_ledger_matches_monthly_tx(self):
+        """D1 — 거래 내역: 달마다 그 달 전체 행(이체 포함) · 최근 날짜가 위 · 요약 줄 = monthly · 전체 요약 = kpi."""
+        b, html = self._built(dash_rows())
+        months, mo, k = b["months_included"], b["monthly"], b["kpi"]
+        s14 = self._section(html, "s14")
+
+        def sign(v):
+            return "+" if v >= 0 else ""
+
+        n_all = sum(len(b["monthly_tx"][m]) for m in months)
+        self.assertIn(f"<b>전체 · 총 {n_all}건</b>", s14)
+        self.assertIn(f"순잉여 {sign(k['net'])}{k['net']:,}원", s14)
+        self.assertIn(f"수입 {k['total_income']:,}원 · 지출 {k['total_expense']:,}원", s14)
+        for show, _, body in report_views(s14, "lm"):
+            m = show[1]
+            i, recs = months.index(m), b["monthly_tx"][m]
+            self.assertIn(f"<b>{mo['labels'][i]} · 총 {len(recs)}건</b>", body)
+            self.assertIn(f"순잉여 {sign(mo['net'][i])}{mo['net'][i]:,}원", body)
+            self.assertIn(f"수입 {mo['income'][i]:,}원 · 지출 {mo['expense'][i]:,}원", body)
+            rows = re.findall(r'<div class="txr" data-k="([^"]+)"( data-fx)? data-q="[^"]*"><div class="what">.*?</div>'
+                              r'<div class="amt num[^"]*">([+]?)([-\d,]+)원</div>', body)
+            self.assertEqual(len(rows), len(recs))
+            self.assertEqual(sorted((r[0], won_int(r[3]), bool(r[1])) for r in rows),
+                             sorted((r["구분"], r["금액"], r["고정여부"] == "고정") for r in recs))
+            self.assertTrue(all((r[2] == "+") == (r[0] == "수입") for r in rows))
+            days = [(int(a), int(d)) for a, d in re.findall(r'<div class="day-h"><span>(\d+)월 (\d+)일', body)]
+            self.assertEqual(days, sorted(set(days), reverse=True))
+            self.assertEqual(sum(int(c) for c in re.findall(r'<span class="num">(\d+)건</span></div>', body)), len(recs))
+        # 거르기 단추(전체·지출·수입·이체·고정) + 찾기 칸
+        self.assertEqual(re.findall(r'<button type="button" data-f="([^"]+)"', s14), ["all", "지출", "수입", "이체", "고정"])
+        self.assertIn('id="txSearch" type="search"', s14)
+
+    def test_point_in_time_panels_keep_values(self):
+        """D1 시점 패널 — 잔고(감춘 계좌 빼고)·카드 실적·신한은행 고정지출·경고의 값이 그대로 있다
+        (정산·카드사별 결제 내역은 CoupleSettlementOutput·ReportTrim이 본다)."""
+        b, html = self._built(dash_rows())
+        s1 = self._section(html, "s1")
+        shown = [a for a in b["accounts"]["list"] if not a["hidden"]]
+        self.assertIn(f"총 잔고 · {len(shown)}개 항목 합계", s1)
+        self.assertIn(f"{sum(a['current_balance'] for a in shown):,}원", s1)
+        for a in b["accounts"]["list"]:
+            (self.assertNotIn if a["hidden"] else self.assertIn)(f'<div class="a-name">{a["name"]}</div>', s1)
+            if not a["hidden"]:
+                self.assertIn(f"{a['current_balance']:,}원", s1)
+                self.assertIn(a["desc"], s1)
+        s2 = self._section(html, "s2")
+        cp = b["card_performance"]
+        for c in cp["cards"]:
+            self.assertIn(f"{c['spent']:,}원</b> / {c['target']:,}원", s2)
+            if c["pct"] < 100:
+                self.assertIn(f"남은 금액 {c['remaining']:,}원", s2)
+                self.assertIn(f"{cp['day']}일차 기준 예상 {c['expected_pct']}% · 지금 {c['pct']}%", s2)
+                self.assertIn("순조" if c["on_pace"] else "페이스 부족", s2)
+        s4 = self._section(html, "s4")
+        rows = re.findall(r'<li class="fx"><span class="n">([^<]*)</span><span class="r e num">([\d,]+)원</span>'
+                          r'<span class="r a num">([^<]*)</span><span class="st">(.*?)</span></li>', s4)
+        self.assertEqual(len(rows), len(b["shinhan_fixed"]))
+        for (name, exp_, act, st), r in zip(rows, b["shinhan_fixed"]):
+            self.assertEqual((name, won_int(exp_)), (html_esc(r["항목"]), r["예상금액"]))
+            self.assertEqual(act, f"{r['출금액']:,}원" if r["matched"] else "–")
+            diff = r["출금액"] - r["예상금액"]
+            self.assertIn("아직" if not r["matched"] else "일치" if diff == 0 else f"{diff:+,}", st)
+        self.assertIn(f'<span class="n">합계</span><span class="r e num">{sum(r["예상금액"] for r in b["shinhan_fixed"]):,}원', s4)
+        s13 = self._section(html, "s13")
+        self.assertGreater(len(b["warnings"]), 0)
+        for w in b["warnings"]:
+            self.assertIn(f"<span>{html_esc(w)}</span>", s13)
+        self.assertIn(f">{len(b['warnings'])}건</span>", s13)
+        self.assertIn(f"확인이 필요한 항목 <b>{len(b['warnings'])}건</b>", self._overview(html))
+
+    def test_head_storage_and_data_line(self):
+        """D5 — PWA 머리 그대로 · localStorage는 테마 키 하나 · DATA 한 줄(줄 머리) = bundle · validate_html 통과."""
+        b, html = self._built(dash_rows())
+        self.assertTrue(html.startswith('<!DOCTYPE html>\n<html lang="ko">\n<head>\n<meta charset="UTF-8">'))
+        head = html.split("</head>", 1)[0]
+        for tag in ('<link rel="icon" href="favicon.svg" type="image/svg+xml">', '<link rel="icon" href="favicon.ico" sizes="any">',
+                    '<link rel="apple-touch-icon" href="apple-touch-icon.png">', '<link rel="manifest" href="manifest.json">',
+                    '<meta name="theme-color" content="#A8172A">', '<meta name="apple-mobile-web-app-capable" content="yes">',
+                    '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">',
+                    '<meta name="apple-mobile-web-app-title" content="가계부">',
+                    '<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">',
+                    "<title>이관범 가계부 분석 · 2026.7월~2027.3월</title>"):
+            self.assertIn(tag, head)
+        code = report_all_code(html)
+        self.assertIn("navigator.serviceWorker.register('sw.js')", code)
+        self.assertEqual(set(re.findall(r'localStorage\.\w+\("([^"]+)"', code)), {"hh-theme"})
+        self.assertEqual(code.count("localStorage"), len(re.findall(r'localStorage\.\w+\("hh-theme"', code)))
+        for s in ("sessionStorage", "indexedDB", "document.cookie"):
+            self.assertNotIn(s, code)
+        self.assertEqual(len(re.findall(r"^const DATA = ", html, re.M)), 1)
+        self.assertEqual(deploy._extract_data(html), b)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "report.html")
+            with open(path, "w", encoding="utf-8", newline="") as f:
+                f.write(html)
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(deploy.validate_html(path, ack_balance=True,
+                                                      prev_html_path=os.path.join(tmp, "none.html")), 10)
+        self.assertIn("섹션 10개", out.getvalue())
 
 
 class DeployChecks(unittest.TestCase):

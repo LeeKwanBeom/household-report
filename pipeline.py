@@ -201,13 +201,13 @@ COUPLE_SETTLEMENT = {
 # 시작일은 COUPLE_SETTLEMENT["start"](값을 두 번 적지 않는다). 그날부터 지출을 모으는 화면·숫자
 # (KPI·월별 추이·대분류·히트맵·소분류·고정/변동·TOP15·전월 대비·예상 고정지출·목표 대비)는 실질 지출로 센다.
 #   실질 지출 = 지출 행 − 정산 받은 데이트비 몫 − 커플통장에서 바로 낸 지출 + 셈할 커플통장 이체
-# - 정산 받은 몫: 02번 정산이 오래된 대상부터 지운 몫(_settle_clear 한 곳). 걸친 행은 지워진 몫만 빠지고,
+# - 정산 받은 몫: 커플통장 정산이 오래된 대상부터 지운 몫(_settle_clear 한 곳). 걸친 행은 지워진 몫만 빠지고,
 #   정산 전인 대상은 지출 그대로다. 빠지는 달 = 대상 행의 달. 받음이 더 커도 대상 합까지만 빠진다.
 # - 커플통장 이체: 구분 이체 · 결제수단 fund_from · 소분류 = COUPLE_SETTLEMENT["account"].
 #   귀속 달 = 비고가 'N월분'이면 그 행 날짜에서 가장 가까운 N월(12/31 '1월분' → 다음 해 1월), 아니면 날짜의 달.
 #   귀속 달이 시작일의 달 이상인 것만 센다. 지출로 셀 때 (대분류, 소분류) = as_expense, 세부내용·고정여부는 그 행 값.
 # - 커플통장에서 바로 낸 지출(결제수단 = 커플통장)은 그 돈을 넣을 때 이체로 이미 셌으니 시작일부터 뺀다.
-# CSV 행은 그대로다 — 계좌 잔고·카드 실적·월별 전체 내역·02번 정산·매달 이체 검사·신한은행 고정지출·
+# CSV 행은 그대로다 — 계좌 잔고·카드 실적·거래 내역·커플통장 정산·매달 이체 검사·신한은행 고정지출·
 # 종료 추정·경고는 원래 행으로 본다. 화면·대화 문구는 bundle["real_spend"]["rule"]에서 읽는다.
 COUPLE_REAL_SPEND = {
     "fund_from": "생활비",                 # 커플통장으로 보내는 계좌(셈할 이체 행의 결제수단)
@@ -388,7 +388,7 @@ def _md(ts):
 def _settle_clear(df):
     """커플통장 정산의 대상·받음을 고르고, 받음 합(+ 환불)을 오래된 대상부터 지운다.
 
-    02번 정산(couple_settlement)과 실질 지출(couple_real_spend)이 이 한 곳의 결과를 같이 쓴다 — 계산을 두 벌 두지 않는다.
+    커플통장 정산(couple_settlement)과 실질 지출(couple_real_spend)이 이 한 곳의 결과를 같이 쓴다 — 계산을 두 벌 두지 않는다.
     금액은 행마다 원 단위 정수. used[i] = 대상 행 i에서 지워진 몫(0 이하 행은 0).
     음수 금액(환불)은 대상 합을 줄이고, 받음과 같이 '지울 몫'이 되어 오래된 대상부터 지운다.
     그래서 남은 몫의 합은 언제나 max(0, 대상 합 − 받음 합)이다.
@@ -525,7 +525,7 @@ def couple_real_spend(df, exp, months, clear):
     real = exp.copy()
     drop = []
 
-    # 정산 받은 몫 — 02번 정산과 같은 지우기 결과
+    # 정산 받은 몫 — 커플통장 정산과 같은 지우기 결과
     settled = []
     for (i, r), a, u in zip(clear["tgt"].iterrows(), clear["amounts"], clear["used"]):
         d = u if a > 0 else a
@@ -609,7 +609,7 @@ def build_bundle(df):
     N = len(months)
 
     # ---- 실질 지출 (COUPLE_REAL_SPEND) ----
-    # 지출을 모으는 화면·숫자는 모두 exp(실질 지출 행)에서 나온다. 02번 정산과 같은 지우기 결과(clear)를 쓴다.
+    # 지출을 모으는 화면·숫자는 모두 exp(실질 지출 행)에서 나온다. 커플통장 정산과 같은 지우기 결과(clear)를 쓴다.
     # 원래 행 그대로 보는 것(계좌 잔고·카드 실적·월별 전체 내역·이체 검사·신한은행·진단)은 df·core를 쓴다.
     clear = _settle_clear(df)
     exp, real_spend = couple_real_spend(df, exp_rows, months, clear)
@@ -807,14 +807,14 @@ def build_bundle(df):
     negative_rows = int((df["금액"] < 0).sum())
     zero_rows = int((df["금액"] == 0).sum())
 
-    # 비고에 카드명이 아닌 값. 카드 실적(03·04번)은 비고 == 카드명 정확 일치만 보므로
+    # 비고에 카드명이 아닌 값. 카드 실적·카드사별 결제 내역은 비고 == 카드명 정확 일치만 보므로
     # "현대 카드"처럼 적히면 실적에서 조용히 빠진다.
     _memo = core[(core["비고"] != "") & ~core["비고"].isin(card_tags)]
     unknown_memo_tags = sorted(_memo["비고"].unique())
     unknown_memo_rows = int(len(_memo))
 
     # 매달 있어야 하는 이체 (EXPECTED_MONTHLY_TRANSFERS) — 누락·합계 불일치
-    # 터미널용(transfer_issues)은 금액을 적고, 화면 09번용(transfer_issues_screen)은 합계 불일치를
+    # 터미널용(transfer_issues)은 금액을 적고, 화면용(transfer_issues_screen — '확인이 필요한 항목')은 합계 불일치를
     # 금액 없이 건수만 적는다(2026-09-27 사용자 지시). 둘은 같은 루프에서 만들어 어긋나지 않는다.
     transfer_issues = []
     transfer_issues_screen = []
@@ -1092,7 +1092,7 @@ def validate(bundle):
                 if me[i] != w:
                     errors.append(f"실질 지출: {lab} 월별 지출({me[i]:,}) != 원래 − 정산 받은 몫 − "
                                   f"{acct}에서 바로 낸 지출 + {acct} 이체({w:,})")
-        # 정산 받은 몫 = 02번 정산이 지운 몫 = 대상 합 − 받을 금액(받음이 더 커도 대상 합까지만)
+        # 정산 받은 몫 = 커플통장 정산이 지운 몫 = 대상 합 − 받을 금액(받음이 더 커도 대상 합까지만)
         if cs is not None and rs["settled_total"] != cs["target_total"] - cs["owed"]:
             errors.append(f"실질 지출: 정산 받은 몫({rs['settled_total']:,}) != "
                           f"{cs['rule']['account']} 정산 대상 합 − 받을 금액({cs['target_total'] - cs['owed']:,})")
@@ -1108,7 +1108,7 @@ def warnings_for(bundle, screen=False):
     난다 — 계좌명 오타로 거래가 잔고에서 증발하거나, 제외 규칙 키가 옛날
     이름이라 종료된 항목이 계속 예상치에 들어가는 식이다.
 
-    screen=True 는 화면 09번용 문구. 지금은 "매달 이체 확인"의 합계 불일치만 다르다
+    screen=True 는 화면('확인이 필요한 항목')용 문구. 지금은 "매달 이체 확인"의 합계 불일치만 다르다
     (금액 없이 건수만 — diagnostics["transfer_issues_screen"]). 그 외 문구는 터미널과 같다.
 
     여기 종류를 추가하면 SKILL.md 5단계 경고 목록도 같이 갱신할 것.
@@ -1200,7 +1200,7 @@ def warnings_for(bundle, screen=False):
 
 
 def screen_warnings_for(bundle):
-    """리포트 화면 09번 '확인이 필요한 항목'에 올릴 경고.
+    """리포트 화면 '확인이 필요한 항목'에 올릴 경고.
 
     터미널 경고와 같되, 화면에서 감춘 계좌(HIDDEN_ACCOUNTS)를 언급하는 경고는
     뺀다 — 계좌를 화면에서 뺀 이유(2026-09-10)가 그대로 적용된다. 그 경고는
@@ -1242,7 +1242,7 @@ def main():
     else:
         print("      경고 없음")
 
-    # 경고를 bundle에 실어 build.py가 화면 09번 '확인이 필요한 항목'에 그대로 렌더한다.
+    # 경고를 bundle에 실어 build.py가 화면 '확인이 필요한 항목'에 그대로 렌더한다.
     # (예전에는 pipeline이 계산만 하고 화면은 하드코딩 2줄이었다 — 2026-09-06 #3)
     bundle["warnings"] = screen_warnings_for(bundle)
 
