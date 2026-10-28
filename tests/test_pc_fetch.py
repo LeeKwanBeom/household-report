@@ -1240,6 +1240,8 @@ if (PAGE === "main") {
     document.getElementById("per").textContent = startDate.value + " ~ " + endDate.value.slice(5);
     document.getElementById("cnt").textContent = "총 " + (S.screen_count ?? j.mbw_json.totalCnt) + "건";
     document.getElementById("layer").style.display = "none";
+    if (S.cover) document.body.insertAdjacentHTML("beforeend",
+      '<div id="cover" style="position:fixed;left:0;top:0;width:100%;height:100%;z-index:99">안내</div>');
   };
   for (const b of document.querySelectorAll(".xl")) b.onclick = () => {
     if (S.excel_dialog) alert("세션 확인");
@@ -1283,7 +1285,7 @@ if (PAGE === "main") {
   hdr();
 } else {
   hdr();
-  document.title = "최근 이용 내역-현대카드";
+  document.title = S.wrong_title ? "보안프로그램 설치 안내-현대카드" : "최근 이용 내역-현대카드";
   document.getElementById("screen").style.display = "block";
   const md = s => { const m = s.match(/(\d{4})(\d{2})(\d{2})/); return (+m[2]) + "월 " + (+m[3]) + "일"; };
   document.getElementById("goFilter").onclick = async () => {
@@ -1494,7 +1496,10 @@ class FakeBanks:
 
 
 def _none_for_objects(orig):
+    """신한은행 실물(WebSquare) 흉내 — evaluate의 객체·배열 반환은 None, 목록·사전 인자는 예외(2026-10-28 리허설 1 실측)."""
     def w(self, *a, **k):
+        if any(isinstance(x, (list, dict)) for x in a[1:]):
+            raise RuntimeError("evaluate 객체 인자가 깨진 페이지")
         r = orig(self, *a, **k)
         return r if r is None or isinstance(r, (str, int, float, bool)) else None
     return w
@@ -1605,6 +1610,7 @@ class E2E(unittest.TestCase):
                  ({"card_sel": "본인카드"}, "카드 선택", False),
                  ({"excel_dialog": True}, "확인창", None),
                  ({"excel_popup": True}, "새 창", None),
+                 ({"cover": True}, "누르지 못함", False),
                  ({"session_lost": True}, "내려받기가 시작되지 않음", True)]
         for scn, want, pressed in cases:
             with self.subTest(want):
@@ -1679,6 +1685,10 @@ class E2E(unittest.TestCase):
         rc, out, it = self.one({"zone_off": True}, sid="현대카드")
         self.assertEqual(it["status"], "받지 못함")
         self.assertIn("zoneClsf_01", it["error"])
+        rc, out, it = self.one({"wrong_title": True}, sid="현대카드")   # 내역 화면이 아님 → 주소 경로만 기록
+        self.assertEqual(it["status"], "받지 못함")
+        self.assertIn("/cpa/cb/CPACB0101_01.hc", it["error"])
+        self.assertFalse(it["screen_title_login"])
 
 
 if __name__ == "__main__":

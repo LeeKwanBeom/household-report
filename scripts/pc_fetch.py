@@ -840,8 +840,12 @@ SET_VALUE_JS = """(e, v) => { e.value = v; e.dispatchEvent(new Event('input', {b
 
 
 def ev(target, js, arg=None):
-    """evaluate의 유일한 자리 — JS는 위 상수만, 반환은 JSON 문자열(신한은행 페이지는 객체·배열 반환이 None으로 온다)."""
-    s = target.evaluate(js) if arg is None else target.evaluate(js, arg)
+    """evaluate의 유일한 자리 — JS는 위 상수만, 반환은 JSON 문자열(신한은행 페이지는 객체·배열 반환이 None으로 온다).
+    목록·사전 인자도 그 페이지에서 깨진다(2026-10-28 리허설 1 — 로그인 표식 읽기가 늘 예외) → JSON 글자로 넘겨 페이지 안에서 푼다."""
+    if isinstance(arg, (list, dict)):
+        s = target.evaluate("(a) => (" + js + ")(JSON.parse(a))", json.dumps(arg, ensure_ascii=False))
+    else:
+        s = target.evaluate(js) if arg is None else target.evaluate(js, arg)
     if not isinstance(s, str):
         raise ItemFail(f"화면 읽기 반환이 글자가 아님({type(s).__name__}) — JSON.stringify를 거치지 않은 읽기")
     return json.loads(s)
@@ -925,7 +929,11 @@ def click_allowed(page, cfg, site, name, rec, typed=None):
             raise ItemFail(f"{name}: 화면 글자 {text_note(' | '.join(texts))} ≠ 기대 {exps or rx} — 누르지 않음")
         shown = next((x for t in texts for x in exps if name_ok(t, x)), "re")
     rec.append({"site": site["id"], "action": name, "type": "click", "id": info["id"], "text": shown})
-    el.click(timeout=cfg["timeout"]["click"] * 1000)
+    try:
+        el.click(timeout=cfg["timeout"]["click"] * 1000)
+    except Exception as e:  # noqa: BLE001 — 누를 수 있게 되기를 기다리다 시간 초과(다른 요소가 가림 등) — 눌리지 않았다
+        rec[-1]["result"] = f"누르지 못함({ename(e)})"
+        raise ItemFail(f"{name}: 누르지 못함({ename(e)}) — 다른 요소(안내·툴팁·레이어)가 가렸을 수 있음")
     return info
 
 
@@ -1227,15 +1235,20 @@ class SiteRunner:
         lim, stable = self.T["login"], self.T["login_stable"]
         self.log(f"[login] {self.site['id']}: 창에서 직접 로그인해 주세요 — {self.site.get('login_hint', '평소 방식')} "
                  f"(최대 {int(lim) // 60}분). 이 스크립트는 그동안 아무것도 누르거나 입력하지 않고, 뜨는 안내창도 직접 닫으셔야 합니다.")
-        end, since, last, note = time.time() + lim, None, None, 0
+        end, since, last, note, last_err = time.time() + lim, None, None, 0, None
         while time.time() < end:
             self.page.wait_for_timeout(1000)
             try:
                 marks = self.markers()
                 lay = self.layers()
                 title = self.page.title() or ""
-            except Exception:  # noqa: BLE001 — 화면 바뀌는 중
-                marks, lay, title = [False], 0, ""
+                last_err = None
+            except Exception as e:  # noqa: BLE001 — 화면 바뀌는 중(이름만 — 계속되면 읽기 결함)
+                marks, lay, title = [False] * len(self.site["login"]["markers"]), 0, ""
+                if ename(e) != last_err:
+                    last_err = ename(e)
+                    self.item.setdefault("login_read_errors", []).append(last_err)
+                    self.log(f"[login] {self.site['id']}: 화면 읽기 예외 {last_err}")
             extra = self.windows.open_since(self.t0)
             ok = all(marks) and extra == 0 and lay == 0 and "로그인" not in title
             state = (tuple(marks), extra, lay, "로그인" in title)
@@ -1343,7 +1356,12 @@ class SiteRunner:
                 finally:
                     self.dw.phase, self.windows.phase, self.script_t0 = "script", "script", time.time()
         if not self.until(lambda: sc["title_contains"] in (self.page.title() or ""), self.T["page"]):
-            raise ItemFail(f"화면 제목에 '{sc['title_contains']}'가 없음")
+            try:   # 실측 근거: 주소 경로('?'·'#'·';' 앞)와 제목에 '로그인'이 있는지만
+                self.item["screen_url"] = re.split(r"[?#;]", self.page.url or "", maxsplit=1)[0][:120]
+                self.item["screen_title_login"] = "로그인" in (self.page.title() or "")
+            except Exception:  # noqa: BLE001
+                pass
+            raise ItemFail(f"화면 제목에 '{sc['title_contains']}'가 없음 — 지금 주소 {self.item.get('screen_url', '?')}")
         self.settle()
         self.ensure_logged_in()
 
@@ -1468,8 +1486,6 @@ class SiteRunner:
         self.alive()
         self.open_screen()
         self.initial_states()
-        if try_extend:
-            self.try_extend_once()
         self.ensure_time()
         for name in site["flow"].get("prepare", []):
             self.act(name)
@@ -1502,6 +1518,8 @@ class SiteRunner:
             self.log(f"  [probe-paging] {site['id']}: 다음 쪽 키가 있지만 실측용으로 받는다(회차 폴더에만 · 넣지 않음)")
         self.ensure_time()
         self.download()
+        if try_extend:   # 사이트 끝에서 — 연장 툴팁이 조회 레이어를 가렸다(2026-10-28 리허설 1)
+            self.try_extend_once()
 
     def download(self):
         it, site = self.item, self.site
