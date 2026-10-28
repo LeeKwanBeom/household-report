@@ -77,7 +77,7 @@ next_key_path = "mbw_json.nextKey"    # 비어 있지 않으면 쪽 나눔 — �
 count_re = '총\s*([\d,]+)\s*건'
 period_re = '(?P<y1>\d{4})\.(?P<m1>\d{2})\.(?P<d1>\d{2})\s*~\s*(?:(?P<y2>\d{4})\.)?(?P<m2>\d{2})\.(?P<d2>\d{2})'
 must_checked = ["#oriType_01", "#areaSelect_01", "#useType_01"]
-must_text = { "#cardType-custom" = "전체", "button[aria-label='카드 선택']" = "전체" }
+must_text = { "#cardType-custom" = "전체" }   # 카드 선택 단추 글자는 빈칸으로 읽힘(리허설 1) — 요청 encCrdN·crdTcd가 지킴
 after_checked = []                    # 필터 레이어가 닫히면 못 읽는다 — 조회 뒤는 요청 본문(expect_fields)이 지킨다
 [site.excel_file]
 count_where = "tail"
@@ -95,7 +95,7 @@ expect_kind = "html"
 file_name_re = 'hyundaicard_\d{8}(?: \(\d+\))?\.xls'
 max_days = 90                         # 최근 3개월까지만
 [site.login]
-markers = [{ css = "a[href='/cpm/mb/CPMMB0101_04.hc']", text = "로그아웃" }]
+markers = [{ css = "a[href*='CPMMB0101_04']", text = "로그아웃" }]   # 첫 화면은 절대 주소 링크일 수 있다(리허설 1)
 layer_selectors = ["[aria-modal='true']"]
 [site.screen]
 url = "https://www.hyundaicard.com/cpa/cb/CPACB0101_01.hc"
@@ -142,7 +142,7 @@ expect_kind = "xls"
 file_name_re = '신한은행_거래내역조회_\d{14}(?: \(\d+\))?\.xls'
 [site.login]
 markers = [{ css = "#btn_logout", text = "로그아웃" }, { css = "a", text = "연장" }]
-layer_selectors = ["#btn_alertLayer_cancel"]
+layer_selectors = []                  # WebSquare 알림 단추는 숨은 채로도 늘 "보임"으로 잡힘(리허설 1) — 가리면 누르기가 실패로 닫힌다
 [site.screen]
 menu = ["menu_account", "menu_history"]   # 머리글 '계좌조회' → '거래내역조회'(구현 회차 첫 실측 — 안 되면 사용자가 직접)
 title_contains = "거래내역조회"

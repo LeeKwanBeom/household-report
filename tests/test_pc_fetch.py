@@ -1232,7 +1232,7 @@ if (PAGE === "main") {
   document.getElementById("popUsagefilterView").onclick = () => { document.getElementById("layer").style.display = "block"; };
   document.getElementById("btnQuery").onclick = async () => {
     const sd = startDate.value.replace(/\./g, ""), ed = endDate.value.replace(/\./g, "");
-    const mb = {oriType: "PAY", encCrdN: "", qyTcd: "0", fmlOCrdC: "0", dmsTsF: S.dmsTsF || "0", crdTcd: "A", qyStd: sd, qyEdd: ed,
+    const mb = {oriType: "PAY", encCrdN: S.card_sel ? "ENC1" : "", qyTcd: "0", fmlOCrdC: "0", dmsTsF: S.dmsTsF || "0", crdTcd: "A", qyStd: sd, qyEdd: ed,
       qySeq: "1", monthType: document.getElementById("conditionPeriod05").checked ? "4" : "1", crdNm: "전체", nextKey: ""};
     const r = await fetch("/mob/MOBFM045N/MOBFM045R0106.ajax", {method: "POST", headers: {"Content-Type": "application/x-www-form-urlencoded"},
       body: "mbw_json=" + encodeURIComponent(JSON.stringify(mb))});
@@ -1285,7 +1285,7 @@ if (PAGE === "main") {
   hdr();
 } else {
   hdr();
-  document.title = S.wrong_title ? "보안프로그램 설치 안내-현대카드" : "최근 이용 내역-현대카드";
+  document.title = S.wrong_title ? "보안프로그램 설치 안내-현대카드" : "최근 이용 내역-현대카드";  // 실물 제목의 공백은 U+00A0
   document.getElementById("screen").style.display = "block";
   const md = s => { const m = s.match(/(\d{4})(\d{2})(\d{2})/); return (+m[2]) + "월 " + (+m[3]) + "일"; };
   document.getElementById("goFilter").onclick = async () => {
@@ -1607,7 +1607,7 @@ class E2E(unittest.TestCase):
                  ({"two_excel": True}, "보이는 요소 2개", False),
                  ({"next_key": "K2"}, "다음 쪽 키", False),
                  ({"dmsTsF": "1"}, "dmsTsF", False),
-                 ({"card_sel": "본인카드"}, "카드 선택", False),
+                 ({"card_sel": "본인카드"}, "encCrdN", False),   # 카드 선택은 요청 본문이 지킨다
                  ({"excel_dialog": True}, "확인창", None),
                  ({"excel_popup": True}, "새 창", None),
                  ({"cover": True}, "누르지 못함", False),

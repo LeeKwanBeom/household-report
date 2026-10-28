@@ -1166,6 +1166,10 @@ class SiteRunner:
             self.wait(step)
         return False
 
+    def title(self):
+        """창 제목 — 공백 종류를 하나로(현대카드 제목의 공백은 U+00A0 — 2026-10-28 리허설 1)."""
+        return " ".join((self.page.title() or "").split())
+
     def markers(self):
         return ev(self.page, MARKERS_JS, self.site["login"]["markers"])
 
@@ -1241,7 +1245,7 @@ class SiteRunner:
             try:
                 marks = self.markers()
                 lay = self.layers()
-                title = self.page.title() or ""
+                title = self.title()
                 last_err = None
             except Exception as e:  # noqa: BLE001 — 화면 바뀌는 중(이름만 — 계속되면 읽기 결함)
                 marks, lay, title = [False] * len(self.site["login"]["markers"]), 0, ""
@@ -1351,14 +1355,14 @@ class SiteRunner:
                 # 사용자가 움직이는 동안은 로그인 대기와 같은 규칙(dialog·새 창 기록만 · 단계 상한 멈춤)
                 self.dw.phase, self.windows.phase, self.script_t0 = "manual", "manual", None
                 try:
-                    if not self.until(lambda: sc["title_contains"] in (self.page.title() or ""), lim, step=1000):
+                    if not self.until(lambda: sc["title_contains"] in self.title(), lim, step=1000):
                         raise ItemFail(f"'{sc['title_contains']}' 화면이 열리지 않음")
                 finally:
                     self.dw.phase, self.windows.phase, self.script_t0 = "script", "script", time.time()
-        if not self.until(lambda: sc["title_contains"] in (self.page.title() or ""), self.T["page"]):
+        if not self.until(lambda: sc["title_contains"] in self.title(), self.T["page"]):
             try:   # 실측 근거: 주소 경로('?'·'#'·';' 앞)와 제목에 '로그인'이 있는지만
                 self.item["screen_url"] = re.split(r"[?#;]", self.page.url or "", maxsplit=1)[0][:120]
-                self.item["screen_title_login"] = "로그인" in (self.page.title() or "")
+                self.item["screen_title_login"] = "로그인" in self.title()
             except Exception:  # noqa: BLE001
                 pass
             raise ItemFail(f"화면 제목에 '{sc['title_contains']}'가 없음 — 지금 주소 {self.item.get('screen_url', '?')}")
