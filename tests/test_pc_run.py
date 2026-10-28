@@ -635,7 +635,7 @@ class ReviewStops(PcRunBase):
 
     def test_transfer_only_new_month_is_checked(self):
         """CSV 최신 날짜의 달에 이체 행만 있으면(수입·지출 없음) 그 달 이체도 대조해 멈춘다(자체 검토 막음 B2)."""
-        rows = ['2026-10-01,이체,이체,신한은행,고정비 이체,"702,000",생활비,고정,',
+        rows = ['2026-10-01,이체,이체,신한은행,고정비 이체,"708,000",생활비,고정,',
                 '2026-10-01,이체,이체,청년미래적금,샘플 적금 이체,"500,000",생활비,고정,']
         self.write_csv(csv_variant(add=rows))
         rc, out, rid = self.build()
