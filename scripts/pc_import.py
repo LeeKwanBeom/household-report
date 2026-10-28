@@ -628,7 +628,7 @@ def folder_key(rel):
     """내역 폴더 이름(받은 날) → 정렬 키. YYYY-MM-DD·YYYYMMDD 둘 다 날짜로 읽는다(실물 폴더는 20261027 꼴)."""
     top = rel.split("/")[0]
     m = re.fullmatch(r"(\d{4})-?(\d{2})-?(\d{2})", top)
-    return (0, m.group(1) + m.group(2) + m.group(3)) if m else (1, top)
+    return (0, m.group(1) + m.group(2) + m.group(3)) if m else ((0, n[1] + n[2] + n[3], int(n[4])) if (n := re.fullmatch(r"(\d{4})-?(\d{2})-?(\d{2})_(\d+)", top)) else (1, top))
 
 
 def inbox_files(P):

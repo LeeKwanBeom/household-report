@@ -1,6 +1,6 @@
 ---
 name: q-household-run
-description: 이 PC(D:\household) Claude Code 탭에서 가계부 리포트를 재계산·확인·배포한다. "가계부 업데이트", "가계부 리포트", "가계부 CSV 넣어줘", "가계부 배포", "household report", "가계부 갱신", "리포트 다시 만들어줘" 같은 말이 나오거나 가계부 CSV를 다룰 때 반드시 이 스킬을 쓴다. 금융사 내역 파일을 CSV 행으로 정리하는 "내역 정리"("카드 내역 넣었어", "통장 내역 정리")도 이 스킬이다. 이 폴더에서는 설치본 household-report-update(웹용) 대신 이 스킬이다.
+description: 이 PC(D:\household) Claude Code 탭에서 가계부 리포트를 재계산·확인·배포한다. "가계부 업데이트", "가계부 리포트", "가계부 CSV 넣어줘", "가계부 배포", "household report", "가계부 갱신", "리포트 다시 만들어줘" 같은 말이 나오거나 가계부 CSV를 다룰 때 반드시 이 스킬을 쓴다. 금융사 내역 파일을 받아 오는 "내역 받기"("카드 내역 받아줘", "내역 받아줘")와 그 파일을 CSV 행으로 정리하는 "내역 정리"("카드 내역 넣었어", "통장 내역 정리")도 이 스킬이다. 이 폴더에서는 설치본 household-report-update(웹용) 대신 이 스킬이다.
 ---
 
 # 가계부 리포트 — 이 PC Code 탭 (/q-household-run)
@@ -22,6 +22,7 @@ description: 이 PC(D:\household) Claude Code 탭에서 가계부 리포트를 �
 export PY=/d/household/.venv/Scripts/python.exe PYTHONUTF8=1 PYTHONDONTWRITEBYTECODE=1 GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never; unset GIT_ASKPASS SSH_ASKPASS
 RUN="$PY /d/household/household-report/scripts/pc_run.py"
 IMP="$PY /d/household/household-report/scripts/pc_import.py"
+FETCH="$PY /d/household/household-report/scripts/pc_fetch.py"
 ```
 
 **리허설** — 사용자가 첫 말에 "리허설"과 개발 clone 경로를 줄 때만: `RUN="$PY <개발 clone>/scripts/pc_run.py --rehearsal"`(경로는 `/d/...` 꼴). 출력 첫 줄이 `[리허설]`이어야 한다. 리허설은 ④ dry-run까지다: 승인 질문은 보이기만 하고, `deploy`를 `--confirm` 없이 돌린 뒤 끝낸다. 운영 회차에서는 쓰지 않는다.
@@ -36,11 +37,20 @@ cd /d/household/household-report && git status --porcelain && git fetch origin &
 
 status 줄이 하나도 없고 숫자가 `0 N`(N ≥ 1)이면 `git merge --ff-only origin/main` → `$RUN sync`(exclude 줄) → 1로. 그 밖(앞섬·갈라짐·바뀐 파일)이면 멈추고 사용자에게 보인다.
 
-## 내역 정리 — 사용자가 "내역 정리"(내역 파일을 넣었다)고 할 때만, ①의 앞에
+## 내역 정리 — 사용자가 "내역 정리"(내역 파일을 넣었다)·"내역 받기"(받아 달라)고 할 때만, ①의 앞에
 
-절차 설명은 `pc/code-tab.md` 12절. 금융사 사이트를 열거나 로그인·내려받기를 하지 않는다(파일은 사용자가 받아 넣는다).
-비밀번호(카카오뱅크 암호 엑셀 포함)를 묻거나 받지 않는다 — 엑셀에서 풀어 저장한 파일만 쓴다.
+절차 설명은 `pc/code-tab.md` 12절. 세션은 금융사 사이트를 직접 열거나 누르지 않는다 — 받기는 `$FETCH`만 하고, 로그인·인증은 사용자가 창에서 한다.
+비밀번호(카카오뱅크 암호 엑셀 포함)를 묻거나 받지 않는다 — 암호는 사용자가 Claude 밖에서 자격 증명 관리자에 넣은 것을 `pc_fetch`가 읽기만 하고,
+하향 길은 엑셀에서 풀어 저장한 `_v.xlsx`만 쓴다. 자격 증명은 사용자가 **Claude 앱 밖의 별도 cmd 창**에서
+`cmdkey /generic:household/naver-imap /user:<네이버 아이디> /pass`·`cmdkey /generic:household/kakaobank-xlsx /user:xlsx /pass`를
+`/pass` 뒤에 값 없이 쳐서 프롬프트에 입력한다 — Claude는 대신 치지도 묻지도 않고, 그 직후 터미널 판을 읽지 않는다.
 
+0. **내역 받기** — 사용자가 "내역 받기"라고 할 때만(파일을 이미 넣었다면 1로):
+   `FETCH="$PY /d/household/household-report/scripts/pc_fetch.py"` → `$FETCH`(dry-run) 표를 보인다(출처별 기간·근거 · 자격 증명 유무 · 카뱅 앱 안내).
+   사용자가 받자고 하면 `$FETCH --run`을 Bash `run_in_background`로 돌린다(사이트마다 로그인 대기 최대 10분 — 창에서 사용자가 로그인 ·
+   카카오뱅크 앱 '받기'는 시작 안내대로). 세션은 그동안 창을 누르거나 입력하지 않는다. 끝나면 결과 표(받음·0건·이미 있음·받지 못함)와 새 폴더를 전한다.
+   받지 못한 출처는 사용자가 손으로 받아 **같은 새 폴더**에 넣는다(카카오뱅크는 엑셀에서 푼 `_v.xlsx`만 — 암호 원본은 넣지 않는다).
+   메일(IMAP)이 안 되면 첨부를 `D:\household\uploads\받은메일\`에 저장하게 하고 `$FETCH --run --mail-only`. 그다음 1로.
 1. `$IMP scan` — 파일·출처별 건수·확인 필요(종류별 첫 줄들)·카드대금 대조·잔액 대조·apply 막힘을 대화로 전한다.
    `[FAIL]`(설정 없음·CSV 둘 이상 등)이면 멈추고 그 줄을 보인다.
 2. 확인 필요를 묻는다(종류별로 묶어서). 사용자가 `확인필요.xlsx`를 채우면 그 파일을, 대화로 답하면

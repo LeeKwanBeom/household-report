@@ -439,6 +439,24 @@ def clone_pipeline(ctx):
     return mod
 
 
+RECEIVE_PRIVATE_KEYS = ("extra_identity", "identity", "account_text", "user")
+
+
+def _receive_values(raw, v, key=""):
+    """받기.toml → 실값: 모든 글자 칸의 8자리 이상 숫자열 + 식별 값 칸(체크카드 식별 값 등)의 글자. 선택자·안내 글자는
+    예시(pc/import/받기.toml.example)와 같은 공개 값이라 넣지 않는다."""
+    if isinstance(raw, dict):
+        for k, x in raw.items():
+            _receive_values(x, v, k)
+    elif isinstance(raw, list):
+        for x in raw:
+            _receive_values(x, v, key)
+    elif isinstance(raw, str):
+        v["ids"] |= _ids_in(raw)
+        if key in RECEIVE_PRIVATE_KEYS and len(raw.strip()) >= 5:
+            v["words"].add(raw.strip())
+
+
 def real_values(ctx, csv_src):
     """공개 노출 대조용 실값(내역 자동화 3-0 11) — uploads/**(가계부 CSV·백업·내역 파일)·rules/**에서 뽑는다.
     lines: 가계부 CSV·분류규칙.csv 데이터 줄 · ids: 8자리 이상 숫자열(승인번호·계좌번호) ·
@@ -487,6 +505,8 @@ def real_values(ctx, csv_src):
                             if len(lit) >= 5:
                                 v["words"].add(lit)
                             v["ids"] |= _ids_in(lit)
+                if any(k in raw for k in ("site", "mail", "kakao", "mail_drop")):
+                    _receive_values(raw, v)        # 받기.toml(내역 받기 설정 — 2026-10-28 탐색 완료 기준 15)
             elif low.endswith((".sqlite", ".sqlite3", ".db")):
                 from pathlib import Path
                 con = sqlite3.connect(Path(full).absolute().as_uri() + "?mode=ro", uri=True)

@@ -1,0 +1,211 @@
+# 내역 받기 설정 예시 — scripts/pc_fetch.py (내역 받기 설계안 A · 2026-10-28 탐색 기준선 3-0 '설정 항목')
+#
+# 실 설정은 clone 밖 D:\household\rules\받기.toml 에 둔다(공개 저장소에 올리지 않는다).
+# 이 파일은 자리표시 값만 — <…> 칸을 실물에 맞춰 바꾼다. 요소 id·요청 꼴은 2026-10-28 실측(사용자 입회) 그대로다.
+# 출처 서명(열 이름·값 꼴)·식별 값(카드·계좌)은 계좌.toml [[source]]를 그대로 쓴다 — 여기에 다시 적지 않는다.
+# 자격 증명 값·메일 주소(아이디)는 어디에도 적지 않는다 — Windows 자격 증명 관리자(사용자가 Claude 앱 밖 cmd 창에서
+# `cmdkey /generic:<항목> /user:<아이디> /pass`를 값 없이 쳐서 프롬프트에 입력)에서 읽는다.
+
+# 누를 요소의 글자(본문·value·title·aria·alt·라벨)에 이 낱말이 하나라도 있으면 누르지 않고 그 출처 실패
+forbidden_texts = ["이체", "송금", "신청", "변경", "해지", "등록", "설정", "결제", "납부", "삭제", "수정", "발급", "출금",
+                   "로그아웃", "비밀번호", "동의", "가입", "해제", "전환", "재발급", "분실", "한도", "예약", "탈퇴", "가상계좌",
+                   "인쇄", "이미지", "PDF", "공유", "보내기", "충전", "대출", "현금서비스", "리볼빙"]
+
+[paths]
+profile_dir = "D:/household/chrome-profile-fetch"   # 전용 크롬 프로필(홈택스·탐색 프로필과 다른 새 폴더)
+runs_root = "D:/household/work/받기"                 # 회차 폴더(받은 원본·summary·stage) — inbox 밖
+inbox_root = "D:/household/uploads/내역"             # ③ 새 폴더가 들어갈 곳(리허설은 work-rehearsal/받기/inbox)
+scan_inbox = "D:/household/uploads/내역"             # 받는 기간 계산 때 읽기만 하는 scan inbox(리허설에도 운영 그대로)
+accounts = "D:/household/rules/계좌.toml"
+ledger = "D:/household/rules/원장.sqlite"            # 읽기 전용으로만 연다
+
+[period]
+overlap_days = 30          # 지난 받은 기간 끝 − 30일부터(카드 취소·매입 확정 지연을 다시 본다 · scan이 중복을 거른다)
+
+[browser]
+channel = "chrome"         # 설치된 크롬(실패하면 번들 크로미움으로 바꾸지 않고 멈춘다)
+
+[timeout]                  # 초
+login = 600                # 사이트마다 로그인 대기
+login_stable = 5           # 로그인 끝 표식이 이만큼 이어져야
+page = 30
+query = 30
+download = 30
+click = 10
+site_step = 180            # 로그인 끝 뒤 스크립트 단계 상한(자동 로그아웃 10분 안 · 현대카드는 타이머가 없다)
+menu_manual = 180          # 메뉴 허용 클릭이 안 되면 사용자가 직접 화면으로 갈 때까지 기다림(누르기 0)
+
+# ---------------------------------------------------------------- 신한카드
+[[site]]
+id = "신한카드"                       # 계좌.toml [[source]] id
+start_url = "https://www.shinhancard.com/"
+login_hint = "신한 SOL페이 앱 인증(약 1분)"
+expect_kind = "xlsx"
+file_name_re = 'Shinhancard_\d{8}(?: \(\d+\))?\.xlsx'
+max_days = 365                        # 1년 넘는 과거는 '과거 이용내역 신청'(쓰기 — 하지 않음)
+extra_identity = ["<체크카드 이용카드 값 예: 본인000*>"]   # 파일에 함께 나오는 체크카드(계좌.toml exclude_rows가 뺀다)
+busy_selectors = []
+[site.login]
+markers = [{ css = "button.btn-logout", text = "로그아웃" }, { css = "button.btn-login-status", re = '^\d{2}:\d{2}$' }]
+layer_selectors = ["[aria-modal='true']"]
+[site.screen]
+url = "https://www.shinhancard.com/mob/MOBFM045N/MOBFM045R01.shc"
+title_contains = "카드이용내역"
+[site.actions]
+filter_open = { by = "css", value = "#popUsagefilterView", expect = ["필터 선택"] }
+period_direct = { by = "text", value = "직접 선택", expect = ["직접 선택"], after_checked = "#conditionPeriod05" }
+start = { type = "js_date", by = "css", value = "#startDate", date = "start", fmt = "{y}.{m:02d}.{d:02d}" }
+end = { type = "js_date", by = "css", value = "#endDate", date = "end", fmt = "{y}.{m:02d}.{d:02d}" }
+query = { by = "text", value = "조회", expect = ["조회"] }
+excel = { by = "css", value = "#btn_excel", expect = ["엑셀 저장"] }
+timer_open = { by = "css", value = "button.btn-login-status", expect_re = '\d{2}:\d{2}' }
+extend = { by = "css", value = "#extendLogoutBtn", expect = ["연장하기"] }
+[site.flow]
+prepare = ["filter_open", "period_direct", "start", "end"]
+query = "query"
+excel = ["excel"]
+extend = ["timer_open", "extend"]
+[site.query]                          # 조회 요청은 읽기만(필요한 칸만 뽑고 본문은 버린다)
+url_re = 'MOBFM045R0106\.ajax'
+body = "form_json:mbw_json"
+period_fields = ["qyStd", "qyEdd"]
+expect_fields = { crdTcd = "A", encCrdN = "", oriType = "PAY", qyTcd = "0", dmsTsF = "0", fmlOCrdC = "0", monthType = "4" }
+count_path = "mbw_json.totalCnt"
+list_path = "mbw_json.payList"
+next_key_path = "mbw_json.nextKey"    # 비어 있지 않으면 쪽 나눔 — 엑셀 안 누름(실측 전)
+[site.screen_values]
+count_re = '총\s*([\d,]+)\s*건'
+period_re = '(?P<y1>\d{4})\.(?P<m1>\d{2})\.(?P<d1>\d{2})\s*~\s*(?:(?P<y2>\d{4})\.)?(?P<m2>\d{2})\.(?P<d2>\d{2})'
+must_checked = ["#oriType_01", "#areaSelect_01", "#useType_01"]
+must_text = { "#cardType-custom" = "전체", "button[aria-label='카드 선택']" = "전체" }
+after_checked = []                    # 필터 레이어가 닫히면 못 읽는다 — 조회 뒤는 요청 본문(expect_fields)이 지킨다
+[site.excel_file]
+count_where = "tail"
+count_re = '총\s*(\d+)\s*건'          # 꼬리 행 칸 하나와 정확히 맞아야(앵커)
+[site.timer]
+css = "button.btn-login-status"
+min_left = 60
+
+# ---------------------------------------------------------------- 현대카드
+[[site]]
+id = "현대카드"
+start_url = "https://www.hyundaicard.com/"
+login_hint = "간편로그인(간편번호) — 보안 프로그램(nProtect Online Security)이 설치돼 있어야 함"
+expect_kind = "html"
+file_name_re = 'hyundaicard_\d{8}(?: \(\d+\))?\.xls'
+max_days = 90                         # 최근 3개월까지만
+[site.login]
+markers = [{ css = "a[href='/cpm/mb/CPMMB0101_04.hc']", text = "로그아웃" }]
+layer_selectors = ["[aria-modal='true']"]
+[site.screen]
+url = "https://www.hyundaicard.com/cpa/cb/CPACB0101_01.hc"
+title_contains = "최근 이용 내역"
+[site.actions]
+period_direct = { by = "css", value = "label[for='dtClsf_04']", expect = ["직접입력"], after_checked = "#dtClsf_04" }
+start8 = { type = "js_date", by = "css", value = "#iqrySrtDt", date = "start", fmt = "{y}{m:02d}{d:02d}", hidden_ok = true }
+end8 = { type = "js_date", by = "css", value = "#iqryEndDt", date = "end", fmt = "{y}{m:02d}{d:02d}", hidden_ok = true }
+start_shown = { type = "js_date", by = "css", value = "#srtDt", date = "start", fmt = "{y}. {m}. {d}" }
+end_shown = { type = "js_date", by = "css", value = "#endDt", date = "end", fmt = "{y}. {m}. {d}" }
+query = { by = "css", value = "#goFilter", expect = ["필터 적용"] }
+excel = { by = "css", value = "a[href='javascript:excelAction();']", expect = ["xls 파일 다운받기"] }
+[site.flow]
+prepare = ["period_direct", "start8", "end8", "start_shown", "end_shown"]
+query = "query"
+excel = ["excel"]
+extend = []
+[site.query]
+url_re = 'apiCPACB0101_21\.hc'
+body = "form"
+period_fields = ["srtDt", "endDt"]
+expect_fields = { crno = "", listClsf = "0", zoneClsf = "9", useClsf = "9", usplClsf = "9", dtClsf = "9" }
+count_path = "bdy.rcntSummaryInfo.totUseCnt"
+list_path = "bdy.rcntAvItm"
+list_equals_count = true              # 한 번에 전부(110건 실측) — 다르면 쪽 나눔 의심
+resp_period = ["bdy.rcntSummaryInfo.srtDt", "bdy.rcntSummaryInfo.endDt"]
+resp_expect = { "bdy.rcntSummaryInfo.crno" = "", "bdy.rcntSummaryInfo.zoneClsf" = "9", "bdy.rcntSummaryInfo.useClsf" = "9", "bdy.rcntSummaryInfo.usplClsf" = "9" }
+[site.screen_values]
+count_re = '총\s*([\d,]+)\s*건'
+period_re = '(?P<m1>\d{1,2})월\s*(?P<d1>\d{1,2})일\s*~\s*(?P<m2>\d{1,2})월\s*(?P<d2>\d{1,2})일'
+must_checked = ["#listClsf_01", "#zoneClsf_01", "#useClsf_01", "#usplClsf_01"]
+must_vtext = ["보유카드 전체"]            # 카드 선택 글자(직전·직후 모두)
+[site.excel_file]
+count_where = "tail"
+count_re = '총\s*합계\s*소계\s*(\d+)\s*건'   # 국내·해외·할부 소계 줄이 아니라 이 줄만
+head_word = "실시간 이용내역"
+
+# ---------------------------------------------------------------- 신한은행
+[[site]]
+id = "신한은행"
+start_url = "https://bank.shinhan.com/"
+login_hint = "공동인증서(약 1.5분)"
+expect_kind = "xls"
+file_name_re = '신한은행_거래내역조회_\d{14}(?: \(\d+\))?\.xls'
+[site.login]
+markers = [{ css = "#btn_logout", text = "로그아웃" }, { css = "a", text = "연장" }]
+layer_selectors = ["#btn_alertLayer_cancel"]
+[site.screen]
+menu = ["menu_account", "menu_history"]   # 머리글 '계좌조회' → '거래내역조회'(구현 회차 첫 실측 — 안 되면 사용자가 직접)
+title_contains = "거래내역조회"
+[site.actions]
+menu_account = { by = "text", value = "계좌조회", expect = ["계좌조회"] }
+menu_history = { by = "text", value = "거래내역조회", expect = ["거래내역조회"] }
+start = { type = "date", by = "css", value = "#wfr_searchCalendar_ica_fr_input", date = "start", fmt = "{y}{m:02d}{d:02d}", shown_fmt = "{y}.{m:02d}.{d:02d}" }
+end = { type = "date", by = "css", value = "#wfr_searchCalendar_ica_to_input", date = "end", fmt = "{y}{m:02d}{d:02d}", shown_fmt = "{y}.{m:02d}.{d:02d}" }
+rows_all = { type = "select", by = "css", value = "select#wfr_grd_inq_btngrp_div_sbx_viewRowCnt_input_0", option = "전체 보기" }
+query = { by = "css", value = "#btn_inquiry", expect = ["조회"] }
+file_save = { by = "css", value = "#wfr_grd_inq_btngrp_div_btn_downFile", expect = ["파일저장"], wait_frame = 'popup\.jsp' }
+col_all = { type = "check", by = "css", value = "#cbx_columnAll_input_0", frame = 'popup\.jsp', expect = ["전체"] }
+save_xls = { by = "css", value = "#btn_saveXls", frame = 'popup\.jsp', expect = ["엑셀저장"] }
+extend = { by = "text", value = "연장", expect = ["연장"] }
+[site.flow]
+prepare = ["start", "end", "rows_all"]
+query = "query"
+excel = ["file_save", "col_all", "save_xls"]
+extend = ["extend"]
+[site.excel_checks]                   # '전체' 체크 뒤 8열이 다 체크인지 읽기만(열 이름 '출금'이 금지 문구라 열마다 누르지 않는다)
+frame = 'popup\.jsp'
+ids = ["#cbx_downColumn_input_0", "#cbx_downColumn_input_1", "#cbx_downColumn_input_2", "#cbx_downColumn_input_3",
+       "#cbx_downColumn_input_4", "#cbx_downColumn_input_5", "#cbx_downColumn_input_6", "#cbx_downColumn_input_7"]
+[site.query]
+url_re = '/serviceEndpoint/httpDigital'
+body = "json"
+match = { "dataHeader.trxCd" = "RSRDE0108A01" }   # 거래내역조회(요청 dataBody는 암호화 — 응답만 쓴다)
+count_path = "dataBody.반복횟수"
+resp_period = ["dataBody.조회시작일_display", "dataBody.조회종료일_display"]
+resp_period_fmt = "{y}.{m:02d}.{d:02d}"
+[site.screen_values]
+count_re = '조회결과\s*\d{4}\.\d{2}\.\d{2}\s*~\s*\d{4}\.\d{2}\.\d{2}\s*\[총\s*([\d,]+)\s*건\]'
+period_re = '조회결과\s*(?P<y1>\d{4})\.(?P<m1>\d{2})\.(?P<d1>\d{2})\s*~\s*(?P<y2>\d{4})\.(?P<m2>\d{2})\.(?P<d2>\d{2})'
+in_out_re = ['입금합계\s*\(건수\)[^(]{0,40}\(([\d,]+)건\)', '출금합계\s*\(건수\)[^(]{0,40}\(([\d,]+)건\)']
+must_checked = ["#rad_InquiryGbn_input_0"]
+must_select = { "select#wfr_grd_inq_btngrp_div_sbx_viewRowCnt_input_0" = "전체 보기" }
+account_select = "#sbx_accno_input_0"        # 선택 글자가 계좌.toml 식별 값(계좌번호)을 품어야
+[site.excel_file]
+count_where = "head"
+count_re = '총건수\s*(\d+)'
+[site.timer]
+re = '^\d{2}:\d{2}$'
+min_left = 60
+
+# ---------------------------------------------------------------- 카카오뱅크(메일)
+[kakao]
+source = "카카오뱅크"
+cred_target = "household/kakaobank-xlsx"     # 엑셀 암호(생년월일 6자리) — cmdkey /generic:household/kakaobank-xlsx /user:xlsx /pass
+pattern_encrypted = '카카오뱅크_거래내역_N\d{10}_\d{16}(?: \(\d+\))?\.xlsx'
+pattern_plain = '카카오뱅크_거래내역.*_v+(?: \(\d+\))?\.xlsx'
+requested_re = '요청일시\s*(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2}):(\d{2})'
+
+[mail]                                       # 안 A — 네이버 메일 IMAP(읽기 전용)
+host = "imap.naver.com"
+port = 993
+cred_target = "household/naver-imap"         # UserName = 네이버 아이디(자격 증명에서 읽음 — 여기 적지 않음)
+from = "no-reply@mail.kakaobank.com"
+subject_contains = "[카카오뱅크] 고객님께서 요청하신 거래내역 엑셀파일입니다."
+attach_re = '카카오뱅크_거래내역_N\d{10}_\d{16}\.xlsx'
+since_days = 14
+wait_sec = 60
+wait_tries = 3
+max_candidates = 3
+
+[mail_drop]                                  # 안 C — 첨부를 손으로 저장하는 폴더(--mail-only) · inbox 밖
+folder = "D:/household/uploads/받은메일"
