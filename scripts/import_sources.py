@@ -270,6 +270,7 @@ class Source:
     pay_day: int = 0
     cycle_months_before: int = 1
     cycle_start_day: int = 1
+    installment_round: int = 0    # 할부 회차 단위: 0 = 총액÷개월(끝전은 끝 회차) · 100 = 100원 단위로 내리고 끝전은 1회차
     exclude_rows: tuple = ()      # ((열, (값, …)), …) — 다른 카드 행(체크카드) 등. 건수는 보고에 남는다
     count_re: object = None       # 파일 머리의 '총건수' — 행 수와 다르면 실패(잘린 파일)
     direction_values: dict = field(default_factory=dict)   # 통장 구분 열 값 → in/out
@@ -414,11 +415,14 @@ def load_config(path, account_names, card_names):
             cancel_values=tuple(s.get("cancel_values", [])), foreign_values=tuple(s.get("foreign_values", [])),
             pay_day=int(s.get("pay_day", 0)), cycle_months_before=int(s.get("cycle_months_before", 1)),
             cycle_start_day=int(s.get("cycle_start_day", 1)),
+            installment_round=int(s.get("installment_round", 0)),
             exclude_rows=tuple(excl), count_re=count, direction_values=dvals,
             cancel_by_merchant=bool(s.get("cancel_by_merchant", False)),
         ))
         if kind == "card" and not 1 <= cfg["sources"][-1].pay_day <= 31:
             errs.append(f"{where}: 카드 pay_day(결제일 1~31)가 없다")
+        if cfg["sources"][-1].installment_round < 0:
+            errs.append(f"{where}: installment_round는 0(총액÷개월) 또는 회차 금액 단위(예: 100)")
 
     bank_accounts = {s.account for s in cfg["sources"] if s.kind == "bank"}
 

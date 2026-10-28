@@ -35,6 +35,20 @@ import pc_import  # noqa: E402
 TODAY = dt.date(2026, 10, 27)
 NOW = dt.datetime(2026, 10, 27, 12, 0, 0, tzinfo=pc_import.KST)
 
+# 잔액 대조 시험의 숫자는 생활비 기준(2026-08-31 · 3,412,800원)에 맞춰 짰다. 운영 기준을 다시 재도
+# (pipeline.ACCOUNTS_START — 2026-10-28 재기준) 시험 판은 그대로 두려고 이 모듈 동안 바꿔 끼운다.
+_ACCOUNTS_PATCH = mock.patch.dict(pc_import.pl.ACCOUNTS_START, {"생활비 통장": {
+    **pc_import.pl.ACCOUNTS_START["생활비 통장"], "balance": 3412800, "as_of": "2026-08-31"}})
+
+
+def setUpModule():
+    _ACCOUNTS_PATCH.start()
+
+
+def tearDownModule():
+    _ACCOUNTS_PATCH.stop()
+
+
 CONFIG = r'''
 start_date = "2026-10-01"
 date_slack = { card = 2, bank = 0 }
@@ -1226,6 +1240,30 @@ class CardTests(Base):
         rc, out = w.apply(rid3, *NEW_MONTH, today=dt.date(2027, 1, 20))
         self.assertEqual(rc, 0, out)
         self.assertIn('2027-01-12,지출,가전,전자제품,가상폰,"333,339",생활비,,현대카드', w.csv().decode("utf-8"))
+
+    def test_installment_round_first_carries_remainder(self):
+        """installment_round = 100: 2회차부터 100원 단위로 내리고 끝전은 1회차 — 합 = 총액 · 파일의 회차 행과 이중 0."""
+        cfg = CONFIG.replace("cycle_start_day = 1\nfooter_re", "cycle_start_day = 1\ninstallment_round = 100\nfooter_re", 1)
+        self.assertNotEqual(cfg, CONFIG)
+        rules = RULES + "가상전자,가전,전자제품,가상폰,,,자동,가상전자,2026-10-01,x\r\n"
+        w = self.world(rows=BASE_ROWS, rules=rules, config=cfg)
+        w.put("h.csv", hyundai([("10-18", "10:00:00", "가상전자", 1_000_013, "3개월", "10000031", "정상")],
+                               period=("2026.10.01", "2026.10.27")))
+        out, rid = self.ok_scan(w)
+        rc, out = w.apply(rid)
+        self.assertEqual(rc, 0, out)
+        w.put("h2.csv", hyundai([("11-12", "10:00:00", "가상전자", 333_413, "일시불", "10000032", "정상")],
+                                period=("2026.10.28", "2026.12.20")), folder="2026-12-20")
+        before = w.csv()
+        out, rid2 = self.ok_scan(w, today=dt.date(2026, 12, 20))
+        rc, out = w.apply(rid2, *NEW_MONTH, today=dt.date(2026, 12, 20))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(w.new_lines(before), ['2026-11-12,지출,가전,전자제품,가상폰,"333,413",생활비,,현대카드',
+                                               '2026-12-12,지출,가전,전자제품,가상폰,"333,300",생활비,,현대카드'], out)
+        out, rid3 = self.ok_scan(w, today=dt.date(2027, 1, 20))
+        rc, out = w.apply(rid3, *NEW_MONTH, today=dt.date(2027, 1, 20))
+        self.assertEqual(rc, 0, out)
+        self.assertIn('2027-01-12,지출,가전,전자제품,가상폰,"333,300",생활비,,현대카드', w.csv().decode("utf-8"))
 
     def test_installment_vs_hand_full_row(self):
         """할부 총액과 같은 손 행이 있으면 '전액 1행 vs 월별?' 확인 필요(자동 0)."""

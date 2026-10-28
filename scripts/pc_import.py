@@ -1407,11 +1407,18 @@ class Engine:
     def schedule_rows(self, key, card, total, months, first_month, row, purchase=None):
         """할부 일정 → [(가상 거래키, 회차, 날짜, 금액)] — 실행일 이전 달까지만(미래 날짜 행 0)."""
         per = total // months
+        unit = self.card_src[card].installment_round if card in self.card_src else 0
+        if unit:
+            # 회차를 단위로 내리고 끝전은 1회차에 몰아 낸다(신한카드 2026-11 명세서 실물: 2~12회차 100원 단위)
+            per = per // unit * unit
         out = []
         for k in range(1, months + 1):
             ym = add_months(first_month[0], first_month[1], k - 1)
             d = self.pay_date(card, ym)
-            amt = per if k < months else total - per * (months - 1)
+            if unit:
+                amt = total - per * (months - 1) if k == 1 else per
+            else:
+                amt = per if k < months else total - per * (months - 1)
             out.append((f"{key}#{k}", k, d, amt))
         return out
 
