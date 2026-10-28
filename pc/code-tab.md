@@ -1,7 +1,7 @@
 # 가계부 리포트 — 이 PC Claude Code 탭 절차
 
 웹(claude.ai)은 저장소 `SKILL.md` 그대로다. 이 문서는 이 PC(Windows · `D:\household` · Code 탭)에서만 쓴다.
-실행은 `scripts/pc_run.py`가 하고, 세션은 로컬 스킬 `/q-household-run`(정본 `pc/q-household-run/SKILL.md`)의 순서를 따른다.
+실행은 `scripts/pc_run.py`가 하고, 세션은 로컬 스킬 `/q-household-run`(정본 `pc/q-household-run/SKILL.md`)의 순서를 따른다(인자 없이 부르면 12절 내역 받기부터 배포 승인 질문까지).
 설계 근거: 2026-10-12 Code 탭 이전 탐색 기준선(설계안 2) — 요약은 `audit/last-audit.md` 맨 위 절.
 
 ## 1. 폴더
@@ -136,6 +136,13 @@ git ls-remote origin refs/heads/main          # = 로컬 HEAD
 cmd 창**에서 `cmdkey /generic:household/naver-imap /user:<네이버 아이디> /pass`와 `cmdkey /generic:household/kakaobank-xlsx /user:xlsx /pass`를
 `/pass` 뒤에 값을 붙이지 않고 쳐서 뜨는 프롬프트에 입력한다(Windows 자격 증명 관리자 — `pc_fetch`는 읽기만). Claude는 대신 치지도 묻지도 않고,
 그 직후 터미널 판을 읽지 않는다. 네이버 쪽은 2단계 인증 + 애플리케이션 비밀번호 + 메일 설정 › POP3/IMAP에서 IMAP 사용 켜기가 먼저다.
+
+**지금 운영(2026-10-28 사용자 결정 — 카카오뱅크는 손으로)**:
+- 운영 `rules\받기.toml`의 `[mail]` 블록은 주석으로 꺼 두었다. 그래서 `$FETCH --run`은 웹 3곳만 받는다(3곳 다 받으면 종료 0). 위 cmdkey·IMAP 설정은 하지 않았다.
+- 카카오뱅크는 사용자가 앱 '거래내역 다운로드'에서 1개월(지난 갱신이 한 달을 넘었으면 3개월) 기간으로 받는다. 12개월은 0원 거래가 섞이면 scan이 그 파일 전체를 실패시키므로 쓰지 않는다. 엑셀에서 푼 `_v.xlsx`만 `--run`이 만든 새 폴더에 넣는다.
+- 메일 수거를 다시 쓰려면 그 블록 주석을 풀고(백업 `받기.toml.bak-20261028-nomail`) 위 처음 한 번 설정을 한다.
+
+**`/q-household-run` 진입**: 인자 없이 부르면(또는 "가계부 업데이트") ① 받기부터 ⑤까지 한 번에 잇는다. 멈추는 곳은 로그인 · 카뱅 파일 넣기 · 확인 필요 답 · apply 확정 · "배포 <승인 코드>"뿐이다. "내역 정리"는 ② scan부터, "리포트만"은 ⑤(흐름 S0)부터 시작한다.
 
 `FETCH="$PY /d/household/household-report/scripts/pc_fetch.py"` · `IMP="$PY /d/household/household-report/scripts/pc_import.py"`
 
