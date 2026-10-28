@@ -429,6 +429,16 @@ def _row_values(cells, v):
             _add_stamps(v, d, a, times)
 
 
+def clone_pipeline(ctx):
+    """그 clone의 pipeline.py를 파일 경로로 불러온다. 운영 pc_run은 scripts/만 sys.path에 있어
+    `import pipeline`이 실패하고, 리허설은 개발 clone의 규칙을 써야 한다(2026-10-28 결함)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("_household_pipeline", os.path.join(ctx.repo, "pipeline.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def real_values(ctx, csv_src):
     """공개 노출 대조용 실값(내역 자동화 3-0 11) — uploads/**(가계부 CSV·백업·내역 파일)·rules/**에서 뽑는다.
     lines: 가계부 CSV·분류규칙.csv 데이터 줄 · ids: 8자리 이상 숫자열(승인번호·계좌번호) ·
@@ -502,7 +512,7 @@ def real_values(ctx, csv_src):
     cfg_path = os.path.join(ctx.home, "rules", "계좌.toml")
     if os.path.isfile(cfg_path) and os.path.isdir(os.path.join(ctx.uploads, "내역")):
         try:
-            import pipeline as _pl
+            _pl = clone_pipeline(ctx)
             cfg = srcmod.load_config(cfg_path, set(_pl.ACCOUNT_KEY.values()), set(_pl.CARD_TARGETS))
         except Exception:  # noqa: BLE001
             cfg = None
@@ -691,10 +701,7 @@ def transfer_only_month(ctx, run, stamp, month):
     """수입·지출 행 없이 이체 행만 있는 달(CSV 최신 날짜의 달)의 매달 이체를 pipeline과 같은 기준으로 대조한다.
     pipeline.py를 그 clone에서 그대로 불러 load_csv·EXPECTED_MONTHLY_TRANSFERS를 쓴다(규칙을 옮겨 적지 않는다).
     → ({"missing": ["YYYY-MM 출금→입금 이체 행 없음", …], "rows": {입금 계좌: 금액 합}}, 검사 시작 월)"""
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("_household_pipeline", os.path.join(ctx.repo, "pipeline.py"))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = clone_pipeline(ctx)
     with redirect_stdout(io.StringIO()):
         df = mod.load_csv(os.path.join(run, stamp["csv_copy"]))
     tr = df[(df["구분"] == "이체") & (df["월"] == month)]

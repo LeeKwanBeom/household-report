@@ -2573,6 +2573,26 @@ class ExposeMoreTests(unittest.TestCase):
         for line in ('ROW = ("2026-10-09", 31418)', '"2026년 10월 10일","31,417"', 'ROW = ("2026-10-11", 8)'):
             self.assertEqual(pc_run.blob_hits(line.encode("utf-8"), v), [], line)
 
+    def test_real_values_read_config_without_pipeline_on_path(self):
+        """운영 pc_run은 scripts/만 sys.path에 있어 `import pipeline`이 실패한다 — 그래도 계좌.toml을 읽어
+        내역 파일의 가맹점 원문을 대조에 넣는다(2026-10-28 배포에서 [주의]로 늘 건너뛰던 결함)."""
+        sys.path.insert(0, os.path.join(ROOT, "scripts"))
+        import pc_run
+        home = tempfile.mkdtemp(prefix="pcexpo-")
+        self.addCleanup(rmtree, home)
+        inbox = os.path.join(home, "uploads", "내역", "2026-10-27")
+        os.makedirs(inbox)
+        os.makedirs(os.path.join(home, "rules"))
+        with open(os.path.join(home, "rules", "계좌.toml"), "w", encoding="utf-8") as f:
+            f.write(FORMAT_CONFIG)
+        with open(os.path.join(inbox, "h.xls"), "wb") as f:
+            f.write(html_card([("10-09", "13:47", "가상상점", 31_417, "0", "40000001", "승인")]))
+        out = io.StringIO()
+        with mock.patch.dict(sys.modules, {"pipeline": None}), redirect_stdout(out):
+            v = pc_run.real_values(pc_run.Ctx(ROOT, home, False), None)
+        self.assertNotIn("읽지 못해", out.getvalue())
+        self.assertIn("가상상점", v["words"])
+
 
 if __name__ == "__main__":
     unittest.main()
