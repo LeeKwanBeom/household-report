@@ -31,8 +31,8 @@ import pipeline  # noqa: E402
 from pipeline import (  # noqa: E402
     ACCOUNTS_START, ACCOUNT_KEY, COUPLE_REAL_SPEND, COUPLE_SETTLEMENT, ENDED_FIXED_ITEMS, EXPECTED_COLS,
     EXPECTED_MONTHLY_TRANSFERS, HIDDEN_ACCOUNTS, MANUALLY_EXCLUDED_FIXED_ITEMS,
-    NO_CORE_ROWS_MSG, SUBSCRIPTION_ALIASES, build_bundle, fixed_app_name, load_csv,
-    screen_warnings_for, today_kst, validate, warnings_for,
+    NO_CORE_ROWS_MSG, SUBSCRIPTION_ALIASES, build_bundle, confirmed_warnings_for, fixed_app_name, load_csv,
+    screen_warnings_for, today_kst, validate, warning_key, warnings_for,
 )
 import deploy  # noqa: E402
 import detect_ended  # noqa: E402
@@ -323,6 +323,29 @@ class Warnings(unittest.TestCase):
         missing = "매달 이체 확인: 2026-09 생활비→청년미래적금 이체 행 없음"
         self.assertIn(missing, warnings_for(b2))
         self.assertIn(missing, screen_warnings_for(b2))
+
+    def test_confirmed_warning_hidden(self):
+        """확인 끝난 경고(CONFIRMED_WARNINGS)는 대화·화면 둘 다에서 빠지고 confirmed_warnings_for에만 남는다.
+        이체 합계 불일치 키는 예상 금액을 빼고 재므로 예상을 고쳐도 가려지고, 실제 합계가 바뀌면 다시 뜬다(2026-10-28)."""
+        df = fixture_rows()
+        i = df[(df["구분"] == "이체") & (df["소분류"] == "신한은행")].index[0]
+        df.loc[i, "금액"] = "68,000"
+        _, b = run_rows(df)
+        term = [w for w in warnings_for(b) if w.startswith("매달 이체 확인:")]
+        self.assertEqual(len(term), 1, term)
+        key = warning_key(term[0])
+        other_expected = re.sub(r"예상 [\d,]+원", "예상 1,000원", term[0])
+        self.assertNotEqual(other_expected, term[0])
+        self.assertEqual(warning_key(other_expected), key)
+        self.assertEqual(confirmed_warnings_for(b), [])
+        with mock.patch.dict(pipeline.CONFIRMED_WARNINGS, {key: "시험"}):
+            self.assertNotIn(term[0], warnings_for(b))
+            self.assertFalse(any(w.startswith("매달 이체 확인:") for w in screen_warnings_for(b)))
+            self.assertEqual(confirmed_warnings_for(b), term)
+            df.loc[i, "금액"] = "69,000"
+            _, b2 = run_rows(df)
+            self.assertTrue(any(w.startswith("매달 이체 확인:") for w in warnings_for(b2)))
+            self.assertTrue(any(w.startswith("매달 이체 확인:") for w in screen_warnings_for(b2)))
 
     def test_future_date_uses_korean_date(self):
         """실행일 기준은 컨테이너 UTC가 아니라 한국 날짜 — UTC로는 아직 내일이지만 KST로는

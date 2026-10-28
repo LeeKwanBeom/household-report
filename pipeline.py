@@ -10,6 +10,7 @@
 import re
 import sys
 import json
+import hashlib
 import pandas as pd
 
 # ============================================================
@@ -219,6 +220,19 @@ COUPLE_REAL_SPEND = {
     "fund_from": "생활비",                 # 커플통장으로 보내는 계좌(셈할 이체 행의 결제수단)
     "as_expense": ("내여자", "커플통장"),    # 셈한 이체를 지출로 셀 때 (대분류, 소분류)
     "month_memo": r"(\d{1,2})\s*월분",      # 귀속 달 비고 꼴 — 비고 전체(앞뒤 공백 무시)가 이 꼴일 때만
+}
+
+# 확인 끝난 경고 (2026-10-28 사용자 지시 — "처리 다 된 거면 안 보이게")
+#
+# 사용자가 확인을 끝낸 경고는 화면 '확인이 필요한 항목'과 대화 [경고] 목록에서 뺀다(터미널에는 [확인 끝남]으로
+# 따로 찍는다). 키 = warning_key(대화 문구) — 문구의 md5 앞 12자. 공개 저장소라 금액·가맹점은 적지 않고 키와
+# 짧은 설명만 둔다. 건수·금액이 바뀌면 문구가 달라져 다시 뜬다(같은 행이 새로 생기거나 그달 이체가 더 들어오는 등) —
+# 그때 다시 확인을 끝내면 새 문구의 키로 바꾼다. 데이터에서 사라진 경고의 키는 남아도 해가 없다.
+CONFIRMED_WARNINGS = {
+    "cbd69521cb3e": "완전히 같은 행 31건(5묶음) — 같은 날 여러 판 한 소액 결제(실제 별건)",
+    "df16210e311e": "2026-09 생활비→신한은행 이체 합계(2건) — 그달 실제로 보낸 금액(856,000 기준은 2026-11부터)",
+    "8b3d3f42ad4b": "2026-10 생활비→신한은행 이체 합계(1건) — 같은 사유",
+    "88f8e01eefc3": "2026-10 신한은행 고정지출 목록에 없는 출금 1건 — 데이트 주차비(변동 지출)",
 }
 
 
@@ -1106,8 +1120,8 @@ def validate(bundle):
     return errors
 
 
-def warnings_for(bundle, screen=False):
-    """중단시킬 정도는 아니지만 조용히 틀린 값을 만드는 상황들.
+def _all_warnings(bundle, screen=False):
+    """중단시킬 정도는 아니지만 조용히 틀린 값을 만드는 상황들 — 확인 끝난 것(CONFIRMED_WARNINGS)도 포함.
 
     위 validate()는 같은 데이터를 다시 집계해 비교하는 항등식이라 구조적으로
     거의 실패하지 않는다. 실제 사고는 대부분 '규칙이 데이터와 안 맞는' 쪽에서
@@ -1205,6 +1219,27 @@ def warnings_for(bundle, screen=False):
     return warns
 
 
+def warning_key(text):
+    """CONFIRMED_WARNINGS 키 — 대화 문구의 md5 앞 12자.
+    "매달 이체 확인"의 합계 불일치는 예상 금액을 빼고 잰다 — EXPECTED_MONTHLY_TRANSFERS 금액을 고쳐도
+    확인 끝난 지난 달 경고가 다시 뜨지 않게. 실제 합계·건수가 바뀌면 다시 뜬다."""
+    text = re.sub(r" ≠ 예상 [\d,]+원", "", text)
+    return hashlib.md5(text.encode("utf-8")).hexdigest()[:12]
+
+
+def warnings_for(bundle, screen=False):
+    """_all_warnings에서 사용자가 확인을 끝낸 경고(CONFIRMED_WARNINGS)를 뺀 목록.
+    화면 문구(screen=True)도 같은 자리의 대화 문구 키로 가린다 — 두 목록은 같은 순서·길이다."""
+    talk = _all_warnings(bundle)
+    shown = _all_warnings(bundle, screen=True) if screen else talk
+    return [s for t, s in zip(talk, shown) if warning_key(t) not in CONFIRMED_WARNINGS]
+
+
+def confirmed_warnings_for(bundle):
+    """확인 끝나 warnings_for에서 빠진 대화 문구 — pipeline 터미널 [확인 끝남] 줄."""
+    return [t for t in _all_warnings(bundle) if warning_key(t) in CONFIRMED_WARNINGS]
+
+
 def screen_warnings_for(bundle):
     """리포트 화면 '확인이 필요한 항목'에 올릴 경고.
 
@@ -1247,6 +1282,12 @@ def main():
             print("        -", w)
     else:
         print("      경고 없음")
+    confirmed = confirmed_warnings_for(bundle)
+    if confirmed:
+        # 접두어가 "        - "가 아니라 pc_run의 [경고] 줄 읽기(log_block)에 섞이지 않는다
+        print(f"      [확인 끝남] 사용자가 확인해 경고·화면에서 뺀 {len(confirmed)}건(CONFIRMED_WARNINGS):")
+        for w in confirmed:
+            print("        ·", w)
 
     # 경고를 bundle에 실어 build.py가 화면 '확인이 필요한 항목'에 그대로 렌더한다.
     # (예전에는 pipeline이 계산만 하고 화면은 하드코딩 2줄이었다 — 2026-09-06 #3)
