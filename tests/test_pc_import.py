@@ -2594,5 +2594,108 @@ class ExposeMoreTests(unittest.TestCase):
         self.assertIn("가상상점", v["words"])
 
 
+# ============================================================
+# 플랫폼 결제 고정 금액 [[platform_fixed]] (2026-10-28 쿠팡 월 회비 — 기록 K1~K4)
+# ============================================================
+
+PF_ENTRY = '''
+[[platform_fixed]]
+merchant = "가짜페이"
+card = "{card}"
+amount = {amount}
+"대분류" = "문화생활비"
+"소분류" = "어플/멤버쉽"
+"세부내용" = "{name}"
+"고정여부" = "고정"
+"결제수단" = "{acct}"
+'''
+
+
+def pf_config(card="신한카드", amount=6417, name="가상구독", acct="신한은행"):
+    return CONFIG + PF_ENTRY.format(card=card, amount=amount, name=name, acct=acct)
+
+
+class PlatformFixedTests(Base):
+    def load(self, text):
+        import pipeline
+        path = os.path.join(tempfile.mkdtemp(prefix="pcimport-pf-"), "c.toml")
+        self.addCleanup(rmtree, os.path.dirname(path))
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        return srcmod.load_config(path, set(pipeline.ACCOUNT_KEY.values()), set(pipeline.CARD_TARGETS))
+
+    def test_config_reads_entry(self):
+        """K1: 칸을 읽는다(결제수단 빈칸 = 카드 청구 계좌로 남긴다) · 칸이 없으면 빈 목록."""
+        cfg = self.load(pf_config(acct=""))
+        self.assertEqual(cfg["platform_fixed"], [{"key": "가짜페이", "card": "신한카드", "amount": 6417,
+                                                  "대분류": "문화생활비", "소분류": "어플/멤버쉽", "세부내용": "가상구독",
+                                                  "고정여부": "고정", "결제수단": ""}])
+        self.assertEqual(self.load(CONFIG)["platform_fixed"], [])
+
+    def test_config_errors(self):
+        """K1: 카드·금액·분류·고정여부·결제수단·플랫폼 아닌 가맹점 → 설정 오류."""
+        bad = (pf_config(card="없는카드") + PF_ENTRY.format(card="신한카드", amount='"6417"', name="가상구독", acct="")
+               + PF_ENTRY.format(card="신한카드", amount="true", name="가상구독", acct="")
+               + PF_ENTRY.format(card="신한카드", amount=0, name="", acct="없는계좌")
+               + PF_ENTRY.replace('"고정"', '"변동"').format(card="신한카드", amount=6417, name="가상구독", acct="")
+               + PF_ENTRY.replace('"가짜페이"', '"새가게"').format(card="신한카드", amount=6417, name="가상구독",
+                                                                  acct=""))
+        with self.assertRaises(srcmod.ConfigError) as cm:
+            self.load(bad)
+        msg = "\n".join(cm.exception.args[0])
+        for want in ("card는 카드 출처", "amount는 1 이상 정수", "세부내용가 비었다", "고정여부는",
+                     "결제수단은 계좌 이름", "platform_keys에 안 걸린다"):
+            self.assertIn(want, msg)
+        self.assertEqual(msg.count("amount는 1 이상 정수"), 3, msg)
+
+    def test_exact_match_auto_row(self):
+        """K2: 가맹점·카드·금액이 맞음 → 자동 행(칸 값 · 결제수단 신한은행) · apply 뒤 CSV 한 줄 · 규칙 변화 0."""
+        w = self.world(config=pf_config(), rows=BASE_ROWS)
+        w.put("s.csv", shinhan_card([("10-08", "가짜페이 결제", 6417, "20000041")]))
+        out, rid = self.ok_scan(w)
+        p = next(p for p in w.proposals(rid) if p["금액"] == "6417")
+        self.assertEqual((p["상태"], p["새 결제수단"], p["새 세부내용"]), ("자동", "신한은행", "가상구독"), out)
+        self.assertIn("플랫폼 고정 금액", p["사유"])
+        rules_before = read_bytes(os.path.join(w.rules, "분류규칙.csv"))
+        before = w.csv()
+        # 합성 '가상구독'은 SHINHAN_FIXED_ITEMS 밖이라 쓰기 전 검사가 신한 목록 밖 출금 증가로 막는다(그 검사는 그대로)
+        rc, out = w.apply(rid, "--ack-warning", "shinhan_unmatched", "시험: 합성 구독은 신한 목록 밖")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(w.new_lines(before),
+                         ['2026-10-08,지출,문화생활비,어플/멤버쉽,가상구독,"6,417",신한은행,고정,신한카드'])
+        self.assertEqual(read_bytes(os.path.join(w.rules, "분류규칙.csv")), rules_before)
+
+    def test_blank_account_uses_card_billing(self):
+        """정한 것 1: 결제수단 빈칸 → 그 카드의 청구 계좌(생활비)."""
+        w = self.world(config=pf_config(acct=""), rows=BASE_ROWS)
+        w.put("s.csv", shinhan_card([("10-08", "가짜페이 결제", 6417, "20000041")]))
+        out, rid = self.ok_scan(w)
+        p = next(p for p in w.proposals(rid) if p["금액"] == "6417")
+        self.assertEqual((p["상태"], p["새 결제수단"]), ("자동", "생활비"), out)
+
+    def test_mismatch_still_asks(self):
+        """K3: 1원 차이 · 다른 카드 · 할부 → 지금처럼 확인 필요(자동 0)."""
+        w = self.world(config=pf_config(), rows=BASE_ROWS)
+        w.put("s.csv", shinhan_card([("10-08", "가짜페이 결제", 6418, "20000041")]))
+        w.put("h.csv", hyundai([("10-09", "09:00:00", "가짜페이 결제", 6417, "일시불", "10000051", "정상"),
+                                ("10-10", "09:00:00", "가짜페이 결제", 6417, "3개월", "10000061", "정상")]))
+        out, rid = self.ok_scan(w)
+        props = [p for p in w.proposals(rid) if p["금액"] in ("6417", "6418")]
+        self.assertEqual(len(props), 3, out)
+        self.assertEqual({p["상태"] for p in props}, {"확인 필요"}, out)
+        kinds = sorted(i["종류"] for i in w.items(rid) if i["금액"] in (6417, 6418, "6417", "6418"))
+        self.assertEqual(kinds, ["new_merchant", "platform", "platform"], out)
+
+    def test_unknown_name_asks_with_note(self):
+        """K4: 칸의 세부내용이 CSV에 없는 이름 → 자동 0 · platform 질문 · 메모."""
+        w = self.world(config=pf_config(name="처음보는이름"), rows=BASE_ROWS)
+        w.put("s.csv", shinhan_card([("10-08", "가짜페이 결제", 6417, "20000041")]))
+        out, rid = self.ok_scan(w)
+        p = next(p for p in w.proposals(rid) if p["금액"] == "6417")
+        self.assertEqual(p["상태"], "확인 필요", out)
+        it = next(i for i in w.items(rid) if i["종류"] == "platform")
+        self.assertIn("platform_fixed 이름 확인: 세부내용 '처음보는이름'", it["사유"])
+
+
 if __name__ == "__main__":
     unittest.main()

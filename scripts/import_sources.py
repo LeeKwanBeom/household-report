@@ -299,6 +299,7 @@ def load_config(path, account_names, card_names):
         "card_transfer": [],
         "income": [],
         "platform_keys": [],
+        "platform_fixed": [],
         "ignore_files": [],
         "pre_asof_billing": [],
         "internal": [],
@@ -511,6 +512,29 @@ def load_config(path, account_names, card_names):
         except (KeyError, ValueError):
             errs.append("[[internal_balance]]: account·name·date(YYYY-MM-DD)·amount")
     cfg["platform_keys"] = [normalize_merchant(k) for k in raw.get("platform_keys", []) if str(k).strip()]
+    for t in raw.get("platform_fixed", []):
+        # 플랫폼 결제(늘 묻는 가맹점) 중 카드·금액이 정확히 같은 것만 묻지 않고 이 값으로 쓴다 — 예: 쿠팡 월 회비
+        where = f"[[platform_fixed]] {t.get('merchant')} {t.get('card')} {t.get('amount')}"
+        key = normalize_merchant(t.get("merchant", ""))
+        if not key:
+            errs.append(f"{where}: merchant(플랫폼 가맹점 이름 일부)가 없다")
+        elif not any(pk and pk in key for pk in cfg["platform_keys"]):
+            errs.append(f"{where}: merchant가 platform_keys에 안 걸린다(플랫폼이 아니면 분류 규칙을 쓴다)")
+        if t.get("card") not in card_billing:
+            errs.append(f"{where}: card는 카드 출처([[source]] kind=card)가 있는 카드명")
+        amount = t.get("amount")
+        if not isinstance(amount, int) or isinstance(amount, bool) or amount < 1:
+            errs.append(f"{where}: amount는 1 이상 정수(원)")
+        for c in ("대분류", "소분류", "세부내용"):
+            if not str(t.get(c, "")).strip():
+                errs.append(f"{where}: {c}가 비었다")
+        if t.get("고정여부", "") not in ("고정", ""):
+            errs.append(f"{where}: 고정여부는 '고정' 또는 빈칸")
+        if t.get("결제수단", "") and t.get("결제수단") not in account_names:
+            errs.append(f"{where}: 결제수단은 계좌 이름 또는 빈칸(빈칸 = 카드 청구 계좌)")
+        cfg["platform_fixed"].append({"key": key, "card": t.get("card"), "amount": amount,
+                                      **{c: str(t.get(c, "")).strip()
+                                         for c in ("대분류", "소분류", "세부내용", "고정여부", "결제수단")}})
     for f_ in raw.get("ignore_files", []):
         if not f_.get("path") or not re.fullmatch(r"[0-9a-f]{32}", str(f_.get("md5", ""))):
             errs.append("[[ignore_files]]: path와 md5(32자)가 둘 다 있어야 한다")

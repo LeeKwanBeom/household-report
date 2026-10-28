@@ -905,7 +905,16 @@ class Engine:
         if not key:
             return self.ask(t, "empty_merchant", row=row, route=route)
         if any(pk and pk in key for pk in self.cfg["platform_keys"]):
-            return self.ask(t, "platform", row=row, route=route, rule_key=key)
+            fx = self.platform_fixed(t, key, amount)
+            if fx is None:
+                return self.ask(t, "platform", row=row, route=route, rule_key=key)
+            frow = make_row(t, {c: fx[c] for c in RULE_VALUES}, amount)
+            unknown = [f"{c} '{frow[c]}'" for c in ("대분류", "소분류", "세부내용") if frow[c] not in self.doc.names[c]]
+            if unknown:   # 설정 값 오타로 새 이름을 조용히 만들지 않는다 — 지금처럼 묻고 메모로 알린다
+                return self.ask(t, "platform", row=row, route=route, rule_key=key,
+                                note="platform_fixed 이름 확인: " + " · ".join(unknown))
+            return self.disp(t, "자동", f"플랫폼 고정 금액 '{fx['key']}' {fx['card']} {amount:,}", state="written",
+                             row=frow, route=self.route_of_row(frow), rdate=t.date)
         if rule is None:
             return self.ask(t, "new_merchant", row=row, route=route, rule_key=key)
         if rule["mode"] == "매번":
@@ -914,6 +923,15 @@ class Engine:
             return self.ask(t, "raw_diff", row=row, route=route, rule_key=key)
         return self.disp(t, "자동", f"규칙 '{key}'", state="written", row=row, route=route, rdate=t.date,
                          rule_key=key)
+
+    def platform_fixed(self, t, key, amount):
+        """[[platform_fixed]] — 플랫폼 결제 중 가맹점·카드·청구 금액이 정확히 같은 칸. 카드 결제만 본다."""
+        if t.kind != "card":
+            return None
+        for fx in self.cfg.get("platform_fixed", []):
+            if fx["key"] in key and fx["card"] == t.card and fx["amount"] == amount:
+                return fx
+        return None
 
     def route_of_row(self, row):
         return csv_route({c: str(row[c]) for c in COLS}, set(CARDS))
