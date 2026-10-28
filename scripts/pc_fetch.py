@@ -1833,13 +1833,17 @@ def imap_collect(mc, kc, run_start, folder, cred_reader, log, sleep=time.sleep):
 
 
 def decrypt_xlsx(src, dst, password):
-    """msoffcrypto로 암호만 벗긴다(원본 OOXML 그대로). 실패하면 부분 출력(우리가 'xb'로 만든 파일)을 지운다."""
+    """msoffcrypto로 암호만 벗긴다(원본 OOXML 그대로). 실패하면 부분 출력(우리가 'xb'로 만든 파일)을 지운다.
+
+    카카오뱅크 첨부(agile · SHA1 · 128비트)는 맞는 암호에도 msoffcrypto의 암호 검증(verifier)·무결성(HMAC)이 실패한다
+    (2026-10-28 실측 — 검증 없이 푼 결과는 손 _v.xlsx와 거래 89/89 같음). 그래서 검증은 끄고, 틀린 암호는
+    decrypt()가 '풀린 결과가 zip(xlsx) 아님'으로 InvalidKeyError를 내는 것으로 막는다(실측 · 시험 roundtrip)."""
     import msoffcrypto
     made = False
     try:
         with open(src, "rb") as f:
             of = msoffcrypto.OfficeFile(f)
-            of.load_key(password=password, verify_password=True)
+            of.load_key(password=password, verify_password=False)
             with open(dst, "xb") as o:
                 made = True
                 of.decrypt(o)
