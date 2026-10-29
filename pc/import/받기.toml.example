@@ -72,7 +72,7 @@ period_fields = ["qyStd", "qyEdd"]
 expect_fields = { crdTcd = "A", encCrdN = "", oriType = "PAY", qyTcd = "0", dmsTsF = "0", fmlOCrdC = "0", monthType = "4" }
 count_path = "mbw_json.totalCnt"
 list_path = "mbw_json.payList"
-next_key_path = "mbw_json.nextKey"    # 비어 있지 않으면 쪽 나눔 — 엑셀 안 누름(실측 전)
+next_key_path = "mbw_json.nextKey"    # 비어 있지 않아도 응답 건수 > 목록 길이면 엑셀(전체 — 2026-10-28 실측) · 그 밖·못 읽음이면 엑셀 안 누름 · 받음은 건수 넷 일치로
 [site.screen_values]
 count_re = '총\s*([\d,]+)\s*건'
 period_re = '(?P<y1>\d{4})\.(?P<m1>\d{2})\.(?P<d1>\d{2})\s*~\s*(?:(?P<y2>\d{4})\.)?(?P<m2>\d{2})\.(?P<d2>\d{2})'

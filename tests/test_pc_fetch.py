@@ -193,6 +193,8 @@ SHC_ROWS = [  # (날짜, 시각, 구분, 이용카드, 가맹점, 승인번호, 
     ("2026-10-21", "13:10", "신용", SHC_ID, "가상카페", "40000004", 5513, "승인취소"),
     ("2026-10-28", "09:05", "신용", SHC_ID, "가상서점", "40000005", 21013, "승인"),
 ]
+SHC_MANY = [(f"2026-10-{1 + i % 28:02d}", f"{8 + i % 12:02d}:{i % 60:02d}", "신용", SHC_ID, f"가상가게{i}",
+             f"{41000000 + i}", 1013 + 100 * i, "결제확정") for i in range(47)]   # >20건(응답 목록은 20 · 다음 쪽 키)
 HYC_ROWS = [  # (날짜, 시각, 가맹점, 금액, 승인번호, 상태)
     ("2026-10-02", "10:00", "가상주유소", 51013, "70000001", "전표접수"),
     ("2026-10-11", "18:20", "가상빵집", 8013, "70000002", "전표접수"),
@@ -1248,6 +1250,7 @@ if (PAGE === "main") {
     if (S.excel_popup) window.open("/popup", "_blank");
     const f = document.createElement("form"); f.method = "POST"; f.action = "/mob/MOBFM045N/MOBFM045R0101Excel.ajax";
     document.body.appendChild(f); f.submit();
+    if (S.logout_after_excel) { document.cookie = "li=; path=/; max-age=0"; document.getElementById("hdr").innerHTML = "<span>로그인해 주세요</span>"; }
   };
 }
 </script></body></html>"""
@@ -1421,6 +1424,8 @@ class FakeBanks:
             rows = in_period(scn.get("rows", SHC_ROWS), s, e)
             j = {"mbw_json": {"totalCnt": str(len(rows)), "payList": [{"x": 1}] * min(20, len(rows)),
                               "nextKey": scn.get("next_key", "")}}
+            for k in scn.get("drop", []):   # 응답 칸 빠짐 흉내(목록 길이·다음 쪽 키 못 읽음)
+                j["mbw_json"].pop(k)
             route.fulfill(status=200, content_type="application/json", body=json.dumps(j))
         elif u.path.endswith("R0101Excel.ajax"):
             self.posts.append(("shc_excel", {}))
@@ -1430,7 +1435,10 @@ class FakeBanks:
                 return
             s, e = self.period["shc"]
             p = os.path.join(self.td, "shc.xlsx")
-            shc_xlsx(p, in_period(scn.get("rows", SHC_ROWS), s, e), tail=scn.get("tail"))
+            rows = in_period(scn.get("rows", SHC_ROWS), s, e)
+            if scn.get("excel_page"):        # 쪽 단위 엑셀 흉내 — 최신 N행만(꼬리 '총 N건'도 그 쪽)
+                rows = sorted(rows, reverse=True)[:scn["excel_page"]]
+            shc_xlsx(p, rows, tail=scn.get("tail"))
             self.file(route, f"Shinhancard_{e:%Y%m%d}.xlsx", read_bytes(p), "application/octet-stream")
         else:
             route.fulfill(status=404, body="")
@@ -1621,6 +1629,36 @@ class E2E(unittest.TestCase):
                 if pressed is not None:
                     self.assertEqual("shc_excel" in [p[0] for p in self.fake.posts], pressed)
                 self.assertEqual(os.listdir(self.w.inbox), [])
+
+    def test_next_key_count_over_list_takes_whole_excel(self):
+        """(2026-10-29 1회차 P1) 다음 쪽 키 있음 ∧ 응답 건수 > 목록 길이 → 엑셀을 누르고 건수 넷 일치로 판정:
+        (b) 쪽 단위 엑셀(파일 20 ≠ 응답 47) → 받지 못함('건수') · inbox 0 / 목록·다음 쪽 키 못 읽음 → 엑셀 안 누름 /
+        (a) 전체 엑셀 47행 → 받음 · 새 폴더 · summary query 47/20/true."""
+        rc, out, it = self.one({"rows": SHC_MANY, "next_key": "K2", "excel_page": 20})
+        self.assertEqual((rc, it["status"]), (2, "받지 못함"), out)
+        self.assertIn("건수", it["error"])
+        self.assertIn("shc_excel", [p[0] for p in self.fake.posts])
+        self.assertEqual(os.listdir(self.w.inbox), [])
+        for drop in (["payList"], ["nextKey"]):
+            with self.subTest(drop=drop):
+                rc, out, it = self.one({"rows": SHC_MANY, "next_key": "K2", "drop": drop})
+                self.assertEqual((rc, it["status"]), (2, "받지 못함"), out)
+                self.assertIn("다음 쪽 키", it["error"])
+                self.assertNotIn("shc_excel", [p[0] for p in self.fake.posts])
+                self.assertEqual(os.listdir(self.w.inbox), [])
+        rc, out, it = self.one({"rows": SHC_MANY, "next_key": "K2"})
+        self.assertEqual((rc, it["status"]), (0, "받음"), out)
+        self.assertEqual((it["query"]["count"], it["query"]["list_len"], it["query"]["next_key"]), (47, 20, True))
+        self.assertIn("응답 건수 47 > 목록 20", out)
+        self.assertEqual(os.listdir(self.w.inbox), ["20261028"])
+        self.assertEqual(os.listdir(os.path.join(self.w.inbox, "20261028")), ["Shinhancard_20261028.xlsx"])
+        self.assert_safe(self.w.summary())
+
+    def test_logout_marker_gone_after_excel_still_received(self):
+        """(1회차 P9) 엑셀 내려받기 직후 로그아웃 표식이 사라져도 검사를 통과한 파일은 받음."""
+        rc, out, it = self.one({"logout_after_excel": True})
+        self.assertEqual((rc, it["status"]), (0, "받음"), out)
+        self.assertEqual(len(os.listdir(os.path.join(self.w.inbox, "20261028"))), 1)
 
     def test_login_never_and_dialog_record_only(self):
         rc, out, it = self.one({"login_never": True}, hooks={})

@@ -1516,10 +1516,19 @@ class SiteRunner:
         if info["count"] != nums["count"]:
             raise ItemFail(f"화면 '총 {nums['count']}건' ≠ 응답 {info['count']} — 엑셀 안 누름")
         if info["next_key"] is not False and site["query"].get("next_key_path"):
-            if not probe_paging:
-                raise ItemFail(f"응답 다음 쪽 키 {'있음' if info['next_key'] else '못 읽음'} — 쪽 나눔(미실측)이라 엑셀 안 누름")
-            it["paging_probe"] = True
-            self.log(f"  [probe-paging] {site['id']}: 다음 쪽 키가 있지만 실측용으로 받는다(회차 폴더에만 · 넣지 않음)")
+            # 응답 건수 > 목록 길이 = '건수는 전체, 목록만 쪽 단위' — 엑셀은 전체(2026-10-28 리허설 1, 47행 넷 일치).
+            # 쪽 단위 엑셀이면 파일 행 ≠ 응답 건수라 check_web_file '건수'가 받지 못함으로 막는다(닫힌 쪽).
+            whole = (info["next_key"] is True and isinstance(info["count"], int) and isinstance(info["list_len"], int)
+                     and info["count"] > info["list_len"])
+            if probe_paging:
+                it["paging_probe"] = True
+                self.log(f"  [probe-paging] {site['id']}: 다음 쪽 키가 있지만 실측용으로 받는다(회차 폴더에만 · 넣지 않음)")
+            elif whole:
+                self.log(f"  {site['id']}: 다음 쪽 키 있음 · 응답 건수 {info['count']} > 목록 {info['list_len']} — "
+                         f"엑셀은 전체(2026-10-28 리허설 실측)로 보고 받는다 · 건수 넷 일치로 판정")
+            else:
+                raise ItemFail(f"응답 다음 쪽 키 {'있음' if info['next_key'] else '못 읽음'} · 응답 건수 {info['count']} · "
+                               f"목록 {info['list_len']} — 쪽 나눔이라 엑셀 안 누름")
         self.ensure_time()
         self.download()
         if try_extend:   # 사이트 끝에서 — 연장 툴팁이 조회 레이어를 가렸다(2026-10-28 리허설 1)
@@ -1568,7 +1577,6 @@ class SiteRunner:
             return
         it["status"] = "받음"
         self.alive()
-        self.ensure_logged_in()
 
 
 # ------------------------------------------------------------
