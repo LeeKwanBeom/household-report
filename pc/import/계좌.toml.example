@@ -61,6 +61,9 @@ file_types = ["xlsx"]
 columns = ["거래일시", "적요", "내용", "출금액", "입금액", "잔액"]
 identity = ["0000-00-0000000"]        # 예: 계좌번호(가짜)
 date_formats = ["%Y.%m.%d %H:%M:%S"]
+# 카카오뱅크처럼 부호 있는 금액 한 열(거래금액)인 통장 — 예금이자 등 0원 행은 '통장 금액이 0원'으로 파일 전체가 실패하므로
+# 행 해석 앞에서 뺀다(금액 0·잔액 변화 0이라 CSV 영향 0 · 뺀 건수는 scan 보고 '뺀 행' 열에). column은 columns 안 이름:
+# exclude_rows = [{ column = "거래금액", values = ["0"] }]
 [source.roles]
 date = "거래일시"
 merchant = "내용"

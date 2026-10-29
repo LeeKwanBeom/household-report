@@ -1918,6 +1918,37 @@ class FormatTests(Base):
         self.assertIn("총건수 2 ≠ 표의 행 1", out)
         self.assertIn("금액 부호", out)
 
+    def test_kakao_zero_row_excluded_by_config(self):
+        """(2026-10-29 받기 개선 1회차 P3) 카뱅 0원 행(예금이자 등): exclude_rows가 있으면 행 해석 앞에서 빼고(excluded 1)
+        잔액 사슬 통과 · 없으면 지금처럼 '통장 금액이 0원'으로 파일 실패(파서 변경 0)."""
+        import pipeline
+        d = tempfile.mkdtemp(prefix="pcimport-kb0-")
+        self.addCleanup(rmtree, d)
+        path = os.path.join(d, "kb.csv")
+        with open(path, "wb") as f:
+            f.write(kakao_like([("10-02", "10:00:00", "입금", "일반입금", "가상", 1013),
+                                ("10-03", "00:10:00", "입금", "예금이자", "가상이자", 0),
+                                ("10-04", "12:00:00", "출금", "체크카드", "가상", -513)]))
+        line = 'id = "카뱅"\nexclude_rows = [{ column = "거래금액", values = ["0"] }]\n'
+        self.assertEqual(FORMAT_CONFIG.count('id = "카뱅"\n'), 1)
+        for text, excl in ((FORMAT_CONFIG, False), (FORMAT_CONFIG.replace('id = "카뱅"\n', line), True)):
+            with self.subTest(exclude_rows=excl):
+                cp = os.path.join(d, f"c{int(excl)}.toml")
+                with open(cp, "w", encoding="utf-8") as f:
+                    f.write(text)
+                cfg = srcmod.load_config(cp, set(pipeline.ACCOUNT_KEY.values()), set(pipeline.CARD_TARGETS))
+                src = next(s for s in cfg["sources"] if s.id == "카뱅")
+                _k, sheets = srcmod.read_table(path)
+                si, h = srcmod.identify(sheets, src)
+                stats = {}
+                if not excl:
+                    with self.assertRaisesRegex(srcmod.SourceError, "통장 금액이 0원"):
+                        srcmod.parse_sheet(sheets[si][1], h, src, "kb.csv", stats)
+                    continue
+                txs = srcmod.parse_sheet(sheets[si][1], h, src, "kb.csv", stats)
+                self.assertEqual((len(txs), stats.get("excluded")), (2, 1))
+                self.assertIsNotNone(srcmod.check_balance_chain(txs, "kb.csv"))
+
     def test_posting_status_change_is_not_a_change(self):
         """현대카드 '승인' → '전표접수'(같은 승인번호)는 바뀜 질문 없이 끝남. '취소'로 바뀔 때만 묻는다."""
         w = self.fworld(rows=BASE_ROWS)

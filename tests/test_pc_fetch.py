@@ -925,6 +925,7 @@ class KakaoTests(unittest.TestCase):
         s = self.w.summary()
         k = s["items"]["카카오뱅크"]
         self.assertEqual((k["status"], k["via"]), ("받음", "메일 2"))  # 최신(다른 계좌)은 떨어지고 그다음 통
+        self.assertEqual(k["check"]["excluded"], 0)                     # 뺀 행 수(0원 행 exclude_rows)가 summary check에
         self.assertEqual(len(k["others"]), 1)
         new = os.listdir(self.w.inbox)
         self.assertEqual(len(new), 1)

@@ -1901,7 +1901,8 @@ def check_kakao(path, acc, kc, rec_start, today, floor):
         bad.append("잔액 열 사슬 없음")
     if bad:
         raise ItemFail("카뱅 검사 4: " + "; ".join(bad))
-    return {"period": [per[0].isoformat(), per[1].isoformat()], "requested": req.isoformat(sep=" "), "rows": len(r["txs"])}
+    return {"period": [per[0].isoformat(), per[1].isoformat()], "requested": req.isoformat(sep=" "), "rows": len(r["txs"]),
+            "excluded": r["excluded"]}
 
 
 def name_time(fname, kc):
