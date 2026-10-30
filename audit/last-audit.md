@@ -1,3 +1,14 @@
+# 내역 받기 개선 2회차 — 구현 기록 (2026-10-30)
+
+공개 저장소다 — 이 절에는 금액·합계·잔고 숫자·가맹점·계좌·카드·메일 주소를 적지 않는다(md5·건수·파일:행만).
+설계·기록은 저장소 밖 `D:\household\household_내역받기_개선평가_2026-10-29.md`(3절 rank 2 'P20 · 2회차' · 맨 끝 "③ 구현 기록(2회차)", 로컬).
+
+- 카카오뱅크 메일 IMAP 재시도(`scripts/pc_fetch.py` `imap_collect`): 2026-10-30 운영 회차 실측 — 첫 조회 0통 → 60초 대기 중 서버가 연결을 끊어 둘째 `select`가 imaplib abort → '예외 abort'로 받지 못함(곧바로 `--run --no-web`로는 받음 — 연결 재사용이 원인). 고침: 시도(wait_tries+1번 · wait_sec 간격)마다 **새로 접속** — 접속·login·select·search·fetch·logout을 한 번의 시도로 묶고, 자격 증명은 시도마다 다시 읽어 login 뒤 바로 지운다. 접속 뒤 끊김(imaplib abort·OSError·ssl.SSLError — 첨부 저장의 파일 OSError는 제외)은 그 시도만 버리고 다음 시도에서 새로 접속, 마지막 시도가 끊기면 '메일 없음' 대신 'IMAP 연결 끊김'(--no-web 안내). 화이트리스트(IMAP4_SSL·login·select(readonly)·search·fetch(PEEK)·logout) 그대로 — noop 등 0(`StaticTests.test_imap_whitelist` 통과). since·floor·후보 고르기 변경 0(파서 변경 0). 접속 실패(IMAP4_SSL 생성 예외)는 지금처럼 즉시 받지 못함.
+- 문서: `pc/code-tab.md`(12절 지금 운영)·`pc/q-household-run/SKILL.md`(0절 내역 받기) 카뱅 '받지 못함' 안내 — 사유가 '메일 없음'·'IMAP 연결 끊김'이면(메일이 늦게 옴) 손 하향 길 전에 `$FETCH --run --no-web`(메일만 다시 수거)을 먼저. 보호 문구(비밀번호·`_v.xlsx`만·cmdkey·Claude 앱 밖·터미널 판)는 그대로 — `DryRunTests` 문서 시험 통과.
+- 시험: `tests/test_pc_fetch.py` `FlakyIMAP`(접속마다 ok/empty/abort · select마다 pc_fetch 프레임 지역 변수에 IMAP 비밀번호가 없는지 검사) + `KakaoTests` 2(0통 → select abort → 새 접속으로 받음 · 시도마다 cred_reader · 접속마다 logout / wait_tries 소진이면 지금처럼 '메일 없음' · 마지막 시도 끊김이면 '연결 끊김') — 둘 다 옛 코드(origin/main `scripts/pc_fetch.py`)에서 실패 확인.
+- 시험 결과: `tests.test_pc_fetch.StaticTests`·`KakaoTests`·`DryRunTests` 17개 OK · 전체 `discover tests` 271개 OK(654.7초 · 실패 0 · 건너뜀 0 — 269 + 새 2).
+- 리허설: 개발 clone 스크립트로 실제 환경 dry-run 1회(`--config` 리허설 사본 · `--no-mail`) — 종료 0 · "브라우저 0 · 메일 0 · 파일·폴더 변경 0" · 출처 3곳 기간 표. 실 메일함·자격 증명으로는 돌리지 않았다(가짜 IMAP 단위 시험만).
+
 # 내역 받기 개선 1회차 — 구현 기록 (2026-10-29)
 
 공개 저장소다 — 이 절에는 금액·합계·잔고 숫자·가맹점·계좌·카드·메일 주소를 적지 않는다(md5·건수·파일:행만).

@@ -1749,32 +1749,36 @@ def _fetch_parts(data):
 
 def imap_collect(mc, kc, run_start, folder, cred_reader, log, sleep=time.sleep):
     """IMAP 읽기 전용 수거 — 후보 메일의 첨부(attach_re)를 folder에 저장. 반환 (저장한 [(메일 번호, 경로, 받은 시각)], 메모).
-    화이트리스트(4절 12): IMAP4_SSL(ssl_context=create_default_context) · login · select(readonly=True) · search · fetch(PEEK) · logout."""
+    화이트리스트(4절 12): IMAP4_SSL(ssl_context=create_default_context) · login · select(readonly=True) · search · fetch(PEEK) · logout.
+    시도(wait_tries + 1번 · wait_sec 간격)마다 **새로 접속**한다 — 접속·login·select·search·fetch·logout을 한 번의 시도로 묶고,
+    자격 증명은 시도마다 다시 읽어 login 뒤 바로 지운다(2026-10-30 운영 실측: 60초 대기 중 서버가 연결을 끊어 둘째 select가
+    imaplib abort → '예외 abort'로 받지 못함). 접속 뒤 연결이 끊기면(imaplib abort · OSError · ssl.SSLError) 그 시도만 버리고
+    다음 시도에서 새로 접속한다 — 화이트리스트 밖 명령(noop 등)은 쓰지 않는다. since·floor·후보 고르기는 그대로(파서 변경 0)."""
     notes = []
     stats = {"hits": 0, "fresh": 0, "from_ok": 0, "subject_ok": 0, "tz": []}  # 리허설 실측(한글 헤더·시간대 — 이월 7)
-    got = cred_reader(mc["cred_target"])
-    if not got or not got[1]:
-        raise ItemFail(f"자격 증명 {mc['cred_target']} 없음 — " + CRED_HELP.format(target=mc["cred_target"], user="<네이버 아이디>"))
     tls = ssl.create_default_context()
-    try:
-        M = imaplib.IMAP4_SSL(mc["host"], int(mc["port"]), ssl_context=tls, timeout=30)
-    except Exception as e:  # noqa: BLE001
-        raise ItemFail(f"IMAP 접속 실패({ename(e)})")
+    since = imap_date((run_start - dt.timedelta(days=int(mc["since_days"]))).date())
+    floor = run_start - dt.timedelta(minutes=10)
+    addr = mc["from"].strip().lower()
     saved = []
-    try:
+
+    def attempt():
+        """한 번의 시도 — 자격 증명 읽기 → 접속 → login(뒤 바로 지움) → select → search → fetch → 저장 → logout. 반환 후보 수."""
+        got = cred_reader(mc["cred_target"])
+        if not got or not got[1]:
+            raise ItemFail(f"자격 증명 {mc['cred_target']} 없음 — " + CRED_HELP.format(target=mc["cred_target"], user="<네이버 아이디>"))
         try:
-            M.login(got[0], got[1])
-        except Exception as e:  # noqa: BLE001 — 서버 문구에 아이디가 들 수 있어 종류만
-            raise ItemFail(f"IMAP 로그인 실패({ename(e)}) — 네이버 2단계 인증·애플리케이션 비밀번호·IMAP 사용 설정을 확인")
-        finally:
+            M = imaplib.IMAP4_SSL(mc["host"], int(mc["port"]), ssl_context=tls, timeout=30)
+        except Exception as e:  # noqa: BLE001
             got = None
-        since = imap_date((run_start - dt.timedelta(days=int(mc["since_days"]))).date())
-        floor = run_start - dt.timedelta(minutes=10)
-        addr = mc["from"].strip().lower()
-        for attempt in range(int(mc["wait_tries"]) + 1):
-            if attempt:
-                log(f"  [메일] 카카오뱅크 메일 없음 — {mc['wait_sec']}초 뒤 다시({attempt}/{mc['wait_tries']})")
-                sleep(int(mc["wait_sec"]))
+            raise ItemFail(f"IMAP 접속 실패({ename(e)})")
+        try:
+            try:
+                M.login(got[0], got[1])
+            except Exception as e:  # noqa: BLE001 — 서버 문구에 아이디가 들 수 있어 종류만
+                raise ItemFail(f"IMAP 로그인 실패({ename(e)}) — 네이버 2단계 인증·애플리케이션 비밀번호·IMAP 사용 설정을 확인")
+            finally:
+                got = None
             typ, _ = M.select("INBOX", readonly=True)
             if typ != "OK":
                 raise ItemFail("받은편지함을 읽기 전용으로 열지 못함")
@@ -1782,7 +1786,7 @@ def imap_collect(mc, kc, run_start, folder, cred_reader, log, sleep=time.sleep):
             ids = (data[0] or b"").split() if typ == "OK" and data else []
             stats["hits"] = len(ids)
             if not ids:
-                continue
+                return 0
             typ, data = M.fetch(b",".join(ids), "(INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIELDS (FROM SUBJECT AUTHENTICATION-RESULTS)])")
             cands = []
             stats.update(fresh=0, from_ok=0, subject_ok=0)
@@ -1827,15 +1831,37 @@ def imap_collect(mc, kc, run_start, folder, cred_reader, log, sleep=time.sleep):
                         f.write(part.get_payload(decode=True) or b"")
                     saved.append((k, path, when))
                 del msg
-            if saved:
-                break
-            if len(cands) > int(mc["max_candidates"]):
-                notes.append(f"후보 {len(cands)}통 중 최신 {mc['max_candidates']}통만 봄")
-    finally:
+            return len(cands)
+        finally:
+            try:
+                M.logout()
+            except Exception:  # noqa: BLE001
+                pass
+
+    tries = int(mc["wait_tries"])
+    dropped = None  # 바로 앞 시도가 연결 끊김으로 끝났으면 그 예외 이름
+    for n in range(tries + 1):
+        if n:
+            if dropped:
+                log(f"  [메일] IMAP 연결 끊김({dropped}) — {mc['wait_sec']}초 뒤 새로 접속({n}/{tries})")
+            else:
+                log(f"  [메일] 카카오뱅크 메일 없음 — {mc['wait_sec']}초 뒤 다시({n}/{tries})")
+            sleep(int(mc["wait_sec"]))
         try:
-            M.logout()
-        except Exception:  # noqa: BLE001
-            pass
+            n_cands = attempt()
+        except (imaplib.IMAP4.abort, OSError, ssl.SSLError) as e:  # 접속 뒤 끊김 — 이 시도만 버린다(ssl.SSLError ⊂ OSError, 명시)
+            if getattr(e, "filename", None):  # 첨부 저장의 파일 OSError(filename 있음)는 끊김이 아니다 — 지금처럼 '예외'로 위에
+                raise
+            dropped = ename(e)
+            notes.append(f"시도 {n + 1}: 연결 끊김({dropped})")
+            if n >= tries:
+                raise ItemFail(f"IMAP 연결 끊김({dropped}) — 메일이 늦게 왔으면 `--run --no-web`로 메일만 다시 수거")
+            continue
+        dropped = None
+        if saved:
+            break
+        if n_cands > int(mc["max_candidates"]):
+            notes.append(f"후보 {n_cands}통 중 최신 {mc['max_candidates']}통만 봄")
     notes.append(stats)
     return saved, notes
 

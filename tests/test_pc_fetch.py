@@ -858,6 +858,40 @@ class FakeIMAP:
         return "BYE", [b""]
 
 
+class FlakyIMAP(FakeIMAP):
+    """접속마다 다른 행동 — plan에서 하나씩 꺼낸다: "ok"(정상) · "empty"(search 0통) · "abort"(select에서 서버가 끊음 = imaplib abort).
+    select마다 pc_fetch 프레임의 지역 변수에 IMAP 비밀번호가 남아 있지 않은지(login 뒤 바로 지움) 본다."""
+    plan = []
+    checked = 0
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.mode = FlakyIMAP.plan.pop(0) if FlakyIMAP.plan else "ok"
+
+    def _no_secret_in_pc_fetch_locals(self):
+        pw = FAKE_SECRETS["household/naver-imap"][1]
+        f = sys._getframe(1)
+        while f is not None:
+            if f.f_code.co_filename.replace("\\", "/").endswith("/pc_fetch.py"):
+                for v in f.f_locals.values():
+                    if v == pw or (isinstance(v, (tuple, list)) and pw in v):
+                        raise AssertionError(f"login 뒤 자격 증명이 지역 변수에 남음: {f.f_code.co_name}")
+                FlakyIMAP.checked += 1
+            f = f.f_back
+
+    def select(self, mbox, readonly=False):
+        self._no_secret_in_pc_fetch_locals()
+        if self.mode == "abort":
+            raise imaplib.IMAP4.abort("socket error: EOF")
+        return super().select(mbox, readonly=readonly)
+
+    def search(self, charset, *crit):
+        if self.mode == "empty":
+            self.log.append(("search",) + crit)
+            return "OK", [b""]
+        return super().search(charset, *crit)
+
+
 def kakao_mail(attach, name=None, subject="[카카오뱅크] 고객님께서 요청하신 거래내역 엑셀파일입니다.",
                sender="no-reply@mail.kakaobank.com"):
     m = EmailMessage(policy=email.policy.SMTP)
@@ -966,6 +1000,63 @@ class KakaoTests(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertIn("cmdkey /generic:household/naver-imap", out)
         self.assertNotIn("/pass:", out)
+
+    def run_flaky(self, plan, messages):
+        FlakyIMAP.plan, FlakyIMAP.checked = list(plan), 0
+        FakeIMAP.instances, FakeIMAP.messages = [], messages
+        reads = []
+
+        def cred(t):
+            reads.append(t)
+            return FAKE_SECRETS.get(t)
+        with mock.patch.object(pf.imaplib, "IMAP4_SSL", FlakyIMAP):
+            rc, out = self.w.run("--run", "--no-web", hooks={"cred_read": cred})
+        return rc, out, reads.count("household/naver-imap")
+
+    def test_imap_reconnects_each_try_and_survives_abort(self):
+        """시도마다 새 접속(2026-10-30 운영 abort): 1차 0통 → 2차 select에서 서버가 끊음(abort) → 3차 새 접속으로 받음.
+        자격 증명은 시도마다 다시 읽고 login 뒤 지역 변수에 남지 않음 · 끊긴 접속도 logout · 노출 0."""
+        good = kakao_mail(fake_encrypt(self.kb(), "FAKEXLSXPW-91z"))
+        rc, out, reads = self.run_flaky(["empty", "abort", "ok"], [(self.epoch(NOW + dt.timedelta(minutes=2)), good)])
+        self.assertEqual(rc, 0, out)
+        k = self.w.summary()["items"]["카카오뱅크"]
+        self.assertEqual((k["status"], k["via"]), ("받음", "메일 1"))
+        self.assertEqual(len(FakeIMAP.instances), 3)                       # 시도 = 접속
+        logs = [[x[0] for x in im.log] for im in FakeIMAP.instances]
+        self.assertEqual(logs[0], ["login", "select", "search", "logout"])
+        self.assertEqual(logs[1], ["login", "logout"])                     # select가 끊겨도 logout 시도
+        self.assertEqual(logs[2][:3], ["login", "select", "search"])
+        self.assertTrue(all(lg[-1] == "logout" for lg in logs))
+        self.assertEqual(reads, 3)                                         # cred_reader는 시도마다
+        self.assertGreaterEqual(FlakyIMAP.checked, 3)                      # select마다 지역 변수 검사가 돌았다
+        self.assertIn("60초 뒤 다시(1/3)", out)
+        self.assertIn("IMAP 연결 끊김(abort) — 60초 뒤 새로 접속(2/3)", out)
+        self.assertTrue(any(isinstance(x, str) and "연결 끊김(abort)" in x for x in k["mail_notes"]))
+        self.assertEqual(len(os.listdir(self.w.inbox)), 1)
+        blob = self.w.all_text(self.w.runs, self.w.inbox) + out.encode("utf-8")
+        for sec in SECRET_STRINGS:
+            self.assertNotIn(sec.encode(), blob, sec)
+
+    def test_imap_no_mail_after_all_tries_and_abort_on_last(self):
+        """wait_tries를 다 써도 0통이면 지금처럼 '메일 없음'(접속·자격 증명 읽기 wait_tries+1번 · 모두 logout · inbox 0).
+        마지막 시도가 끊기면 '메일 없음'이 아니라 'IMAP 연결 끊김'(--no-web 안내)."""
+        rc, out, reads = self.run_flaky(["empty"] * 4, [])
+        self.assertEqual(rc, 2, out)
+        k = self.w.summary()["items"]["카카오뱅크"]
+        self.assertIn("메일 없음", k["error"])
+        self.assertEqual((len(FakeIMAP.instances), reads), (4, 4))
+        self.assertTrue(all(im.log[-1] == ("logout",) for im in FakeIMAP.instances))
+        self.assertIn("60초 뒤 다시(3/3)", out)
+        self.assertEqual(os.listdir(self.w.inbox), [])
+        rc, out, reads = self.run_flaky(["empty", "empty", "empty", "abort"], [])
+        self.assertEqual(rc, 2, out)
+        k = self.w.summary()["items"]["카카오뱅크"]
+        self.assertIn("IMAP 연결 끊김(abort)", k["error"])
+        self.assertIn("--run --no-web", k["error"])
+        self.assertEqual((len(FakeIMAP.instances), reads), (4, 4))
+        self.assertEqual(os.listdir(self.w.inbox), [])
+        for sec in SECRET_STRINGS:
+            self.assertNotIn(sec, out)
 
     def test_real_msoffcrypto_roundtrip(self):
         try:
