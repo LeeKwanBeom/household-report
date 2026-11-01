@@ -1084,8 +1084,8 @@ class CoupleRealSpendOutput(unittest.TestCase):
         lines = out.getvalue().splitlines()
         k = next(i for i, ln in enumerate(lines) if ln.startswith("  총수입 "))
         self.assertIn(f"총지출 {b['kpi']['total_expense']:,}원", lines[k])
-        # fixture: 9/1 커플통장 이체 400,000 셈 · 9/20 커플통장에서 바로 낸 20,000 뺌
-        self.assertEqual(lines[k + 1], "  실질 지출: 정산 받은 데이트비용 10,001원 뺌 · 커플통장 이체 400,000원 더함 · "
+        # fixture: 9/1 커플통장 이체 500,000 셈 · 9/20 커플통장에서 바로 낸 20,000 뺌
+        self.assertEqual(lines[k + 1], "  실질 지출: 정산 받은 데이트비용 10,001원 뺌 · 커플통장 이체 500,000원 더함 · "
                                        "커플통장에서 바로 낸 20,000원 뺌 (2026-09-01부터)")
         self.assertTrue(lines[k + 2].startswith("  생활비 통장:"))
 
@@ -1105,7 +1105,7 @@ class CoupleRealSpendOutput(unittest.TestCase):
         self.assertIn("내여자 실질 지출", notes[0])
         self.assertIn("데이트비용: 내 카드·계좌로 낸 15,006원 중 커플통장에서 정산 받은 12,000원은 지출에서 뺐어요(9/1부터)",
                       notes[0])
-        self.assertIn("커플통장: 9/1부터는 생활비 → 커플통장 이체 400,000원을 지출로 셌어요(비고 'N월분'이면 그 달로)",
+        self.assertIn("커플통장: 9/1부터는 생활비 → 커플통장 이체 500,000원을 지출로 셌어요(비고 'N월분'이면 그 달로)",
                       notes[0])
         self.assertIn("커플통장에서 바로 낸 20,000원은 이체로 이미 셌으니 지출에서 뺐어요", notes[0])
 
@@ -1461,8 +1461,8 @@ class ReportDashboard(unittest.TestCase):
                 self.assertIn(f"내여자 실질 지출 {col.get('내여자', 0):,}원</b>", body)
             else:
                 self.assertNotIn('<div class="note">', body)
-        # 시험 재료가 조정 줄 셋을 다 거친다(2026-09: 이체 400,000 · 커플통장 결제 20,000 / 2027-03: 정산 4,001)
-        self.assertEqual(rs["transfer_by_month"][2], 400_000)
+        # 시험 재료가 조정 줄 셋을 다 거친다(2026-09: 이체 500,000 · 커플통장 결제 20,000 / 2027-03: 정산 4,001)
+        self.assertEqual(rs["transfer_by_month"][2], 500_000)
         self.assertEqual(rs["couple_paid_by_month"][2], 20_000)
         self.assertEqual(rs["settled_by_month"][3], 4_001)
 
