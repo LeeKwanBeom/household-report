@@ -271,14 +271,38 @@ def config_problems(cfg):
         if not q.get("url_re") or not q.get("count_path") or q.get("body", "") not in ("form", "json", "") \
                 and not str(q.get("body", "")).startswith("form_json:"):
             errs.append(f"{where}: query.url_re·count_path·body(form/json/form_json:<칸>)")
+        body = str(q.get("body", ""))
+        if body.startswith("form_json:") and not body.split(":", 1)[1].strip():
+            errs.append(f"{where}: query.body form_json:<칸>의 칸 이름이 비었다")
+        # 아래는 로그인 뒤에야 드러나는 것 — 소비 코드(screen_numbers·screen_period_ok·_frame_of·frame_count·states)가 요구하는 꼴만
         sv = s.get("screen_values", {})
+        rx = {}
         for k in ("count_re", "period_re"):
             try:
-                re.compile(sv.get(k, ""))
+                rx[k] = re.compile(sv.get(k, ""))
             except re.error as e:
                 errs.append(f"{where}: screen_values.{k} 정규식 오류 {e}")
             if not sv.get(k):
                 errs.append(f"{where}: screen_values.{k}가 없다")
+        if sv.get("count_re") and "count_re" in rx and rx["count_re"].groups < 1:
+            errs.append(f"{where}: screen_values.count_re에 건수를 잡는 묶음 ( )이 없다")
+        if sv.get("period_re") and "period_re" in rx:
+            miss = [g for g in ("m1", "d1", "m2", "d2") if g not in rx["period_re"].groupindex]
+            if miss:
+                errs.append(f"{where}: screen_values.period_re에 이름 묶음 {miss}가 없다(y1·y2는 선택)")
+        for k in ("must_text", "must_text_after"):
+            mt = sv.get(k)
+            if mt is not None and (not isinstance(mt, dict) or any(
+                    not str(c).strip() or not isinstance(v, str) or not v.strip() for c, v in mt.items())):
+                errs.append(f"{where}: screen_values.{k}는 {{선택자 = 기대 글자}} — 빈 선택자·빈 글자 불가")
+        frames = [(f"actions.{n}.{k}", a[k]) for n, a in acts.items() for k in ("frame", "wait_frame") if k in a]
+        if "frame" in s.get("excel_checks", {}):
+            frames.append(("excel_checks.frame", s["excel_checks"]["frame"]))
+        for name, pat in frames:
+            try:
+                re.compile(pat)
+            except (re.error, TypeError) as e:
+                errs.append(f"{where}: {name}(iframe 주소 정규식) 오류 {e}")
         ef = s.get("excel_file", {})
         if ef.get("count_where") not in ("head", "tail") or not ef.get("count_re"):
             errs.append(f"{where}: excel_file.count_re·count_where(head/tail)")
@@ -293,7 +317,15 @@ def config_problems(cfg):
         for k in ("source", "cred_target", "pattern_encrypted", "pattern_plain", "requested_re"):
             if not kk.get(k):
                 errs.append(f"kakao.{k}가 없다")
+        ko = kk.get("overlap_days")
+        if "overlap_days" in kk and (isinstance(ko, bool) or not isinstance(ko, int) or ko < 1):
+            errs.append("kakao.overlap_days는 1 이상 정수(없으면 period.overlap_days)")
     return errs
+
+
+def kakao_overlap(cfg):
+    """카카오뱅크만 다른 겹침 일수 — [kakao] overlap_days, 없으면 [period] overlap_days(웹 3곳은 늘 [period])."""
+    return (cfg.get("kakao") or {}).get("overlap_days", cfg["period"]["overlap_days"])
 
 
 def resolve_paths(cfg):
@@ -2121,7 +2153,8 @@ def make_plan(cfg, acc, paths, today, args):
     if kakao and not args.no_mail and (args.mail_only or cfg.get("mail")):
         if kakao["source"] not in acc["by_id"]:
             raise StopRun(f"kakao.source {kakao['source']}가 계좌.toml에 없다")
-        items[kakao["source"]] = dict(plan_period(kakao["source"], acc, ends, today, ov, None, overrides.get(kakao["source"])),
+        items[kakao["source"]] = dict(plan_period(kakao["source"], acc, ends, today, kakao_overlap(cfg), None,
+                                                  overrides.get(kakao["source"])),
                                       kind="mail_drop" if args.mail_only else "imap", status="미실행")
     for k, v in items.items():
         v["source"] = k
@@ -2140,8 +2173,13 @@ def cmd_dry_run(cfg, acc, paths, plan, args, hooks):
     if os.path.normcase(paths["inbox_root"]) != os.path.normcase(paths["scan_inbox"]):
         log(f"[리허설] ③ 대상 {trust(paths['inbox_root'])} ≠ scan inbox {trust(paths['scan_inbox'])}")
     inf = plan["inbox"]
+    kk = cfg.get("kakao")
+    ksrc = kk["source"] if kk else None
+    ov = f" · 겹침 {cfg['period']['overlap_days']}일"
+    if ksrc in plan["items"] and kakao_overlap(cfg) != cfg["period"]["overlap_days"]:
+        ov += f" · {ksrc} {kakao_overlap(cfg)}일"
     log(f"기간 근거: 원장 period + scan inbox 파일 {inf['files']}개(무시(설정) {inf['ignored']} · 읽기 실패 {inf['failed']} — 제외)"
-        f" · 겹침 {cfg['period']['overlap_days']}일")
+        + ov)
     log("| 출처 | 받는 길 | 시작 | 끝 | 일수 | 근거 |")
     log("|---|---|---|---|---|---|")
     for sid, it in plan["items"].items():
@@ -2160,8 +2198,6 @@ def cmd_dry_run(cfg, acc, paths, plan, args, hooks):
     if plan["sites"]:
         log(f"  프로필 {trust(paths['profile_dir'])} · 금지 문구 {len(cfg['forbidden_texts'])}개 · 로그인 대기 최대 "
             f"{int(cfg['timeout']['login']) // 60}분/곳 · dialog accept 0")
-    kk = cfg.get("kakao")
-    ksrc = kk["source"] if kk else None
     if ksrc in plan["items"]:
         it = plan["items"][ksrc]
         log(f"카카오뱅크: msoffcrypto {'있음' if have_msoffcrypto() else '없음'} · 자격 증명 {kk['cred_target']} "

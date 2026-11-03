@@ -437,6 +437,63 @@ class ConfigTests(unittest.TestCase):
                 with self.assertRaises(pf.StopRun):
                     pf.load_config(p)
 
+    def errors_of(self, text):
+        import tomllib
+        return pf.config_problems(tomllib.loads(text))
+
+    def test_kakao_overlap_days_bad_values_rejected(self):
+        """[kakao] overlap_days는 1 이상 정수만 — 0·글자·소수·참거짓은 --run 전에 막는다(없으면 [period] 값)."""
+        base = read_bytes(EXAMPLE).decode("utf-8")
+        self.assertIn("\noverlap_days = 14\n", base)
+        self.assertEqual(self.errors_of(base), [])
+        self.assertEqual(self.errors_of(base.replace("\noverlap_days = 14\n", "\n")), [])   # 키 없음
+        for bad in ("0", '"14"', "1.5", "true", "-3"):
+            with self.subTest(bad):
+                errs = self.errors_of(base.replace("\noverlap_days = 14\n", f"\noverlap_days = {bad}\n"))
+                self.assertEqual([e for e in errs if "kakao.overlap_days" in e], errs)
+                self.assertEqual(len(errs), 1, errs)
+        w = World(self)                                   # --run이어도 설정 검사에서 멈춘다 — 브라우저·메일 0
+        with open(w.config, encoding="utf-8") as f:
+            text = f.read()
+        with open(w.config, "w", encoding="utf-8") as f:
+            f.write(text.replace("\noverlap_days = 14\n", "\noverlap_days = 0\n"))
+
+        def boom(*a, **k):
+            raise AssertionError("설정이 틀렸는데 브라우저·메일을 불렀다")
+        before = snapshot(w.home)
+        with mock.patch.object(pf.imaplib, "IMAP4_SSL", boom):
+            rc, out = w.run("--run", hooks={"sync_playwright": boom})
+        self.assertEqual(rc, pf.EXIT_STOP, out)
+        self.assertIn("kakao.overlap_days는 1 이상 정수", out)
+        self.assertEqual(snapshot(w.home), before)
+
+    def test_login_time_config_problems_rejected(self):
+        """로그인 뒤에야 드러나는 설정 결함(묶음 없는 건수 정규식 · 이름 묶음 빠진 기간 정규식 · 깨진 iframe 정규식 ·
+        칸 이름 빈 form_json · 빈 must_text 글자)도 --run 전에 막는다."""
+        base = read_bytes(EXAMPLE).decode("utf-8")
+        cases = {
+            "count_re 묶음 없음": (base.replace("count_re = '총\\s*([\\d,]+)\\s*건'\nperiod_re = '(?P<y1>",
+                                                "count_re = '총\\s*[\\d,]+\\s*건'\nperiod_re = '(?P<y1>", 1),
+                                   "screen_values.count_re에 건수를 잡는 묶음"),
+            "period_re 이름 묶음 빠짐": (base.replace("(?P<m2>\\d{1,2})월\\s*(?P<d2>\\d{1,2})일'",
+                                                    "(\\d{1,2})월\\s*(\\d{1,2})일'", 1),
+                                        "period_re에 이름 묶음 ['m2', 'd2']"),
+            "iframe 정규식 깨짐": (base.replace("frame = 'popup\\.jsp', expect = [\"전체\"]",
+                                                "frame = 'popup(\\.jsp', expect = [\"전체\"]", 1),
+                                   "actions.col_all.frame(iframe 주소 정규식) 오류"),
+            "form_json 칸 이름 없음": (base.replace('body = "form_json:mbw_json"', 'body = "form_json:"', 1),
+                                       "form_json:<칸>의 칸 이름이 비었다"),
+            "must_text 빈 글자": (base.replace('must_text = { "#cardType-custom" = "전체" }',
+                                               'must_text = { "#cardType-custom" = "" }', 1),
+                                  "screen_values.must_text는"),
+        }
+        for name, (text, needle) in cases.items():
+            with self.subTest(name):
+                self.assertNotEqual(text, base)
+                errs = self.errors_of(text)
+                self.assertEqual(len(errs), 1, errs)
+                self.assertIn(needle, errs[0])
+
     def test_paths_inside_inbox_or_clone_rejected(self):
         w = World(self)
         cfg = pf.load_config(w.config)
@@ -648,6 +705,41 @@ class PeriodTests(unittest.TestCase):
         p = self.plan(w, "--start", "현대카드=2026-01-01")  # 앞으로 넓혀도 상한에서 자르고 경고
         self.assertEqual(p["items"]["현대카드"]["start"], TODAY - dt.timedelta(days=90))
         self.assertTrue(p["items"]["현대카드"]["warn"])
+
+    def test_kakao_overlap_days_only_for_kakao(self):
+        """[kakao] overlap_days(예시 14) → 카뱅만 지난 끝 − 14일 · 웹은 [period] 30일 그대로 · dry-run 겹침 줄과 버튼.
+        키가 없으면 지금처럼 카뱅도 30일."""
+        w = World(self)
+        with open(os.path.join(w.rules, "계좌.toml"), "w", encoding="utf-8") as f:
+            f.write(ACCOUNTS.replace('start_date = "2026-10-01"', 'start_date = "2026-01-01"'))
+        w.ledger([("카카오뱅크", "2026-01-01", "2026-10-20"), ("신한은행", "2026-01-01", "2026-10-20")])
+        with open(w.config, encoding="utf-8") as f:
+            with14 = f.read()
+        self.assertIn("\noverlap_days = 14\n", with14)
+        for label, text, kb_start, days, button in (
+                ("키 없음", with14.replace("\noverlap_days = 14\n", "\n"), dt.date(2026, 9, 20), 30, "3개월"),
+                ("14일", with14, dt.date(2026, 10, 6), 14, "1개월")):
+            with self.subTest(label):
+                with open(w.config, "w", encoding="utf-8") as f:
+                    f.write(text)
+                p = self.plan(w)
+                self.assertEqual(p["items"]["카카오뱅크"]["start"], kb_start)
+                self.assertIn(f"지난 받은 끝 2026-10-20 − {days}일", p["items"]["카카오뱅크"]["basis"])
+                self.assertEqual(p["items"]["신한은행"]["start"], dt.date(2026, 9, 20))      # 웹은 [period] 30일
+                self.assertIn("지난 받은 끝 2026-10-20 − 30일", p["items"]["신한은행"]["basis"])
+                rc, out = w.run()
+                self.assertEqual(rc, 0, out)
+                line = [ln for ln in out.splitlines() if ln.startswith("기간 근거:")][0]
+                if days == 30:
+                    self.assertTrue(line.endswith(" · 겹침 30일"), line)
+                else:
+                    self.assertTrue(line.endswith(" · 겹침 30일 · 카카오뱅크 14일"), line)
+                self.assertIn(f"| 카카오뱅크 | 메일 IMAP | {kb_start} | {TODAY} |", out)
+                self.assertIn(f"기간 {kb_start} ~ {TODAY} ({button})", out)
+                p = self.plan(w, "--no-mail")                                                # 카뱅 없는 계획엔 문구 없음
+                self.assertNotIn("카카오뱅크", p["items"])
+        rc, out = w.run("--no-mail")
+        self.assertNotIn("카카오뱅크 14일", out)
 
 
 # ================================================================ 5. 파일 검사 — 완료 기준 6·7·20
