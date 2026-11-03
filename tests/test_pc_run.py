@@ -417,6 +417,88 @@ class BindingK1K2(PcRunBase):
         self.assert_blocked(rid, code, "회차 무결성")
 
 
+class RunLatest(PcRunBase):
+    """--run latest = load_run의 '가장 최근 회차만' 판정과 같은 함수(latest_run) — 이름을 찍고, stamp 없는 회차·회차 0개는 FAIL."""
+
+    def test_latest_picks_newest_stamped_run_and_prints_name(self):
+        rc, out, rid_a = self.build()
+        self.assertEqual(rc, 0, out)
+        self.write_csv(csv_variant(add=[EXTRA_ROW]))
+        rc, out, rid_b = self.build()
+        self.assertEqual(rc, 0, out)
+        self.assertGreater(pc_run.run_key(rid_b), pc_run.run_key(rid_a))
+        for junk in ("받기", "내역", "zz-notes", "latest"):                       # 회차 이름 꼴이 아닌 폴더는 고르지 않는다
+            os.makedirs(os.path.join(self.home, "work", junk))
+        ctx = pc_run.Ctx(self.repo, self.home, False)
+        self.assertEqual(pc_run.latest_run(ctx), rid_b)
+        rc, out = self.pc("review", "--run", "latest")
+        self.assertEqual(rc, 0, out)
+        head = out.splitlines()[:4]
+        self.assertIn(f"[정보] --run latest = {rid_b}", head, head)
+        self.assertIn(f"회차 {rid_b} ·", out)
+        self.assertIn(f"승인 코드: {self.code_of(rid_b)}", out)
+        # stamp 없는 회차(pipeline 실패)가 가장 최근이면 고르지 않고 FAIL — --run <이름>의 '가장 최근 회차만'과 같은 판정
+        self.write_csv(fixture_text().replace("결제수단,", "결제방법,", 1))
+        rc, out, rid_c = self.build()
+        self.assertEqual(rc, 1, out)
+        self.assertEqual(pc_run.latest_run(ctx), rid_c)
+        for cmd in ("review", "deploy", "live", "record"):
+            with self.subTest(cmd):
+                rc, out = self.pc(cmd, "--run", "latest")
+                self.assertEqual(rc, 1, out)
+                self.assertIn(f"[정보] --run latest = {rid_c}", out)
+                self.assertIn(f"회차 {rid_c}에 stamp.json이 없다", out)
+        rc, out = self.pc("review", "--run", rid_b)
+        self.assertEqual(rc, 1, out)
+        self.assertIn(f"가장 최근 회차가 아니다(최근: {rid_c})", out)
+        self.assertNotIn("--run latest", out)                                       # --run <이름>은 그대로
+
+    def test_latest_without_runs_fails(self):
+        for cmd in ("review", "deploy", "live", "record"):
+            with self.subTest(cmd):
+                rc, out = self.pc(cmd, "--run", "latest")
+                self.assertEqual(rc, 1, out)
+                self.assertIn("[FAIL] --run latest:", out)
+                self.assertIn("회차 폴더가 없다", out)
+        self.assertFalse(os.path.exists(os.path.join(self.home, "runs", "log.md")))
+
+    def test_deploy_latest_same_judgment_as_name(self):
+        """deploy --run latest --confirm <코드>는 --run <가장 최근 이름>과 같다 — 코드는 그 회차 report md5여야 하고,
+        승인 뒤 새 build가 생기면 옛 코드로는 배포하지 않는다. 이어서 live·record도 latest로."""
+        self.write_csv(csv_variant(add=[EXTRA_ROW]))
+        _, _, rid_a = self.build()
+        rc, out = self.pc("review", "--run", "latest")
+        self.assertEqual(rc, 0, out)
+        code_a = self.code_of(rid_a)
+        self.write_csv(csv_variant(add=[EXTRA_ROW2]))                               # 승인 뒤 다른 CSV로 새 회차
+        _, _, rid_b = self.build()
+        code_b = self.code_of(rid_b)
+        self.assertNotEqual(code_a, code_b)
+        before = self.remote_main()
+        for argv, needle in ((("--run", "latest", "--confirm", code_a), "사용자가 승인한 판이 아니다"),
+                             (("--run", rid_b, "--confirm", code_a), "사용자가 승인한 판이 아니다"),
+                             (("--run", rid_a, "--confirm", code_a), "가장 최근 회차가 아니다")):
+            with self.subTest(argv):
+                rc, out = self.pc("deploy", *argv)
+                self.assertEqual(rc, 1, out)
+                self.assertIn(needle, out)
+                self.assertEqual(self.remote_main(), before)
+        self.assertEqual(self.pc("review", "--run", "latest")[0], 0)
+        rc, out = self.pc("deploy", "--run", "latest", "--confirm", code_b)
+        self.assertEqual(rc, 0, out)
+        self.assertIn(f"[정보] --run latest = {rid_b}", out.splitlines()[:3])
+        self.assertEqual(self.remote_main(), git(self.repo, "rev-parse", "HEAD"))
+        self.assertEqual(md5(read_bytes(os.path.join(self.repo, "index.html"))), self.stamp(rid_b)["report_md5"])
+        report = read_bytes(os.path.join(self.home, "work", rid_b, "report.html"))
+        with mock.patch.object(pc_run, "_sleep", lambda s: None):
+            rc, out = self.pc("live", "--run", "latest", http=fake_http(pages=report, actions=("completed", "success")))
+        self.assertEqual(rc, 0, out)
+        rc, out = self.pc("record", "--run", "latest")
+        self.assertEqual(rc, 0, out)
+        self.assertIn(f"| {rid_b} |", out)
+        self.assertIn("배포 완료", out)
+
+
 class ScopeAndExposure(PcRunBase):
     """push 범위 · 코드 회차 · 공개 노출(K3 포함)."""
 

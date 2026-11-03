@@ -46,17 +46,24 @@ D:\household\
 
 `RUN="$PY /d/household/household-report/scripts/pc_run.py"` (PY = `/d/household/.venv/Scripts/python.exe`, 매 Bash 호출 첫머리는 로컬 스킬 참고)
 
+세션은 아래 표를 **Bash 두 번**으로 잇는다(로컬 스킬 '흐름'):
+(1) `$RUN check && $RUN build --csv <경로> && $RUN review --run latest` — review exit 2(`[멈춤]`)면 질문을 그대로 묻고, 이체 질문에 "그대로 진행"이면 `$RUN review --run latest --ack-transfer`.
+(2) "배포 <승인 코드>" 뒤 `$RUN deploy --run latest --confirm <코드> [--ack-transfer] && { $RUN live --run latest; $RUN record --run latest; }` — Bash `run_in_background`로 돌리고 끝을 기다린다(live가 push 뒤 최대 약 12분).
+deploy가 `[FAIL]`이면 &&라 live·record는 돌지 않고, live 결과(0·3·1)와 상관없이 record가 돈다.
+`--run latest` = 회차 폴더(`work\` · 리허설 `work-rehearsal\`)의 가장 최근 회차 — ④의 '가장 최근 회차' 판정과 같은 함수(`latest_run`)다.
+고른 이름을 출력 앞줄에 `[정보] --run latest = <회차>`로 찍고, 그 회차에 stamp.json이 없거나 회차가 없으면 `[FAIL]`. `--run <회차>`(이름·경로)도 그대로 받는다.
+
 | 단계 | 명령 | 하는 일 · 멈추는 곳 | 쓰기 |
 |---|---|---|---|
 | (내역 정리) | `$IMP scan` → 답 → `$IMP apply --run <회차> --confirm` | 금융사 내역 파일을 CSV 행으로 정리해 uploads에 새 판 CSV를 둔다 — 12절. 사용자가 "내역 정리"라고 할 때만 | uploads·rules(apply만) |
 | S0 | `$RUN check` | clone = 운영 clone · main · autocrlf=false · exclude 줄 · 깨끗 · fetch 뒤 HEAD = origin/main(뒤에만 → sync / 앞섬 → 코드 회차 [주의] 또는 남은 배포 커밋 FAIL / 갈라짐 FAIL) · push --dry-run 인증(창 없이) · 파이썬·pandas·numpy 판 · node · uploads CSV 목록 · 공개판 md5 대 origin/main index.html([주의]만 — CDN 지연) · 지난 회차가 배포됐는지 · 로컬 파일 md5 · 루트 git | `.git`(fetch)만 |
 | ① | (세션) | uploads의 CSV — 여럿이면 묻는다 | 0 |
 | ② | `$RUN build --csv <경로>` | main·깨끗한 트리·origin/main보다 뒤가 아닐 때만 새 회차 폴더 → CSV 사본 → `base.html = git show HEAD:index.html` → pipeline(rc ≠ 0이면 멈춤, stamp 없음) → build(`HOUSEHOLD_OUT`=회차 폴더, LF) → detect_ended → stamp.json(로컬 HEAD · origin/main · 코드 파일 · 원본 CSV md5 · report md5 · 판) | 회차 폴더만 |
-| ③ | `$RUN review --run <회차>` | (a) 최신 달 "이체 행 없음" → [멈춤] 질문(지난 달·"합계 ≠"는 정보) · 커플통장 정산 줄(bundle 문구 그대로 — 대화로 · 옛 회차 bundle이면 없음) (b) [경고] 전부 (c) 종료 추정 [확인 필요] (d) CSV 최신 날짜 < 공개판 → [멈춤](옛 CSV) (e) `validate_html(prev = base.html)` — 기준판이 비었거나 "건너뜀"이면 FAIL, 잔고 급변은 승인 질문에 싣는다 (f) 기준판 대비 합계·잔고 변동. 멈춤이 없을 때만 **승인 코드(report md5 앞 8자)**와 승인 질문 | 0 |
-| ④ | `$RUN deploy --run <회차>` | fetch → 로컬 HEAD = stamp · origin/main = stamp · origin/main..HEAD 파일 ⊆ 승인된 코드 파일 · 회차 파일·원본 CSV md5 = stamp · 깨끗 · ③ 멈춤 없음 · 가장 최근 회차. 기본은 dry-run("커밋될 파일" 줄까지) | 0 |
-| ⑤ | `… deploy --run <회차> --confirm <코드>` | 같은 프로세스에서 ④를 다시 돈 뒤, 코드 = 그 폴더 report md5일 때만 report → index.html → `git add index.html` → 스테이징 = index.html 하나 → 커밋(noreply 작성자, "리포트 갱신 (날짜, CSV ~MM-DD)") → push 직전 범위 검사 → `git push origin HEAD:refs/heads/main` **1회**(force·재시도 없음) | 원격 1 push |
-| ⑥ | `$RUN live --run <회차>` | `ls-remote` = 배포 커밋 → 그 sha의 `pages build and deployment` 성공(인증 없이, 상한 3분) → 공개판 md5 = report(상한 push 뒤 12분). exit 0 / 3(Pages 성공·CDN 미확인) / 1 | 회차 폴더 live.json |
-| ⑦ | `$RUN record --run <회차>` | `runs\log.md` 한 줄. "배포 완료"는 live exit 0이고 공개판 md5 = report일 때만 | 로컬 1줄 |
+| ③ | `$RUN review --run latest` | (a) 최신 달 "이체 행 없음" → [멈춤] 질문(지난 달·"합계 ≠"는 정보) · 커플통장 정산 줄(bundle 문구 그대로 — 대화로 · 옛 회차 bundle이면 없음) (b) [경고] 전부 (c) 종료 추정 [확인 필요] (d) CSV 최신 날짜 < 공개판 → [멈춤](옛 CSV) (e) `validate_html(prev = base.html)` — 기준판이 비었거나 "건너뜀"이면 FAIL, 잔고 급변은 승인 질문에 싣는다 (f) 기준판 대비 합계·잔고 변동. 멈춤이 없을 때만 **승인 코드(report md5 앞 8자)**와 승인 질문 | 0 |
+| ④ | `$RUN deploy --run latest` | fetch → 로컬 HEAD = stamp · origin/main = stamp · origin/main..HEAD 파일 ⊆ 승인된 코드 파일 · 회차 파일·원본 CSV md5 = stamp · 깨끗 · ③ 멈춤 없음 · 가장 최근 회차. 기본은 dry-run("커밋될 파일" 줄까지) | 0 |
+| ⑤ | `… deploy --run latest --confirm <코드>` | 같은 프로세스에서 ④를 다시 돈 뒤, 코드 = 그 폴더 report md5일 때만 report → index.html → `git add index.html` → 스테이징 = index.html 하나 → 커밋(noreply 작성자, "리포트 갱신 (날짜, CSV ~MM-DD)") → push 직전 범위 검사 → `git push origin HEAD:refs/heads/main` **1회**(force·재시도 없음) | 원격 1 push |
+| ⑥ | `$RUN live --run latest` | `ls-remote` = 배포 커밋 → 그 sha의 `pages build and deployment` 성공(인증 없이, 상한 3분) → 공개판 md5 = report(상한 push 뒤 12분). exit 0 / 3(Pages 성공·CDN 미확인) / 1 | 회차 폴더 live.json |
+| ⑦ | `$RUN record --run latest` | `runs\log.md` 한 줄. "배포 완료"는 live exit 0이고 공개판 md5 = report일 때만 | 로컬 1줄 |
 
 같은 CSV를 다시 돌리면 report가 공개판과 바이트까지 같아 "커밋될 파일 없음(같은 판)"이다(PC 빌드 = 웹 빌드 — 2026-10-12 실측).
 
@@ -143,7 +150,9 @@ cmd 창**에서 `cmdkey /generic:household/naver-imap /user:<네이버 아이디
 - 카카오뱅크 첨부(agile · SHA1 · 128비트)는 맞는 암호에도 msoffcrypto의 암호 검증(verifier)·무결성(HMAC)이 실패한다. 그래서 `decrypt_xlsx`는 검증 없이 풀고,
   틀린 암호는 msoffcrypto `decrypt()`가 '풀린 결과가 zip 아님'으로 `InvalidKeyError`를 내 막는다(실측).
 - 사용자는 앱에서 기간을 **`--run` 시작 때 찍히는 `[카카오뱅크]` 줄(또는 dry-run 표)의 버튼**(1개월·3개월·12개월 중 권장 시작을 덮는 가장 짧은 것 —
-  셋 다 못 덮으면 직접 입력) 그대로 골라 '받기'만 누른다. 예금이자 같은 0원 행은 `계좌.toml` 카카오뱅크 `exclude_rows`가 빼고(scan 보고 '뺀 행' 열),
+  셋 다 못 덮으면 직접 입력) 그대로 골라 '받기'만 누른다. 카뱅 겹침은 `[kakao] overlap_days`(운영 14일 · 웹 3곳은 `[period]` 30일) — 1개월 버튼이
+  권장 시작을 덮지 못하면(지난 받기가 약 16일 넘게 전) `[카카오뱅크]` 줄(또는 dry-run 표)이 3개월을 찍는다(30일 겹침이면 지난 받기가 이틀만 지나도
+  1개월 버튼이 권장 시작을 덮지 못한다 — 2026-11-03 운영에서 하루 모자라 검사 4에서 떨어짐). 예금이자 같은 0원 행은 `계좌.toml` 카카오뱅크 `exclude_rows`가 빼고(scan 보고 '뺀 행' 열),
   카뱅이 '받지 못함'이고 사유가 '메일 없음'·'IMAP 연결 끊김'이면(메일이 늦게 옴) 손 하향 길 전에 `$FETCH --run --no-web`(메일만 다시 수거 · 웹 3곳은 열지 않음 ·
   새 폴더 규칙 같음)를 먼저 한다 — 그래도 안 되면 위 '받지 못한 출처'대로 손으로 `_v.xlsx`만 넣는다.
 - 메일 수거는 시도(기본 4번 · 60초 간격)마다 **새로 접속**한다(2026-10-30 운영 실측 — 첫 조회 0통 뒤 60초 대기 중 서버가 연결을 끊어 둘째 조회가 abort →
@@ -157,7 +166,7 @@ cmd 창**에서 `cmdkey /generic:household/naver-imap /user:<네이버 아이디
 
 | 단계 | 명령 | 하는 일 · 멈추는 곳 | 쓰기 |
 |---|---|---|---|
-| ① 받기 | `$FETCH` → `$FETCH --run` | 받는 기간 = 출처마다 `max(계좌.toml start_date, 지난 받은 끝 − 30일) ~ 오늘`(원장 period + inbox 파일 읽기만 · 현대카드 90일·신한카드 1년 상한에서 자르면 경고) → 사이트마다 사용자 로그인 → 허용 클릭·기간 칸만(금지 문구·요소 ≠ 1이면 누르지 않음) → 조회 직전·직후 '전체' 선택·요청 필터 값 대조 → 화면 '총 N건' = 조회 응답 건수 = 파일 행 = 파일 안 건수 → 출처 서명·식별 값·기간 검사(`계좌.toml` 재사용) → 카뱅 메일 수거(TLS 검증·읽기 전용) → 복호화 → 검사 → 통과분만 새 폴더(폴더째 이동 · 대상 있으면 실패). 한 출처 실패는 그 출처만(종료 2) | 회차 폴더 · inbox 새 폴더 1개 |
+| ① 받기 | `$FETCH` → `$FETCH --run` | 받는 기간 = 출처마다 `max(계좌.toml start_date, 지난 받은 끝 − 30일) ~ 오늘`(카카오뱅크는 `[kakao] overlap_days` — 운영 14일 · 원장 period + inbox 파일 읽기만 · 현대카드 90일·신한카드 1년 상한에서 자르면 경고) → 사이트마다 사용자 로그인 → 허용 클릭·기간 칸만(금지 문구·요소 ≠ 1이면 누르지 않음) → 조회 직전·직후 '전체' 선택·요청 필터 값 대조 → 화면 '총 N건' = 조회 응답 건수 = 파일 행 = 파일 안 건수 → 출처 서명·식별 값·기간 검사(`계좌.toml` 재사용) → 카뱅 메일 수거(TLS 검증·읽기 전용) → 복호화 → 검사 → 통과분만 새 폴더(폴더째 이동 · 대상 있으면 실패). 한 출처 실패는 그 출처만(종료 2) | 회차 폴더 · inbox 새 폴더 1개 |
 | ② scan | `$IMP scan` | `uploads\내역\` 모든 폴더를 매번 다시 읽는다 → 출처 서명(열 이름·값 꼴·역할·식별 값 넷 다) → 시작일(`계좌.toml` start_date) 전 거래 버림 → 카드대금·이체·취소·할부·수입 판정 → 손 행과 짝 → 분류 규칙 → 잔액 대조 → 회차 폴더에 `제안.csv`·`확인필요.xlsx`·`보고.md`·새 CSV 초안·`stamp.json`. 전후 md5로 쓰기 0을 확인한다 | 회차 폴더만 |
 | ③ 답 | `확인필요.xlsx`의 노란 칸(처리·분류…)을 채우거나, 대화 답을 `$IMP answer --run <회차> --item <번호> --set 처리=추가 --set 대분류=…` | 지난 회차 답은 거래키로 이어받는다. 엑셀이 열려 있으면 answer는 멈춘다. 규칙 칸(`추가`·`할부` 답): **저장** = 다음부터 같은 가맹점 자동 · **매번** = 다음에도 묻되 이 답을 제안 칸에 채움('매번' 가맹점의 기본 — 답이 지난번과 다를 때만 규칙 한 줄) · **이번만** = 규칙 0. 그 밖의 값은 answer가 멈추고 apply는 '답 오류'로 막힌다 | 회차 폴더만 |
 | ④ apply | `$IMP apply --run <회차>` (dry-run) → 사용자 확인 → `… --confirm` | 같은 프로세스에서 ②를 다시 계산해 입력 md5가 scan 때와 같을 때만. 배타 열기 → 백업 복사(md5) → 새 CSV 임시 → 쓰기 전 검사 → `uploads\가계부_<회차>.csv` → 옛 CSV를 `uploads\backup\<회차>\`로 → 분류규칙.csv → 원장 → `runs\log.md` 한 줄 | uploads · rules · log |

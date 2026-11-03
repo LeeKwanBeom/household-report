@@ -25,7 +25,7 @@ IMP="$PY /d/household/household-report/scripts/pc_import.py"
 FETCH="$PY /d/household/household-report/scripts/pc_fetch.py"
 ```
 
-**리허설** — 사용자가 첫 말에 "리허설"과 개발 clone 경로를 줄 때만: `RUN="$PY <개발 clone>/scripts/pc_run.py --rehearsal"`(경로는 `/d/...` 꼴). 출력 첫 줄이 `[리허설]`이어야 한다. 리허설은 ④ dry-run까지다: 승인 질문은 보이기만 하고, `deploy`를 `--confirm` 없이 돌린 뒤 끝낸다. 운영 회차에서는 쓰지 않는다.
+**리허설** — 사용자가 첫 말에 "리허설"과 개발 clone 경로를 줄 때만: `RUN="$PY <개발 clone>/scripts/pc_run.py --rehearsal"`(경로는 `/d/...` 꼴). 출력 첫 줄이 `[리허설]`이어야 한다. 리허설은 ④ dry-run까지다: 승인 질문은 보이기만 하고, `deploy`를 `--confirm` 없이(`$RUN deploy --run latest`) 돌린 뒤 끝낸다. 운영 회차에서는 쓰지 않는다.
 
 ## 0. 처음 한 번 — 운영 clone에 `scripts/pc_run.py`가 없을 때(병합 직후)
 
@@ -64,7 +64,9 @@ status 줄이 하나도 없고 숫자가 `0 N`(N ≥ 1)이면 `git merge --ff-on
    - **카카오뱅크는 메일 자동 수거**(2026-10-28 다시 켬 — dry-run 표의 카뱅 줄 '메일 IMAP'). `--run`을 띄울 때 함께 안내한다:
      카카오뱅크 앱 → 거래내역 다운로드 → 기간은 **`--run` 시작 때 찍히는 `[카카오뱅크]` 줄(또는 dry-run 표)의 버튼**(1개월·3개월·12개월 중
      권장 시작을 덮는 가장 짧은 것 — 셋 다 못 덮으면 직접 입력) 그대로 → 이메일 → 받기. 사용자는 엑셀에서 풀지 않는다 — `--run`이 끝에 네이버 메일에서 가져와 푼다
-     (`--run` 시작 10분 전 이후에 온 메일만). 카뱅이 '받지 못함'이고 사유가 '메일 없음'·'IMAP 연결 끊김'이면(메일이 늦게 옴) 손 하향 길을 안내하기 전에
+     (`--run` 시작 10분 전 이후에 온 메일만). 카뱅 겹침은 `[kakao] overlap_days`(운영 14일 · 웹 3곳은 `[period]` 30일) — 1개월 버튼이
+     권장 시작을 덮지 못하면(지난 받기가 약 16일 넘게 전) `[카카오뱅크]` 줄(또는 dry-run 표)이 3개월을 찍는다.
+     카뱅이 '받지 못함'이고 사유가 '메일 없음'·'IMAP 연결 끊김'이면(메일이 늦게 옴) 손 하향 길을 안내하기 전에
      `$FETCH --run --no-web`(메일만 다시 수거 · 로그인 없음 · 새 폴더 규칙 같음)을 한 번 돌린다. 그래도 받지 못하면 손 하향 길(메일 첨부를 엑셀에서 암호로 열어
      암호 없이 `…_v.xlsx`로 저장).
      dry-run 표에 카뱅 줄이 없으면 `[mail]`이 꺼진 것이다 — 그때는 처음부터 손 하향 길로 안내한다.
@@ -84,24 +86,32 @@ status 줄이 하나도 없고 숫자가 `0 N`(N ≥ 1)이면 `git merge --ff-on
 4. 사용자가 적용하라고 하면 `$IMP apply --run <회차> [같은 --skip·--ack-*] --confirm` → 아래 흐름 1(S0)부터.
    CSV를 고치고 싶다고 하면 scan부터 다시(새 회차).
 
-## 흐름
+## 흐름 — Bash 두 번
 
-1. **S0** `$RUN check` — `[FAIL]`이 있으면 멈추고 그 줄을 보인다. "뒤에만 있다"면 `$RUN sync` 뒤 다시 check. `[주의]`는 알리고 계속한다.
-2. **① CSV** — `D:\household\uploads\`의 CSV. 하나면 그것, 여럿이면 이름·수정 시각을 보이고 묻는다.
-3. **② build** `$RUN build --csv /d/household/uploads/<파일>` — 마지막에 찍히는 회차 이름을 쓴다. `[FAIL]`이면 멈춘다.
-4. **③ review** `$RUN review --run <회차>`
+`--run latest` = 회차 폴더(`work\` · 리허설은 `work-rehearsal\`) 중 가장 최근 회차 — deploy의 '가장 최근 회차만' 판정과 같은 함수다.
+출력 앞줄에 `[정보] --run latest = <회차>`가 찍힌다(그 회차에 stamp.json이 없거나 회차가 없으면 `[FAIL]`). `--run <회차 이름>`도 그대로 받는다.
+
+**Bash ① = 흐름 1~4.** 먼저 ① CSV를 정한 뒤 한 번에 `$RUN check && $RUN build --csv /d/household/uploads/<파일> && $RUN review --run latest`.
+
+1. **S0** check — `[FAIL]`이 있으면(&&가 멈춘다) 그 줄을 보이고 멈춘다. "뒤에만 있다"면 `$RUN sync` 뒤 Bash ①을 다시. `[주의]`는 알리고 계속한다.
+2. **① CSV** — `D:\household\uploads\`의 CSV. 하나면 그것, 여럿이면 이름·수정 시각을 보이고 묻는다(Bash ① 전에).
+3. **② build** — `[FAIL]`이면 멈춘다(&&라 review는 돌지 않는다).
+4. **③ review** — 출력 앞줄의 `--run latest`가 방금 build가 찍은 회차인지 본다.
    - `[경고]` 전부 · 종료 추정 · 이체 · 커플통장 정산 줄(받을 금액 · 이체 행 예시 — 찍힌 그대로) · 기준판 대비 변동을 대화로 전한다.
    - exit 2 `[멈춤]`: 질문을 그대로 묻고 답을 기다린다.
-     - 이체 질문에 "그대로 진행" → `$RUN review --run <회차> --ack-transfer`
+     - 이체 질문에 "그대로 진행" → `$RUN review --run latest --ack-transfer`
      - CSV를 고친다·새 CSV → 사용자가 uploads에 둔 뒤 ①부터(새 회차 · 새 승인 코드)
      - 종료 항목·시작 잔고 같은 코드 수정 → 코드 회차(`pc/code-tab.md`) — 사용자와 따로 정한다
    - exit 0: "승인 질문" 블록을 그대로 보이고 답을 기다린다.
-5. **④⑤ deploy** — 답이 정확히 "배포 <승인 코드>"일 때만:
-   `$RUN deploy --run <회차> --confirm <승인 코드>` (review에 `--ack-transfer`를 붙였으면 여기도 붙인다).
-   `[FAIL]`이면 멈추고 보인다 — 다시 시도·push하지 않는다. 답이 다르면 배포하지 않는다.
-6. **⑥ live** `$RUN live --run <회차>` — Bash `run_in_background`로 돌리고 끝나기를 기다린다(push 뒤 최대 약 12분).
-   exit 0 반영 확인 · 3 Pages 성공·CDN 반영 미확인 · 1 실패.
-7. **⑦ record** `$RUN record --run <회차>` → 결과 한 줄과 https://leekwanbeom.github.io/household-report/ 를 보고한다.
+
+**Bash ② = 흐름 5~7.** 답이 정확히 "배포 <승인 코드>"일 때만, Bash `run_in_background`로 한 번에 돌리고 끝나기를 기다린다(live가 push 뒤 최대 약 12분):
+`$RUN deploy --run latest --confirm <승인 코드> [--ack-transfer] && { $RUN live --run latest; $RUN record --run latest; }`
+(`[--ack-transfer]`는 review에 `--ack-transfer`를 붙였을 때만 붙인다.)
+
+5. **④⑤ deploy** — `[FAIL]`이면 멈추고 보인다 — 다시 시도·push하지 않는다. 답이 다르면 배포하지 않는다.
+   (&&라 deploy가 `[FAIL]`이면 live·record는 돌지 않는다.)
+6. **⑥ live** — exit 0 반영 확인 · 3 Pages 성공·CDN 반영 미확인 · 1 실패. 어느 쪽이든 record가 이어서 돈다.
+7. **⑦ record** → 결과 한 줄과 https://leekwanbeom.github.io/household-report/ 를 보고한다.
    "배포 완료"는 record가 그렇게 찍었을 때만 쓴다.
 
 ## 막히면

@@ -13,7 +13,8 @@
     $PY scripts/pc_run.py live   --run <회차>                 ⑥ 다시 읽어 확인 (exit 0 일치 · 1 실패 · 3 CDN 미확인)
     $PY scripts/pc_run.py record --run <회차>                 ⑦ runs/log.md 한 줄
 
-    <회차>는 회차 폴더 이름(예: 20261012-161500)이나 경로.
+    <회차>는 회차 폴더 이름(예: 20261012-161500)이나 경로, 또는 latest(가장 최근 회차 — stamp.json이 없으면 FAIL ·
+    고른 이름을 [정보] --run latest = <회차>로 찍는다 · deploy의 '가장 최근 회차만' 판정과 같은 함수).
     --rehearsal : 리허설 모드. 개발 clone(기능 브랜치)으로 돌린다. 회차 폴더는 work-rehearsal/에 만들고
                   deploy --confirm · sync · record는 막는다. 첫 줄에 [리허설]이 찍힌다. 운영 회차에서는 쓰지 않는다.
     --home DIR  : 작업 루트 (기본: clone의 부모 폴더 = D:\\household)
@@ -76,6 +77,7 @@ ACTIONS_DEADLINE = 180   # push 뒤 Pages 빌드 성공을 기다리는 상한(�
 PUBLIC_DEADLINE = 720    # push 뒤 공개판 md5 일치를 기다리는 상한(초) = 빌드 + CDN max-age 600
 POLL_SECONDS = 20
 RUN_NAME = re.compile(r"^(\d{8}-\d{6})(?:-(\d+))?$")
+LATEST = "latest"        # --run latest = 가장 최근 회차(latest_run — deploy의 '가장 최근 회차만'과 같은 판정)
 KST = timezone(timedelta(hours=9))
 
 
@@ -650,6 +652,13 @@ def run_dirs(ctx):
     return sorted(names, key=run_key)
 
 
+def latest_run(ctx):
+    """가장 최근 회차 이름(회차 이름 순 맨 끝 · 없으면 None). load_run의 '가장 최근 회차만' 판정과 --run latest가
+    이 한 함수를 같이 쓴다(두 판정이 어긋나지 않게). stamp.json이 없는 회차(build가 끝나지 않음)면 load_run이 FAIL."""
+    runs = run_dirs(ctx)
+    return runs[-1] if runs else None
+
+
 def resolve_run(ctx, arg):
     if os.sep not in arg and "/" not in arg:
         return os.path.join(ctx.work_root, arg)
@@ -1134,6 +1143,12 @@ def cmd_build(ctx, args):
 # ------------------------------------------------------------
 
 def load_run(ctx, arg, out):
+    if arg == LATEST:
+        arg = latest_run(ctx)
+        if arg is None:
+            out.fail(f"--run latest: {p(ctx.work_root)}에 회차 폴더가 없다 — build부터")
+            return None, None
+        out.info(f"--run latest = {arg}")
     run = resolve_run(ctx, arg)
     rid = os.path.basename(run)
     if not same_path(os.path.dirname(run), ctx.work_root) or not run_key(rid):
@@ -1153,9 +1168,9 @@ def load_run(ctx, arg, out):
     if not same_path(stamp.get("repo", ""), ctx.repo):
         out.fail(f"이 회차는 다른 clone({stamp.get('repo')})에서 만들었다")
         return None, None
-    runs = run_dirs(ctx)
-    if not runs or runs[-1] != rid:
-        out.fail(f"가장 최근 회차가 아니다(최근: {runs[-1] if runs else '-'}) — 가장 최근 회차만 확인·배포한다")
+    last = latest_run(ctx)
+    if last != rid:
+        out.fail(f"가장 최근 회차가 아니다(최근: {last or '-'}) — 가장 최근 회차만 확인·배포한다")
         return None, None
     return run, stamp
 
@@ -1733,14 +1748,14 @@ def parse_args(argv):
     b.add_argument("--csv", required=True)
     for name in ("review", "deploy"):
         s = sub.add_parser(name)
-        s.add_argument("--run", required=True)
+        s.add_argument("--run", required=True, help="회차 폴더 이름·경로 또는 latest(가장 최근 회차)")
         s.add_argument("--ack-transfer", action="store_true",
                        help="최신 달 이체 누락 질문에 사용자가 '그대로 진행'이라고 답했을 때")
         if name == "deploy":
             s.add_argument("--confirm", metavar="승인코드")
     for name in ("live", "record"):
         s = sub.add_parser(name)
-        s.add_argument("--run", required=True)
+        s.add_argument("--run", required=True, help="회차 폴더 이름·경로 또는 latest(가장 최근 회차)")
     return ap.parse_args(argv)
 
 
